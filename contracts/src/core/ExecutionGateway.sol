@@ -48,6 +48,8 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
     error UnauthorisedCaller(address caller, address owner);
     error InvalidSignature();
     error AdapterNotAllowed(address adapter);
+    error PolicyContractMismatch(address expected, address actual);
+    error ConfigEpochMismatch(uint64 expected, uint64 actual);
     error PolicyIdMismatch(bytes32 expected, bytes32 actual);
     error PolicyVersionMismatch(uint64 expected, uint64 actual);
     error OutputBelowFloor(uint256 received, uint256 required);
@@ -81,8 +83,8 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
         IExecutionPolicy.ReferenceEvidence evidence
     );
 
-    event AdapterConfigured(address indexed adapter, bool allowed);
-    event PolicyConfigured(address indexed policy);
+    event AdapterConfigured(address indexed adapter, bool allowed, uint64 configEpoch);
+    event PolicyConfigured(address indexed policy, uint64 configEpoch);
 
     // -----------------------------------------------------------------------
     // Intent
@@ -93,6 +95,13 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
     ///      carried explicitly as well as being in the domain separator, so a replay
     ///      onto a different chain or a redeployed gateway fails a plain equality
     ///      check even before signature recovery.
+    ///
+    ///      `policy` and `configEpoch` exist because `policyId` + `policyVersion`
+    ///      are NOT sufficient. Both are values the policy contract reports about
+    ///      itself, so a replacement contract can present the same pair while
+    ///      enforcing looser rules; an intent signed under the old policy would then
+    ///      still authorise. Binding the policy's *address* and a gateway-owned
+    ///      epoch closes that. See `test/unit/ReviewRegressions.t.sol`.
     struct ExecutionIntent {
         uint256 chainId;
         address gateway;
@@ -104,14 +113,16 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
         uint256 userMinOut;
         address adapter;
         bytes32 routeHash;
+        address policy; // exact policy contract the signer agreed to
         bytes32 policyId;
         uint64 policyVersion;
+        uint64 configEpoch; // gateway configuration generation
         uint256 nonce;
         uint256 deadline;
     }
 
     bytes32 public constant EXECUTION_INTENT_TYPEHASH = keccak256(
-        "ExecutionIntent(uint256 chainId,address gateway,address owner,address recipient,address tokenIn,address tokenOut,uint256 amountIn,uint256 userMinOut,address adapter,bytes32 routeHash,bytes32 policyId,uint64 policyVersion,uint256 nonce,uint256 deadline)"
+        "ExecutionIntent(uint256 chainId,address gateway,address owner,address recipient,address tokenIn,address tokenOut,uint256 amountIn,uint256 userMinOut,address adapter,bytes32 routeHash,address policy,bytes32 policyId,uint64 policyVersion,uint64 configEpoch,uint256 nonce,uint256 deadline)"
     );
 
     // -----------------------------------------------------------------------
@@ -121,6 +132,14 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
     IExecutionPolicy public policy;
     mapping(address => bool) public allowedAdapters;
     mapping(address => mapping(uint256 => bool)) public nonceUsed;
+
+    /// @notice Monotonic generation counter for gateway-level configuration.
+    /// @dev Incremented on any change that could alter what a previously signed
+    ///      intent means: swapping the policy contract, or enabling/disabling an
+    ///      adapter. In-flight intents signed against an older epoch stop being
+    ///      valid, which is the intended behaviour - an operator must not be able
+    ///      to silently loosen terms a user already signed.
+    uint64 public configEpoch;
 
     /// @dev Scratch space for one settlement. Held in memory, never storage.
     struct Measurement {
@@ -145,20 +164,22 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
     function setPolicy(IExecutionPolicy policy_) external onlyOwner {
         if (address(policy_) == address(0)) revert ZeroAddress();
         policy = policy_;
-        emit PolicyConfigured(address(policy_));
+        uint64 epoch = ++configEpoch;
+        emit PolicyConfigured(address(policy_), epoch);
     }
 
     function setAdapter(address adapter, bool allowed) external onlyOwner {
         if (adapter == address(0)) revert ZeroAddress();
         allowedAdapters[adapter] = allowed;
-        emit AdapterConfigured(adapter, allowed);
+        uint64 epoch = ++configEpoch;
+        emit AdapterConfigured(adapter, allowed, epoch);
     }
 
     // -----------------------------------------------------------------------
     // Views
     // -----------------------------------------------------------------------
 
-    function hashIntent(ExecutionIntent calldata intent) public view returns (bytes32) {
+    function hashIntent(ExecutionIntent memory intent) public view returns (bytes32) {
         return _hashTypedDataV4(_structHash(intent));
     }
 
@@ -243,6 +264,13 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
         if (intent.tokenIn == intent.tokenOut) revert SameToken(intent.tokenIn);
 
         IExecutionPolicy p = policy;
+        // Bind the exact policy CONTRACT, not just the identity it claims. A
+        // replacement contract can report the same policyId/policyVersion while
+        // enforcing a looser floor; without this check an intent signed under the
+        // previous policy would still authorise against the new one.
+        if (intent.policy != address(p)) revert PolicyContractMismatch(intent.policy, address(p));
+        if (intent.configEpoch != configEpoch) revert ConfigEpochMismatch(intent.configEpoch, configEpoch);
+
         bytes32 pid = p.policyId();
         if (intent.policyId != pid) revert PolicyIdMismatch(intent.policyId, pid);
         uint64 pv = p.policyVersion();
@@ -328,7 +356,7 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
         }
     }
 
-    function _structHash(ExecutionIntent calldata intent) internal pure returns (bytes32) {
+    function _structHash(ExecutionIntent memory intent) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(
                 EXECUTION_INTENT_TYPEHASH,
@@ -342,8 +370,10 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
                 intent.userMinOut,
                 intent.adapter,
                 intent.routeHash,
+                intent.policy,
                 intent.policyId,
                 intent.policyVersion,
+                intent.configEpoch,
                 intent.nonce,
                 intent.deadline
             )

@@ -1,7 +1,7 @@
 No files changed, compilation skipped
 
 Ran 1 test for test/spike/BaselineComparison.t.sol:BaselineComparisonTest
-[PASS] test_Phase0_FourPathComparison() (gas: 2914813)
+[PASS] test_Phase0_FourPathComparison() (gas: 2949759)
 Logs:
   --- inputs ---------------------------------------------
   trade size (18dp stock)     : 10000000000000000000
@@ -15,7 +15,7 @@ Logs:
   D  honest-hook control       SETTLED 2541716477
 
 Traces:
-  [3056913] BaselineComparisonTest::test_Phase0_FourPathComparison()
+  [3091859] BaselineComparisonTest::test_Phase0_FourPathComparison()
     ├─ [51053] MockStockToken::mint(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 100000000000000000000 [1e20])
     │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 100000000000000000000 [1e20])
     │   └─ ← [Stop]
@@ -72,12 +72,14 @@ Traces:
     │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   └─ ← [Return] 8
     │   └─ ← [Return] 2550000000 [2.55e9]
-    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    ├─ [63698] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
     │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
     │   │   └─ ← [Return] false
+    │   ├─ [2542] MockStockToken::effectiveAt() [staticcall]
+    │   │   └─ ← [Return] 0
     │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
-    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [2760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
     │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
@@ -87,7 +89,7 @@ Traces:
     │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
     │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   └─ ← [Return] 8
-    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
     ├─ [0] console::log("--- inputs ---------------------------------------------") [staticcall]
@@ -255,12 +257,14 @@ Traces:
     ├─ [46269] MockStockToken::approve(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
     │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
     │   └─ ← [Return] true
-    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    ├─ [63698] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
     │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
     │   │   └─ ← [Return] false
+    │   ├─ [2542] MockStockToken::effectiveAt() [staticcall]
+    │   │   └─ ← [Return] 0
     │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
-    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [2760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
     │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
@@ -270,24 +274,28 @@ Traces:
     │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
     │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   └─ ← [Return] 8
-    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
     ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
     │   └─ ← [Return] 3
+    ├─ [2343] ExecutionGateway::configEpoch() [staticcall]
+    │   └─ ← [Return] 1
     ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
     │   └─ ← [Return]
-    ├─ [467044] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0x38bb1b120f0764fc3c2f895047324df43182422c846ce871594aa0b4e4b16160, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true)
+    ├─ [474104] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0x38bb1b120f0764fc3c2f895047324df43182422c846ce871594aa0b4e4b16160, policy: 0x3Ede3eCa2a72B3aeCC820E955B36f38437D01395, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, configEpoch: 1, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true)
     │   ├─ [497] StockTokenReferencePolicy::policyId() [staticcall]
     │   │   └─ ← [Return] 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c
     │   ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
     │   │   └─ ← [Return] 3
-    │   ├─ [58398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   ├─ [61698] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
     │   │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
     │   │   │   └─ ← [Return] false
+    │   │   ├─ [2542] MockStockToken::effectiveAt() [staticcall]
+    │   │   │   └─ ← [Return] 0
     │   │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
-    │   │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   ├─ [2760] MockStockToken::uiMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
     │   │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
@@ -297,7 +305,7 @@ Traces:
     │   │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
     │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   │   └─ ← [Return] 8
-    │   │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
     │   ├─ [2537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
@@ -358,11 +366,11 @@ Traces:
     │   │   └─ ← [Return] 2511215880 [2.511e9]
     │   ├─ [625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
     │   │   └─ ← [Return] 90000000000000000000 [9e19]
-    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   ├─ [510] MockStockToken::oraclePaused() [staticcall]
     │   │   └─ ← [Return] false
-    │   ├─ emit SettlementExecuted(intentHash: 0x14d9786b877327998baf528e6902cfd693e1d6f78aaa6d8370db32f308964cb3, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2511215880 [2.511e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
+    │   ├─ emit SettlementExecuted(intentHash: 0x6ce559a2a9a9cf4983c8edf4730c67c16ab9bb79f528a4da835563e897561cd1, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2511215880 [2.511e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
     │   └─ ← [Revert] OutputBelowFloor(2511215880 [2.511e9], 2537250000 [2.537e9])
     ├─ [0] VM::snapshotState()
     │   └─ ← [Return] 5
@@ -423,12 +431,14 @@ Traces:
     ├─ [46269] MockStockToken::approve(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
     │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
     │   └─ ← [Return] true
-    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    ├─ [63698] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
     │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
     │   │   └─ ← [Return] false
+    │   ├─ [2542] MockStockToken::effectiveAt() [staticcall]
+    │   │   └─ ← [Return] 0
     │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
-    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [2760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
     │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
@@ -438,24 +448,28 @@ Traces:
     │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
     │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   └─ ← [Return] 8
-    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
     ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
     │   └─ ← [Return] 3
+    ├─ [2343] ExecutionGateway::configEpoch() [staticcall]
+    │   └─ ← [Return] 1
     ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
     │   └─ ← [Return]
-    ├─ [398425] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0xa8e0286125b981922a7e6e31cb60e92fbed6f1c2a6cc1ac4e173567a0d337f42, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), true)
+    ├─ [405485] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0xa8e0286125b981922a7e6e31cb60e92fbed6f1c2a6cc1ac4e173567a0d337f42, policy: 0x3Ede3eCa2a72B3aeCC820E955B36f38437D01395, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, configEpoch: 1, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), true)
     │   ├─ [497] StockTokenReferencePolicy::policyId() [staticcall]
     │   │   └─ ← [Return] 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c
     │   ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
     │   │   └─ ← [Return] 3
-    │   ├─ [58398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   ├─ [61698] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
     │   │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
     │   │   │   └─ ← [Return] false
+    │   │   ├─ [2542] MockStockToken::effectiveAt() [staticcall]
+    │   │   │   └─ ← [Return] 0
     │   │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
-    │   │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   ├─ [2760] MockStockToken::uiMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
     │   │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
@@ -465,7 +479,7 @@ Traces:
     │   │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
     │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
     │   │   │   └─ ← [Return] 8
-    │   │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
     │   ├─ [2537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
@@ -521,11 +535,11 @@ Traces:
     │   │   └─ ← [Return] 2541716477 [2.541e9]
     │   ├─ [625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
     │   │   └─ ← [Return] 90000000000000000000 [9e19]
-    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   ├─ [760] MockStockToken::uiMultiplier() [staticcall]
     │   │   └─ ← [Return] 1000566080061092436 [1e18]
     │   ├─ [510] MockStockToken::oraclePaused() [staticcall]
     │   │   └─ ← [Return] false
-    │   ├─ emit SettlementExecuted(intentHash: 0xdae1657bf75d37dd69282a4781c40b83df6768ad58d515e2fa879bf1f88192e0, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2541716477 [2.541e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
+    │   ├─ emit SettlementExecuted(intentHash: 0x2531351fc5e177d50865f7bb6c2409bed0c47d2a5434e918fdea7d10fa71a7d6, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2541716477 [2.541e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
     │   └─ ← [Return] 2541716477 [2.541e9]
     ├─ [0] VM::revertToState(6)
     │   └─ ← [Return] true
@@ -567,6 +581,6 @@ Traces:
     │   └─ ← [Return]
     └─ ← [Return]
 
-Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 26.18ms (17.05ms CPU time)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 12.84ms (9.08ms CPU time)
 
-Ran 1 test suite in 38.46ms (26.18ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
+Ran 1 test suite in 17.42ms (12.84ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

@@ -3,7 +3,13 @@
 **Repository:** `C:\Users\Mega-PC\Desktop\singapore_hack`
 **Remote:** <https://github.com/Moo7x/HookFence.git> (commits local; not yet pushed)
 **Date:** 2026-09-20
-**Commits:** `e183ba7` (harness + A/B/C/D), `6ffd0f0` (policy-beyond-floor + conclusion)
+**Commits:** `e183ba7` (harness + A/B/C/D), `6ffd0f0` (policy-beyond-floor + conclusion),
+`976ec9a` (freeze)
+
+> **Superseded in part.** An independent review of `976ec9a` reproduced two real
+> defects, both now fixed on branch `fix/phase0-review-defects`. See
+> `docs/REVIEW_REPAIRS.md`. The A/B/C/D result below is unchanged by those
+> repairs; the gas overhead moved from +104,377 to +111,527.
 
 This document answers the specific questions asked in review. Companion analysis
 is in `BASELINE_RESULTS.md`; this file is the raw evidence and provenance.
@@ -70,9 +76,13 @@ USDG/USD `0x61B7e5650328764B076A108EFF5fa7282a1B9aD2`.
 
 **Negative findings (verified, and they constrain the plan):**
 
-- Robinhood Chain **testnet (46630) has no USDG, no Stock Tokens and no Uniswap
-  v4**. `eth_getCode` at the mainnet addresses returns empty on testnet. Permit2
-  and L2 WETH *are* present.
+- On Robinhood Chain **testnet (46630)**, `eth_getCode` at the *mainnet* USDG,
+  Stock Token and Uniswap v4 addresses returns empty, while Permit2 and L2 WETH
+  *are* present at their documented testnet addresses. **Stated precisely:** this
+  proves those specific addresses are empty on testnet, not that the network has
+  no such deployments anywhere — testnet deployments may live at different
+  addresses. An earlier version overstated this. Verifying testnet registries and
+  documentation is still outstanding.
 - **No Chainlink L2 Sequencer Uptime Feed is published for Robinhood Chain.**
   Zero matches for `sequencer|uptime` in the feed directory. The policy's
   sequencer check is therefore optional and disabled by default rather than
@@ -262,16 +272,31 @@ Every equity feed exceeds its published 24 h heartbeat; both crypto feeds are
 within it. This is consistent with Robinhood's documentation that "Stock feeds
 update 24/5, following market hours."
 
-### 9.1 This is a defect in HookFence as currently written
+### 9.1 What this does and does not imply — CORRECTED
 
-The fixture and the deployment plan use `maxStaleness = 86400` (the published
-heartbeat). Against live data, **that configuration would reject every Stock
-Token settlement from roughly Saturday afternoon until Monday's open** — about
-2.5 days a week, plus every market holiday.
+An earlier version of this section called this "a defect in HookFence" and claimed
+the gateway "would refuse ~2.5 days a week / ~35% of the week". **Both statements
+are withdrawn.**
 
-That is not a tuning detail. A gateway that refuses ~35% of the week is not
-shippable as designed, and the same applies to any competitor enforcing naive
-oracle staleness on these feeds.
+- **Rejecting a stale price is correct behaviour** for a policy that requires a
+  fresh reference. It is a service-*availability* constraint, not broken code. It
+  becomes a product defect only if the product promises execution during that
+  window. Raising the staleness threshold would not manufacture a fresh price.
+- **The 2.5-days / 35% figure is unsupported.** A single Sunday observation cannot
+  measure recurring weekly downtime, and a feed's *age at observation* is not the
+  *duration* for which its age has exceeded the threshold.
+
+What the observation does support, precisely: at one timestamped moment
+(2026-09-20 09:09:51 UTC), all five sampled Stock Token feeds were older than
+their published 86400s heartbeat and both sampled crypto feeds were not. That is
+consistent with the documented 24/5 update schedule. Establishing a recurring
+pattern requires repeated observation; `scripts/observe-live-feeds.sh` produces a
+timestamped record each run and can be run alongside development.
+
+The practical open question is calibration: `maxStaleness` per instrument needs to
+be chosen against measured feed behaviour rather than copied from the published
+heartbeat. That applies equally to any integrator enforcing oracle staleness on
+these feeds.
 
 ### 9.2 What it does *not* establish
 

@@ -1,71 +1,104 @@
 No files changed, compilation skipped
 
-Ran 11 tests for test/spike/PolicyBeyondFloor.t.sol:PolicyBeyondFloorTest
-[PASS] test_Equal_BothAcceptHonestFill() (gas: 596227)
+Ran 2 tests for test/unit/CompilerProbe.t.sol:CompilerProbeTest
+[PASS] test_CachedBlockTimestampDriftsAcrossWarp_KnownTrap() (gas: 8119)
 Logs:
-  scenario: honest fill | B=SETTLED C=SETTLED
+  expected 1000601, actually got: 1001201
 
-[PASS] test_Equal_BothRejectBelowFloorFill() (gas: 815352)
-Logs:
-  scenario: below-floor fill | B=REJECTED C=REJECTED
-
-[PASS] test_OnlyC_AdapterMisreportsOutput() (gas: 463161)
-Logs:
-  scenario: adapter misreports output | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_CorporateActionPending() (gas: 500996)
-Logs:
-  scenario: corporate action pending | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_ExpiredIntentRejected() (gas: 169498)
-Logs:
-  scenario: expired intent | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_IntentCannotBeReplayed() (gas: 492028)
-Logs:
-  scenario: intent replay | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_IssuerOraclePaused() (gas: 473534)
-Logs:
-  scenario: issuer oracle paused | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_LookalikeTokenRejected() (gas: 256113)
-Logs:
-  scenario: look-alike token address | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_PolicyVersionMismatchRejected() (gas: 243702)
-Logs:
-  scenario: policy version changed mid-flight | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_ReferencePriceMovedBeforeInclusion() (gas: 826659)
-Logs:
-  floor computed at quote time : 2537250000
-  floor correct at settlement  : 2790975000
-  scenario: reference price moved before inclusion | B=SETTLED C=REJECTED
-
-[PASS] test_OnlyC_StaleFeed() (gas: 363513)
-Logs:
-  scenario: stale feed | B=SETTLED C=REJECTED
-
-Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 21.39ms (43.80ms CPU time)
+[PASS] test_ValueReadBackFromAnExternalCallIsStable() (gas: 129270)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 855.90µs (644.80µs CPU time)
 
 Ran 3 tests for test/spike/Smoke.t.sol:SmokeTest
 [PASS] test_Fixture_HooksShareIdenticalPermissions() (gas: 4867)
-[PASS] test_Fixture_MockMatchesLiveStockTokenSurface() (gas: 29952)
+[PASS] test_Fixture_MockMatchesLiveStockTokenSurface() (gas: 32126)
 [PASS] test_Fixture_PoolsArePricedNearTheReference() (gas: 360499)
 Logs:
   reference USDG for 10 stock tokens (6dp): 2550000000
   honest pool fill (6dp): 2541716477
 
-Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 21.43ms (8.02ms CPU time)
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 7.98ms (641.40µs CPU time)
+
+Ran 6 tests for test/unit/ReviewRegressions.t.sol:ReviewRegressionsTest
+[PASS] test_Regression_AdapterConfigChangeBumpsEpoch() (gas: 277506)
+[PASS] test_Regression_CorporateActionBufferHoldsAcrossTheTransition() (gas: 709529)
+[PASS] test_Regression_MockAdvancesMultiplierAtEffectiveAt() (gas: 105347)
+[PASS] test_Regression_ReplacementPolicyCannotReuseOldSignature() (gas: 419506)
+[PASS] test_Regression_SignatureStillWorksWhenConfigUnchanged() (gas: 586479)
+[PASS] test_Regression_TradingResumesAfterTheBufferElapses() (gas: 757358)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 11.06ms (9.05ms CPU time)
+
+Ran 8 tests for test/unit/MultiplierAndUnits.t.sol:MultiplierAndUnitsTest
+[PASS] testFuzz_FloorIsMaxOfUserMinAndReference(uint256,uint256) (runs: 512, μ: 118294, ~: 118234)
+[PASS] testFuzz_ReferenceValueNeverOverstates(uint256,uint64) (runs: 512, μ: 141047, ~: 141159)
+[PASS] test_KnownValue_TenTokensAt255Dollars() (gas: 50036)
+[PASS] test_MultiplierIsRecordedInEvidenceEvenThoughItIsNotApplied() (gas: 79328)
+[PASS] test_NaiveDoubleApplicationOverstatesTheFloor() (gas: 156302)
+Logs:
+  correct floor input      : 2550000000
+  naive, live multiplier   : 2551443504
+  overstatement (6dp USDG) : 1443504
+
+[PASS] test_ReferenceValueIsIndependentOfTheMultiplier() (gas: 146265)
+[PASS] test_UnusualDecimalCombinationsStillNormalise() (gas: 95722)
+[PASS] test_UsdgDepegRaisesTheTokenAmountOwed() (gas: 96431)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 40.71ms (65.42ms CPU time)
+
+Ran 11 tests for test/spike/PolicyBeyondFloor.t.sol:PolicyBeyondFloorTest
+[PASS] test_Equal_BothAcceptHonestFill() (gas: 608785)
+Logs:
+  scenario: honest fill | B=SETTLED C=SETTLED
+
+[PASS] test_Equal_BothRejectBelowFloorFill() (gas: 828518)
+Logs:
+  scenario: below-floor fill | B=REJECTED C=REJECTED
+
+[PASS] test_OnlyC_AdapterMisreportsOutput() (gas: 480910)
+Logs:
+  scenario: adapter misreports output (B has no adapter interface) | B=N/A C=REJECTED
+
+[PASS] test_OnlyC_CorporateActionPending() (gas: 508948)
+Logs:
+  scenario: corporate action pending | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_ExpiredIntentRejected() (gas: 175116)
+Logs:
+  scenario: expired intent (no baseline-B analogue) | B=N/A C=REJECTED
+
+[PASS] test_OnlyC_IntentCannotBeReplayed() (gas: 504793)
+Logs:
+  scenario: intent replay (no baseline-B analogue) | B=N/A C=REJECTED
+
+[PASS] test_OnlyC_IssuerOraclePaused() (gas: 482287)
+Logs:
+  scenario: issuer oracle paused | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_LookalikeTokenRejected() (gas: 255925)
+Logs:
+  scenario: look-alike token address (no baseline-B analogue) | B=N/A C=REJECTED
+
+[PASS] test_OnlyC_PolicyVersionMismatchRejected() (gas: 251581)
+Logs:
+  scenario: policy version changed mid-flight (no baseline-B analogue) | B=N/A C=REJECTED
+
+[PASS] test_OnlyC_ReferencePriceMovedBeforeInclusion() (gas: 843155)
+Logs:
+  floor computed at quote time : 2537250000
+  floor correct at settlement  : 2790975000
+  scenario: reference price moved before inclusion | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_StaleFeed() (gas: 375410)
+Logs:
+  scenario: stale feed | B=SETTLED C=REJECTED
+
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 41.36ms (15.20ms CPU time)
 
 Ran 4 tests for test/spike/BaselineComparison.t.sol:BaselineComparisonTest
-[PASS] test_Phase0_AdversarialHook_IsDefeatedBy_RealisticQuoteContext() (gas: 711539)
+[PASS] test_Phase0_AdversarialHook_IsDefeatedBy_RealisticQuoteContext() (gas: 714839)
 Logs:
   naive quote (gasprice 0)    : 2541716477
   realistic quote (gasprice>0): 2511215880
 
-[PASS] test_Phase0_FourPathComparison() (gas: 2914813)
+[PASS] test_Phase0_FourPathComparison() (gas: 2949759)
 Logs:
   --- inputs ---------------------------------------------
   trade size (18dp stock)     : 10000000000000000000
@@ -78,13 +111,13 @@ Logs:
   C  HookFence full policy     REVERTED 2511215880
   D  honest-hook control       SETTLED 2541716477
 
-[PASS] test_Phase0_GasOverheadVersusBaseline() (gas: 758254)
+[PASS] test_Phase0_GasOverheadVersusBaseline() (gas: 774070)
 Logs:
   gas: baseline B (router + floor) : 237333
-  gas: HookFence C (full policy)   : 341710
-  gas: overhead                    : 104377
+  gas: HookFence C (full policy)   : 348860
+  gas: overhead                    : 111527
 
-[PASS] test_Phase0_RecordsQuoteAndMinedContexts() (gas: 695444)
+[PASS] test_Phase0_RecordsQuoteAndMinedContexts() (gas: 684298)
 Logs:
   --- recorded execution contexts ------------------------
   quote  tx.gasprice : 0
@@ -93,6 +126,22 @@ Logs:
   mined  extracted   : true
   mined  extracted amt: 30500597
 
-Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 26.97ms (37.26ms CPU time)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 41.98ms (67.46ms CPU time)
 
-Ran 3 test suites in 30.89ms (69.78ms CPU time): 18 tests passed, 0 failed, 0 skipped (18 total tests)
+Ran 8 tests for test/unit/ReferenceVaultIntegration.t.sol:ReferenceVaultIntegrationTest
+[PASS] test_NoResidualAllowanceAfterExit() (gas: 428286)
+[PASS] test_OnlyOwnerCanExit() (gas: 52485)
+[PASS] test_VaultBytecodeContainsNoOracleLogic() (gas: 5332979)
+Logs:
+  vault runtime bytecode size: 3976
+  gateway runtime bytecode size: 8345
+  policy runtime bytecode size: 5850
+
+[PASS] test_VaultExitRollsBackEntirelyOnAdversarialPool() (gas: 584124)
+[PASS] test_VaultExitsThroughTheGateway() (gas: 516814)
+[PASS] test_VaultInheritsPolicyRejections_OraclePaused() (gas: 299091)
+[PASS] test_VaultInheritsPolicyRejections_StaleFeed() (gas: 192147)
+[PASS] test_VaultKeepsItsOwnBusinessRule() (gas: 107172)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 103.43ms (108.96ms CPU time)
+
+Ran 7 test suites in 106.11ms (247.38ms CPU time): 42 tests passed, 0 failed, 0 skipped (42 total tests)

@@ -1,0 +1,12 @@
+No files changed, compilation skipped
+
+Ran 6 tests for test/unit/ReviewRegressions.t.sol:ReviewRegressionsTest
+[PASS] test_Regression_AdapterConfigChangeBumpsEpoch() (gas: 277506)
+[PASS] test_Regression_CorporateActionBufferHoldsAcrossTheTransition() (gas: 709529)
+[PASS] test_Regression_MockAdvancesMultiplierAtEffectiveAt() (gas: 105347)
+[PASS] test_Regression_ReplacementPolicyCannotReuseOldSignature() (gas: 419506)
+[PASS] test_Regression_SignatureStillWorksWhenConfigUnchanged() (gas: 586479)
+[PASS] test_Regression_TradingResumesAfterTheBufferElapses() (gas: 757358)
+Suite result: ok. 6 passed; 0 failed; 0 skipped; finished in 6.45ms (9.24ms CPU time)
+
+Ran 1 test suite in 8.73ms (6.45ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)

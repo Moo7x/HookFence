@@ -104,8 +104,21 @@ contract BaselineComparisonTest is HookFenceFixture {
     function test_Phase0_RecordsQuoteAndMinedContexts() public {
         _giveTrader(TRADE_SIZE * 4);
 
-        _quoteAdversarialPool(TRADE_SIZE);
-        ContextSensitiveHook.ObservedContext memory quoteCtx = _hookContext();
+        // Capture the hook's recorded context BEFORE the snapshot is rolled back.
+        // Reading it afterwards returns the reverted storage, where zero/false are
+        // indistinguishable from defaults - an earlier version of this test did
+        // exactly that and was asserting against default values, not observations.
+        ContextSensitiveHook.ObservedContext memory quoteCtx;
+        {
+            uint256 snap = vm.snapshotState();
+            vm.txGasPrice(QUOTE_GAS_PRICE);
+            vm.prank(trader);
+            stock.approve(address(baselineRouter), type(uint256).max);
+            vm.prank(trader, trader);
+            baselineRouter.swapExactIn(adversarialKey, _zeroForOne(), TRADE_SIZE, 0, trader);
+            quoteCtx = _hookContext(); // read while the quote's state still exists
+            vm.revertToState(snap);
+        }
 
         vm.txGasPrice(MINED_GAS_PRICE);
         vm.prank(trader);
@@ -191,6 +204,11 @@ contract BaselineComparisonTest is HookFenceFixture {
         string memory out = vm.serializeUint(json, "overhead", gasC - gasB);
         vm.writeJson(out, "./reports/gas-comparison.json");
 
+        // NOTE ON THIS BENCHMARK, so the figure is not over-read:
+        // B executes first and warms storage slots and account accesses that C then
+        // reuses, and the policy is also read before timing starts. This is an
+        // in-harness comparison showing the overhead is material and positive, NOT a
+        // controlled production benchmark. Treat the absolute number as indicative.
         assertGt(gasC, gasB, "the extra checks are not free, and we report the cost");
     }
 

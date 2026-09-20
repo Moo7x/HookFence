@@ -39,7 +39,19 @@ contract MockStockToken is ERC20 {
 
     // --- ERC-8056 -----------------------------------------------------------
 
-    function uiMultiplier() external view returns (uint256) {
+    /// @notice Current multiplier, advancing automatically at `effectiveAt`.
+    /// @dev This time dependence is deliberate and matches the ERC-8056 reference
+    ///      implementation. An earlier version of this mock only changed the
+    ///      multiplier when a test called a setter, which meant the mock could never
+    ///      produce the state where a scheduled change has just fired. That hid a
+    ///      real bug in the policy's corporate-action window - `newUIMultiplier()`
+    ///      and `uiMultiplier()` become equal *at* `effectiveAt`, not after some
+    ///      later settlement step. A fixture that cannot reach a state cannot test
+    ///      it, so the mock now reproduces the reference behaviour.
+    function uiMultiplier() public view returns (uint256) {
+        if (_effectiveAt != 0 && block.timestamp >= _effectiveAt) {
+            return _newUIMultiplier;
+        }
         return _uiMultiplier;
     }
 
@@ -56,11 +68,11 @@ contract MockStockToken is ERC20 {
     }
 
     function balanceOfUI(address account) external view returns (uint256) {
-        return (balanceOf(account) * _uiMultiplier) / 1e18;
+        return (balanceOf(account) * uiMultiplier()) / 1e18;
     }
 
     function totalSupplyUI() external view returns (uint256) {
-        return (totalSupply() * _uiMultiplier) / 1e18;
+        return (totalSupply() * uiMultiplier()) / 1e18;
     }
 
     // --- Test controls ------------------------------------------------------
@@ -70,10 +82,12 @@ contract MockStockToken is ERC20 {
     }
 
     /// @notice Apply a corporate action immediately (e.g. a completed split).
+    /// @dev Clears any schedule so `uiMultiplier()` returns `m` unconditionally.
     function setUIMultiplier(uint256 m) external {
         uint256 old = _uiMultiplier;
         _uiMultiplier = m;
         _newUIMultiplier = m;
+        _effectiveAt = 0;
         emit UIMultiplierUpdated(old, m, block.timestamp);
     }
 

@@ -67,10 +67,11 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
     /// @notice Output enforcement is NOT a HookFence invention.
     function test_Equal_BothRejectBelowFloorFill() public {
         bool bSettled = _runBaseline(adversarialKey, quoteTimeFloor);
-        bool cSettled = _runHookFence(adversarialKey, 0);
+        (bool cSettled, bytes4 why) = _runHookFenceDetailed(adversarialKey, 0);
 
         assertFalse(bSettled, "B rejects the below-floor fill");
         assertFalse(cSettled, "C rejects the same fill");
+        assertEq(why, ExecutionGateway.OutputBelowFloor.selector, "and for the same reason");
         _record("below-floor fill", false, false);
     }
 
@@ -107,10 +108,11 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         console2.log("floor correct at settlement  :", currentFloor);
 
         bool bSettled = _runBaseline(honestKey, quoteTimeFloor);
-        bool cSettled = _runHookFence(honestKey, 0);
+        (bool cSettled, bytes4 why) = _runHookFenceDetailed(honestKey, 0);
 
         assertTrue(bSettled, "B settles against its stale, too-low floor");
         assertFalse(cSettled, "C re-derives the floor in-block and refuses");
+        assertEq(why, ExecutionGateway.OutputBelowFloor.selector, "C must reject for the floor, not something else");
         assertGt(currentFloor, quoteTimeFloor, "the correct floor really did move");
         _record("reference price moved before inclusion", true, false);
     }
@@ -123,10 +125,11 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         vm.warp(block.timestamp + FEED_HEARTBEAT + 1);
 
         bool bSettled = _runBaseline(honestKey, quoteTimeFloor);
-        bool cSettled = _runHookFence(honestKey, 0);
+        (bool cSettled, bytes4 why) = _runHookFenceDetailed(honestKey, 0);
 
         assertTrue(bSettled, "B has no concept of feed staleness");
         assertFalse(cSettled, "C fails closed on a stale feed");
+        assertEq(why, StockTokenReferencePolicy.FeedStale.selector, "C must reject for staleness specifically");
         _record("stale feed", true, false);
     }
 
@@ -138,10 +141,15 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         stock.setOraclePaused(true);
 
         bool bSettled = _runBaseline(honestKey, quoteTimeFloor);
-        bool cSettled = _runHookFence(honestKey, 0);
+        (bool cSettled, bytes4 why) = _runHookFenceDetailed(honestKey, 0);
 
         assertTrue(bSettled, "B cannot see oraclePaused()");
         assertFalse(cSettled, "C treats a paused oracle as price-unavailable");
+        assertEq(
+            why,
+            StockTokenReferencePolicy.OraclePausedForCorporateAction.selector,
+            "C must reject for the pause flag specifically"
+        );
         _record("issuer oracle paused", true, false);
     }
 
@@ -153,10 +161,15 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         stock.scheduleMultiplier(stock.uiMultiplier() * 2, block.timestamp + 10 minutes);
 
         bool bSettled = _runBaseline(honestKey, quoteTimeFloor);
-        bool cSettled = _runHookFence(honestKey, 0);
+        (bool cSettled, bytes4 why) = _runHookFenceDetailed(honestKey, 0);
 
         assertTrue(bSettled, "B settles straight through a pending corporate action");
         assertFalse(cSettled, "C declines inside the corporate-action window");
+        assertEq(
+            why,
+            StockTokenReferencePolicy.CorporateActionPending.selector,
+            "C must reject for the corporate action specifically"
+        );
         _record("corporate action pending", true, false);
     }
 
@@ -181,7 +194,11 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
 
         assertEq(usdg.balanceOf(trader), before, "no USDG moved");
         assertEq(stock.balanceOf(makeAddr("attacker")), 0, "and the input was rolled back too");
-        _record("adapter misreports output", true, false);
+        // B is NOT APPLICABLE here and must not be reported as SETTLED: the baseline
+        // router has no adapter interface at all, so there is no equivalent path to
+        // run. An earlier version logged "B=SETTLED" as a hard-coded literal without
+        // executing anything, which was misleading.
+        _recordCOnly("adapter misreports output (B has no adapter interface)", false);
     }
 
     /// @notice An ordinary router has no notion of an authorised intent, so there is
@@ -200,7 +217,7 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         vm.expectRevert(abi.encodeWithSelector(ExecutionGateway.NonceAlreadyUsed.selector, trader, 99));
         gateway.settle(intent, honestKey, _zeroForOne());
 
-        _record("intent replay", true, false);
+        _recordCOnly("intent replay (no baseline-B analogue)", false);
     }
 
     function test_OnlyC_ExpiredIntentRejected() public {
@@ -214,7 +231,7 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
             abi.encodeWithSelector(ExecutionGateway.IntentExpired.selector, intent.deadline, block.timestamp)
         );
         gateway.settle(intent, honestKey, _zeroForOne());
-        _record("expired intent", true, false);
+        _recordCOnly("expired intent (no baseline-B analogue)", false);
     }
 
     /// @notice Changing any material policy configuration invalidates in-flight
@@ -241,7 +258,7 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
             )
         );
         gateway.settle(intent, honestKey, _zeroForOne());
-        _record("policy version changed mid-flight", true, false);
+        _recordCOnly("policy version changed mid-flight (no baseline-B analogue)", false);
     }
 
     /// @notice Identity is by reviewed address, not ticker. A look-alike token with
@@ -253,7 +270,7 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
 
         vm.expectRevert(abi.encodeWithSelector(StockTokenReferencePolicy.TokenNotSupported.selector, impostor));
         policy.requiredMinOut(impostor, address(usdg), TRADE_SIZE, 0);
-        _record("look-alike token address", true, false);
+        _recordCOnly("look-alike token address (no baseline-B analogue)", false);
     }
 
     // =======================================================================
@@ -272,7 +289,12 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         vm.revertToState(snap);
     }
 
-    function _runHookFence(PoolKey memory key, uint256 userMinOut) internal returns (bool settled) {
+    /// @dev Returns both the outcome and the revert selector, so callers can assert
+    ///      C rejected for the INTENDED reason rather than for any reason at all.
+    function _runHookFenceDetailed(PoolKey memory key, uint256 userMinOut)
+        internal
+        returns (bool settled, bytes4 selector)
+    {
         uint256 snap = vm.snapshotState();
         vm.txGasPrice(MINED_GAS_PRICE);
         ExecutionGateway.ExecutionIntent memory intent =
@@ -280,10 +302,24 @@ contract PolicyBeyondFloorTest is HookFenceFixture {
         vm.prank(trader, trader);
         try gateway.settle(intent, key, _zeroForOne()) returns (uint256) {
             settled = true;
-        } catch {
+        } catch (bytes memory err) {
             settled = false;
+            require(err.length >= 4, "empty revert - test cannot verify the reason");
+            selector = bytes4(err);
         }
         vm.revertToState(snap);
+    }
+
+    function _runHookFence(PoolKey memory key, uint256 userMinOut) internal returns (bool settled) {
+        (settled,) = _runHookFenceDetailed(key, userMinOut);
+    }
+
+    /// @dev For scenarios where baseline B has no equivalent code path to run at all.
+    ///      Reporting "B=SETTLED" for these would be a fabricated result.
+    function _recordCOnly(string memory scenario, bool cSettled) internal pure {
+        console2.log(
+            string.concat("scenario: ", scenario, " | B=N/A C=", cSettled ? "SETTLED" : "REJECTED")
+        );
     }
 
     function _record(string memory scenario, bool bSettled, bool cSettled) internal pure {

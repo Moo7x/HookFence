@@ -284,8 +284,10 @@ abstract contract HookFenceFixture is Test {
             userMinOut: userMinOut,
             adapter: address(adapter),
             routeHash: _routeHash(key),
+            policy: address(policy),
             policyId: POLICY_ID,
             policyVersion: policy.policyVersion(),
+            configEpoch: gateway.configEpoch(),
             nonce: nonce,
             deadline: block.timestamp + 1 hours
         });

@@ -1,52 +1,52 @@
 No files changed, compilation skipped
 
 Ran 11 tests for test/spike/PolicyBeyondFloor.t.sol:PolicyBeyondFloorTest
-[PASS] test_Equal_BothAcceptHonestFill() (gas: 596227)
+[PASS] test_Equal_BothAcceptHonestFill() (gas: 608785)
 Logs:
   scenario: honest fill | B=SETTLED C=SETTLED
 
-[PASS] test_Equal_BothRejectBelowFloorFill() (gas: 815352)
+[PASS] test_Equal_BothRejectBelowFloorFill() (gas: 828518)
 Logs:
   scenario: below-floor fill | B=REJECTED C=REJECTED
 
-[PASS] test_OnlyC_AdapterMisreportsOutput() (gas: 463161)
+[PASS] test_OnlyC_AdapterMisreportsOutput() (gas: 480910)
 Logs:
-  scenario: adapter misreports output | B=SETTLED C=REJECTED
+  scenario: adapter misreports output (B has no adapter interface) | B=N/A C=REJECTED
 
-[PASS] test_OnlyC_CorporateActionPending() (gas: 500996)
+[PASS] test_OnlyC_CorporateActionPending() (gas: 508948)
 Logs:
   scenario: corporate action pending | B=SETTLED C=REJECTED
 
-[PASS] test_OnlyC_ExpiredIntentRejected() (gas: 169498)
+[PASS] test_OnlyC_ExpiredIntentRejected() (gas: 175116)
 Logs:
-  scenario: expired intent | B=SETTLED C=REJECTED
+  scenario: expired intent (no baseline-B analogue) | B=N/A C=REJECTED
 
-[PASS] test_OnlyC_IntentCannotBeReplayed() (gas: 492028)
+[PASS] test_OnlyC_IntentCannotBeReplayed() (gas: 504793)
 Logs:
-  scenario: intent replay | B=SETTLED C=REJECTED
+  scenario: intent replay (no baseline-B analogue) | B=N/A C=REJECTED
 
-[PASS] test_OnlyC_IssuerOraclePaused() (gas: 473534)
+[PASS] test_OnlyC_IssuerOraclePaused() (gas: 482287)
 Logs:
   scenario: issuer oracle paused | B=SETTLED C=REJECTED
 
-[PASS] test_OnlyC_LookalikeTokenRejected() (gas: 256113)
+[PASS] test_OnlyC_LookalikeTokenRejected() (gas: 255925)
 Logs:
-  scenario: look-alike token address | B=SETTLED C=REJECTED
+  scenario: look-alike token address (no baseline-B analogue) | B=N/A C=REJECTED
 
-[PASS] test_OnlyC_PolicyVersionMismatchRejected() (gas: 243702)
+[PASS] test_OnlyC_PolicyVersionMismatchRejected() (gas: 251581)
 Logs:
-  scenario: policy version changed mid-flight | B=SETTLED C=REJECTED
+  scenario: policy version changed mid-flight (no baseline-B analogue) | B=N/A C=REJECTED
 
-[PASS] test_OnlyC_ReferencePriceMovedBeforeInclusion() (gas: 826659)
+[PASS] test_OnlyC_ReferencePriceMovedBeforeInclusion() (gas: 843155)
 Logs:
   floor computed at quote time : 2537250000
   floor correct at settlement  : 2790975000
   scenario: reference price moved before inclusion | B=SETTLED C=REJECTED
 
-[PASS] test_OnlyC_StaleFeed() (gas: 363513)
+[PASS] test_OnlyC_StaleFeed() (gas: 375410)
 Logs:
   scenario: stale feed | B=SETTLED C=REJECTED
 
-Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 15.32ms (34.31ms CPU time)
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 7.61ms (25.39ms CPU time)
 
-Ran 1 test suite in 27.49ms (15.32ms CPU time): 11 tests passed, 0 failed, 0 skipped (11 total tests)
+Ran 1 test suite in 10.10ms (7.61ms CPU time): 11 tests passed, 0 failed, 0 skipped (11 total tests)

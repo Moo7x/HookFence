@@ -107,8 +107,10 @@ contract ReferenceVault is Ownable2Step {
             userMinOut: userMinOut,
             adapter: adapter,
             routeHash: routeHash,
+            policy: address(gateway.policy()),
             policyId: policyId,
             policyVersion: policyVersion,
+            configEpoch: gateway.configEpoch(),
             nonce: nextNonce++,
             deadline: deadline
         });

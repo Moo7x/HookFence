@@ -26,7 +26,7 @@ import {IExecutionPolicy} from "../interfaces/IExecutionPolicy.sol";
 ///         whole token. Multiplying the feed result by uiMultiplier() again
 ///         double-counts every reinvested dividend and every split. We read the
 ///         multiplier only to (a) record it as evidence and (b) detect a pending
-///         corporate action. See test/unit/MultiplierDoubleCount.t.sol.
+///         corporate action. See test/unit/MultiplierAndUnits.t.sol.
 ///
 ///      3. Fail closed. Every reference defect reverts with a distinct custom
 ///         error. A reverted settlement moves no tokens, so the error selector in the
@@ -256,23 +256,46 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     ///      oracle-floor router does not have: an ordinary router enforcing the same
     ///      numeric floor still settles while the issuer has paused the oracle or
     ///      while a multiplier change is pending.
+    /// @dev IMPORTANT - do not reintroduce a `pending == current` early return here.
+    ///
+    ///      An earlier version returned early when `newUIMultiplier() ==
+    ///      uiMultiplier()`, reasoning that equal values mean nothing is scheduled.
+    ///      That is wrong precisely at the moment it matters most. The ERC-8056
+    ///      reference implementation advances `uiMultiplier()` at `effectiveAt`, so
+    ///      the two values become equal exactly as the transition fires - and the
+    ///      documented post-effective buffer was skipped from `effectiveAt` onward.
+    ///      An independent review reproduced a rejection one second before the
+    ///      transition and an acceptance one second after it, with the pre-split
+    ///      feed still inside its heartbeat.
+    ///
+    ///      The window is therefore keyed on `effectiveAt` alone, regardless of
+    ///      whether the change has already been applied. See
+    ///      `test/unit/ReviewRegressions.t.sol`.
     function _checkInstrumentState(address token) internal view {
         if (IStockToken(token).oraclePaused()) revert OraclePausedForCorporateAction(token);
 
         uint256 buffer = corporateActionBuffer;
         if (buffer == 0) return;
 
-        uint256 pending = IStockToken(token).newUIMultiplier();
-        uint256 current = IStockToken(token).uiMultiplier();
-        if (pending == current) return; // nothing scheduled
-
         uint256 effectiveAt = IStockToken(token).effectiveAt();
-        if (effectiveAt == 0) return;
+        uint256 pending = IStockToken(token).newUIMultiplier();
 
-        // Decline inside [effectiveAt - buffer, effectiveAt + buffer].
-        uint256 lower = effectiveAt > buffer ? effectiveAt - buffer : 0;
-        if (block.timestamp >= lower && block.timestamp <= effectiveAt + buffer) {
-            revert CorporateActionPending(token, effectiveAt, pending);
+        if (effectiveAt != 0) {
+            // Decline across the whole transition window [effectiveAt - buffer,
+            // effectiveAt + buffer]. The upper half is the part that matters: the
+            // token has re-based but the feed may still be publishing pre-transition
+            // prices that are inside their heartbeat and therefore look valid.
+            uint256 lower = effectiveAt > buffer ? effectiveAt - buffer : 0;
+            if (block.timestamp >= lower && block.timestamp <= effectiveAt + buffer) {
+                revert CorporateActionPending(token, effectiveAt, pending);
+            }
+            return;
+        }
+
+        // A scheduled multiplier with no effective timestamp is a state we do not
+        // understand. Fail closed rather than guess.
+        if (pending != IStockToken(token).uiMultiplier()) {
+            revert CorporateActionPending(token, 0, pending);
         }
     }
 
