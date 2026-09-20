@@ -1,0 +1,39 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+
+solc_version = "0.8.26"
+evm_version = "cancun"        # Uniswap v4 requires transient storage (TSTORE/TLOAD).
+optimizer = true
+optimizer_runs = 200
+via_ir = true                 # Uniswap v4 and the gateway's receipt both exceed the legacy stack limit.
+bytecode_hash = "none"
+
+fs_permissions = [{ access = "read-write", path = "./reports" }]
+
+ffi = false
+gas_reports = ["ExecutionGateway", "StockTokenReferencePolicy", "V4ExactInputAdapter", "BaselineOracleRouter", "ReferenceVault"]
+
+[profile.default.fuzz]
+runs = 512
+
+[profile.default.invariant]
+runs = 128
+depth = 32
+fail_on_revert = false
+
+[profile.ci.fuzz]
+runs = 4096
+
+[profile.deep.fuzz]
+runs = 50000
+
+[rpc_endpoints]
+robinhood_mainnet = "${ROBINHOOD_MAINNET_RPC}"
+robinhood_testnet = "${ROBINHOOD_TESTNET_RPC}"
+
+[etherscan]
+robinhood_testnet = { key = "unused", url = "${BLOCKSCOUT_TESTNET_URL}", chain = 46630 }

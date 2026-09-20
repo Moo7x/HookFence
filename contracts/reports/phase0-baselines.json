@@ -1,0 +1,15 @@
+{
+  "A_amountOut": 2511215880,
+  "A_settled": true,
+  "B_enforcedMin": 2537250000,
+  "B_settled": false,
+  "C_enforcedMin": 2537250000,
+  "C_settled": false,
+  "D_amountOut": 2541716477,
+  "D_settled": true,
+  "oracleFloorUsdg6dp": 2537250000,
+  "quoteDerivedMinUsdg6dp": 2490882147,
+  "quotedOutUsdg6dp": 2541716477,
+  "referenceOutUsdg6dp": 2550000000,
+  "tradeSizeStock18dp": 10000000000000000000
+}

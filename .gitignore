@@ -1,0 +1,30 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+keystore/
+
+# Foundry
+contracts/cache/
+contracts/out/
+contracts/broadcast/*/dry-run/
+contracts/lib/
+.forge-snapshots/
+
+# Node
+node_modules/
+dist/
+.next/
+*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local scratch
+scratch/
+*.log
