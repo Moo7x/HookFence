@@ -102,12 +102,29 @@ entries are in the tokenized-equity risk space:
 | Hashling | "Every Robinhood Chain token on one board, ~475k…" |
 | PulsarFi | "1:1 Asset-Backed Indonesian Equity…" |
 
-Several are **advisory / scoring / scanning** products: they answer "is this
-safe?" out-of-band. HookFence's scope is different in kind — it *enforces* a
-policy inside the settlement transaction and reverts the transfer when the
-policy fails. That is a real distinction in mechanism, and it is the only
-novelty claim we make. It is **not** a claim that we are alone in caring about
-Stock Token execution risk, and it is not a claim of worldwide novelty.
+### 6.1 CORRECTION (2026-09-20)
+
+An earlier version of this section claimed these entries were "advisory /
+scoring / scanning" products and that HookFence was distinct in *enforcing*
+on-chain. **That claim was false.** It was inferred from truncated gallery
+blurbs and never verified. It is withdrawn.
+
+Project pages were then fetched and read in full on 2026-09-20:
+
+| Project | Verified enforcement claim (their words, abridged) |
+|---|---|
+| **ArbiGuard** | "enforces protocol-signed risk policies, and trips a hysteresis circuit breaker"; on-chain Stylus risk engine; EIP-712 signed policy; "detect an attack and stop it in the same block" |
+| **RWA.Index** | ERC-4626 vault: "Each trade is checked against on-chain guardrails: per-trade size cap, slippage floor (2%), drift-improvement requirement, cash floor, **oracle staleness, pause flag**. Any failure reverts." |
+| **Mandate** | ERC-8226: "five enforcement layers checked atomically by the smart contract before value moves"; "the contract reverts. Not the backend code. The EVM." |
+
+On-chain policy enforcement for tokenized equities is a **contested space with
+at least three entrants**. RWA.Index in particular already enforces oracle
+staleness and a pause flag on Robinhood Chain tokenized stocks — a subset of
+`StockTokenReferencePolicy`.
+
+We therefore make **no claim to novelty of mechanism**. See
+`docs/PHASE0_EVIDENCE.md` §6 and §8 for the full record and for the narrower
+areas that remain, as far as verified, unaddressed.
 
 ## 7. What still needs a logged-in human
 

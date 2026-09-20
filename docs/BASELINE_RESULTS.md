@@ -1,8 +1,22 @@
 # Phase 0 — Baseline results and claim validation
 
-**Status:** complete
+**Status:** complete — implementation FROZEN at commit `6ffd0f0`
 **Date:** 2026-09-20
 **Verdict:** continue as **HookFence**, with a narrowed and corrected claim (§7)
+
+> **Read `docs/PHASE0_EVIDENCE.md` alongside this.** That file carries the raw
+> evidence, the mock-vs-fork-vs-live provenance table, real contract addresses,
+> a record of four claims made in conversation that this evidence does **not**
+> support, and a verified correction to our competitive positioning.
+>
+> Two things stated up front, because they are the most important and the
+> easiest to skim past:
+> 1. **Every test here is mocked.** Real `v4-core` PoolManager code, but mock
+>    tokens, mock feeds, mock hooks. No fork test. No deployment. No addresses.
+> 2. **On output enforcement HookFence has no advantage** over a correctly
+>    configured ordinary router, and the mechanism it does use is **not novel** —
+>    at least three gallery projects enforce policy on-chain, one of which
+>    already implements a subset of our checks.
 
 This document exists to try to *disprove* HookFence's reason to exist, and to
 record what survived. Everything below is produced by tests in the repository;
@@ -173,10 +187,24 @@ B: SETTLED   (2541.72 ≥ its stale 2537.25)
 C: REJECTED  (2541.72 <  current 2790.98)
 ```
 
-B underpays the user by ~9% while satisfying its own safety check perfectly.
-Latency between an off-chain calculation and inclusion is enough; toxicity is not
-required. This is the clearest evidence that "pass a minimum to a normal router"
-is not equivalent to enforcing a policy in-block.
+B settles ~9% below the *current* reference while satisfying its own safety
+check exactly as designed. Latency between an off-chain calculation and
+inclusion is sufficient; no toxicity and no malicious actor is required.
+
+**Precise wording matters here, and earlier drafts got it wrong:**
+
+- B is **not** malfunctioning. `minAmountOut` protects correctly against the
+  number it was given. The number was simply computed earlier.
+- B and C are **not** enforcing "the same minimum". B enforces 2537.250000
+  (quote time); C enforces 2790.975000 (settlement time). Given an *identical*
+  number they produce an *identical* decision — §3 asserts exactly that.
+- The pool is **not** "stealing". A reference price moving during mempool
+  latency implies no malicious behaviour by anyone.
+
+The defensible statement is narrow: *a floor evaluated at settlement can differ
+from a floor supplied in advance, and only the former reflects the state that
+actually settles.* That is established smart-contract engineering — an on-chain
+wrapper recomputing a bound is a known pattern, not a new primitive.
 
 ### 4.4 The honest counter-argument
 
@@ -256,7 +284,13 @@ Justification, and the limits of it:
    requires no adversary at all and is a pure consequence of enforcing a policy
    in-block rather than passing a precomputed number.
 2. The stop condition is not met: `ReferenceVault` integrates in one call and
-   would otherwise carry the entire policy itself.
+   would otherwise carry the entire policy itself. **However**, this is now a
+   closer call than when first written. Verification on 2026-09-20 found that
+   RWA.Index already enforces oracle staleness and a pause flag inside an
+   ERC-4626 vault on Robinhood Chain — a subset of this policy, shipped by a
+   competitor. The ecosystem does not implement the *complete* policy (no
+   competitor mentions ERC-8056 multiplier handling at all), so the kill
+   condition is not triggered, but the margin is thinner than claimed.
 3. **But the claim must be narrowed.** HookFence does *not* invent slippage
    protection, and §3.1 is now a permanent assertion in the test suite. The
    honest one-line claim is:

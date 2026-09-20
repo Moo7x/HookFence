@@ -1,0 +1,57 @@
+{
+  "observedAt": 1789895391,
+  "observedAtUtc": "2026-09-20T09:09:51Z",
+  "dayOfWeekUtc": "Sunday",
+  "chainId": 4663,
+  "heartbeatSeconds": 86400,
+  "feeds": [
+    {
+      "name": "AAPL/USD", "class": "stock", "proxy": "0x6B22A786bAa607d76728168703a39Ea9C99f2cD0",
+      "answer": 33538474720, "priceUsd": 335.38,
+      "updatedAt": 1789744288, "ageSeconds": 151103, "ageHours": 42.0,
+      "exceedsHeartbeat": true
+    }
+    ,
+    {
+      "name": "NVDA/USD", "class": "stock", "proxy": "0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15",
+      "answer": 22244729849, "priceUsd": 222.45,
+      "updatedAt": 1789761332, "ageSeconds": 134059, "ageHours": 37.2,
+      "exceedsHeartbeat": true
+    }
+    ,
+    {
+      "name": "TSLA/USD", "class": "stock", "proxy": "0x4A1166a659A55625345e9515b32adECea5547C38",
+      "answer": 36379999999, "priceUsd": 363.80,
+      "updatedAt": 1789760927, "ageSeconds": 134464, "ageHours": 37.4,
+      "exceedsHeartbeat": true
+    }
+    ,
+    {
+      "name": "SPY/USD", "class": "stock", "proxy": "0x319724394D3A0e3669269846abE664Cd621f9f6A",
+      "answer": 76155079369, "priceUsd": 761.55,
+      "updatedAt": 1789734121, "ageSeconds": 161270, "ageHours": 44.8,
+      "exceedsHeartbeat": true
+    }
+    ,
+    {
+      "name": "MSFT/USD", "class": "stock", "proxy": "0x45C3C877C15E6BA2EBB19eA114Ea508d14C1Af2E",
+      "answer": 49582266672, "priceUsd": 495.82,
+      "updatedAt": 1789764113, "ageSeconds": 131278, "ageHours": 36.5,
+      "exceedsHeartbeat": true
+    }
+    ,
+    {
+      "name": "USDG/USD", "class": "crypto", "proxy": "0x61B7e5650328764B076A108EFF5fa7282a1B9aD2",
+      "answer": 99992279, "priceUsd": 1.00,
+      "updatedAt": 1789832149, "ageSeconds": 63242, "ageHours": 17.6,
+      "exceedsHeartbeat": false
+    }
+    ,
+    {
+      "name": "ETH/USD", "class": "crypto", "proxy": "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9",
+      "answer": 257514477209, "priceUsd": 2575.14,
+      "updatedAt": 1789881888, "ageSeconds": 13503, "ageHours": 3.8,
+      "exceedsHeartbeat": false
+    }
+  ]
+}

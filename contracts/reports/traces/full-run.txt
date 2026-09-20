@@ -1,0 +1,98 @@
+No files changed, compilation skipped
+
+Ran 11 tests for test/spike/PolicyBeyondFloor.t.sol:PolicyBeyondFloorTest
+[PASS] test_Equal_BothAcceptHonestFill() (gas: 596227)
+Logs:
+  scenario: honest fill | B=SETTLED C=SETTLED
+
+[PASS] test_Equal_BothRejectBelowFloorFill() (gas: 815352)
+Logs:
+  scenario: below-floor fill | B=REJECTED C=REJECTED
+
+[PASS] test_OnlyC_AdapterMisreportsOutput() (gas: 463161)
+Logs:
+  scenario: adapter misreports output | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_CorporateActionPending() (gas: 500996)
+Logs:
+  scenario: corporate action pending | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_ExpiredIntentRejected() (gas: 169498)
+Logs:
+  scenario: expired intent | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_IntentCannotBeReplayed() (gas: 492028)
+Logs:
+  scenario: intent replay | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_IssuerOraclePaused() (gas: 473534)
+Logs:
+  scenario: issuer oracle paused | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_LookalikeTokenRejected() (gas: 256113)
+Logs:
+  scenario: look-alike token address | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_PolicyVersionMismatchRejected() (gas: 243702)
+Logs:
+  scenario: policy version changed mid-flight | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_ReferencePriceMovedBeforeInclusion() (gas: 826659)
+Logs:
+  floor computed at quote time : 2537250000
+  floor correct at settlement  : 2790975000
+  scenario: reference price moved before inclusion | B=SETTLED C=REJECTED
+
+[PASS] test_OnlyC_StaleFeed() (gas: 363513)
+Logs:
+  scenario: stale feed | B=SETTLED C=REJECTED
+
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 21.39ms (43.80ms CPU time)
+
+Ran 3 tests for test/spike/Smoke.t.sol:SmokeTest
+[PASS] test_Fixture_HooksShareIdenticalPermissions() (gas: 4867)
+[PASS] test_Fixture_MockMatchesLiveStockTokenSurface() (gas: 29952)
+[PASS] test_Fixture_PoolsArePricedNearTheReference() (gas: 360499)
+Logs:
+  reference USDG for 10 stock tokens (6dp): 2550000000
+  honest pool fill (6dp): 2541716477
+
+Suite result: ok. 3 passed; 0 failed; 0 skipped; finished in 21.43ms (8.02ms CPU time)
+
+Ran 4 tests for test/spike/BaselineComparison.t.sol:BaselineComparisonTest
+[PASS] test_Phase0_AdversarialHook_IsDefeatedBy_RealisticQuoteContext() (gas: 711539)
+Logs:
+  naive quote (gasprice 0)    : 2541716477
+  realistic quote (gasprice>0): 2511215880
+
+[PASS] test_Phase0_FourPathComparison() (gas: 2914813)
+Logs:
+  --- inputs ---------------------------------------------
+  trade size (18dp stock)     : 10000000000000000000
+  quoted out    (6dp USDG)    : 2541716477
+  reference out (6dp USDG)    : 2550000000
+  oracle floor  (6dp USDG)    : 2537250000
+  quote-derived min (2%)      : 2490882147
+  A  quote-derived min (2%)    SETTLED 2511215880
+  B  ordinary router + floor   REVERTED 2511215880
+  C  HookFence full policy     REVERTED 2511215880
+  D  honest-hook control       SETTLED 2541716477
+
+[PASS] test_Phase0_GasOverheadVersusBaseline() (gas: 758254)
+Logs:
+  gas: baseline B (router + floor) : 237333
+  gas: HookFence C (full policy)   : 341710
+  gas: overhead                    : 104377
+
+[PASS] test_Phase0_RecordsQuoteAndMinedContexts() (gas: 695444)
+Logs:
+  --- recorded execution contexts ------------------------
+  quote  tx.gasprice : 0
+  quote  extracted   : false
+  mined  tx.gasprice : 2000000000
+  mined  extracted   : true
+  mined  extracted amt: 30500597
+
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 26.97ms (37.26ms CPU time)
+
+Ran 3 test suites in 30.89ms (69.78ms CPU time): 18 tests passed, 0 failed, 0 skipped (18 total tests)

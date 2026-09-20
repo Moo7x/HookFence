@@ -1,0 +1,572 @@
+No files changed, compilation skipped
+
+Ran 1 test for test/spike/BaselineComparison.t.sol:BaselineComparisonTest
+[PASS] test_Phase0_FourPathComparison() (gas: 2914813)
+Logs:
+  --- inputs ---------------------------------------------
+  trade size (18dp stock)     : 10000000000000000000
+  quoted out    (6dp USDG)    : 2541716477
+  reference out (6dp USDG)    : 2550000000
+  oracle floor  (6dp USDG)    : 2537250000
+  quote-derived min (2%)      : 2490882147
+  A  quote-derived min (2%)    SETTLED 2511215880
+  B  ordinary router + floor   REVERTED 2511215880
+  C  HookFence full policy     REVERTED 2511215880
+  D  honest-hook control       SETTLED 2541716477
+
+Traces:
+  [3056913] BaselineComparisonTest::test_Phase0_FourPathComparison()
+    ├─ [51053] MockStockToken::mint(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 100000000000000000000 [1e20])
+    │   ├─ emit Transfer(from: 0x0000000000000000000000000000000000000000, to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 100000000000000000000 [1e20])
+    │   └─ ← [Stop]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 0
+    ├─ [0] VM::txGasPrice(0)
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [198842] BaselineOracleRouter::swapExactIn(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], 0, trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   ├─ [31892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [136277] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   ├─ [134049] BaselineOracleRouter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [83088] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   ├─ [32420] 0x0000000000000000000000000000000000008044::afterSwap(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 0
+    │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997458283523 [-3.402e57]
+    │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   ├─ emit Transfer(from: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   ├─ [33862] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2541716477 [2.541e9])
+    │   │   │   │   ├─ [29630] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2541716477 [2.541e9])
+    │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2541716477 [2.541e9])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   └─ ← [Return] 0x00000000000000000000000000000000000000000000000000000000977f83fd
+    │   │   └─ ← [Return] 0x00000000000000000000000000000000000000000000000000000000977f83fd
+    │   └─ ← [Return] 2541716477 [2.541e9]
+    ├─ [0] VM::revertToState(0)
+    │   └─ ← [Return] true
+    ├─ [40381] StockTokenReferencePolicy::referenceValue(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19]) [staticcall]
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   └─ ← [Return] 2550000000 [2.55e9]
+    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
+    ├─ [0] console::log("--- inputs ---------------------------------------------") [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("trade size (18dp stock)     :", 10000000000000000000 [1e19]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("quoted out    (6dp USDG)    :", 2541716477 [2.541e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("reference out (6dp USDG)    :", 2550000000 [2.55e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("oracle floor  (6dp USDG)    :", 2537250000 [2.537e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("quote-derived min (2%)      :", 2490882147 [2.49e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 1
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [287128] BaselineOracleRouter::swapExactIn(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], 2490882147 [2.49e9], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   ├─ [31892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [224515] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   ├─ [222287] BaselineOracleRouter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [178626] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   ├─ [126642] 0x0000000000000000000000000000000000008044::afterSwap(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   ├─ [33875] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   ├─ [29630] MockUSDG::transfer(0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0x0000000000000000000000000000000000008044, amount: 30500597 [3.05e7])
+    │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 30500597 [3.05e7]
+    │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997488784120 [-3.402e57]
+    │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   ├─ emit Transfer(from: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   ├─ [26562] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   ├─ [24830] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2511215880 [2.511e9])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   └─ ← [Return] 2511215880 [2.511e9]
+    ├─ [0] VM::revertToState(1)
+    │   └─ ← [Return] true
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 2
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [287139] BaselineOracleRouter::swapExactIn(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], 2537250000 [2.537e9], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   ├─ [31892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [224515] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   ├─ [222287] BaselineOracleRouter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [178626] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   ├─ [126642] 0x0000000000000000000000000000000000008044::afterSwap(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   ├─ [33875] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   ├─ [29630] MockUSDG::transfer(0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0x0000000000000000000000000000000000008044, amount: 30500597 [3.05e7])
+    │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 30500597 [3.05e7]
+    │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997488784120 [-3.402e57]
+    │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   ├─ emit Transfer(from: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   ├─ [26562] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   ├─ [24830] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2511215880 [2.511e9])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   └─ ← [Revert] InsufficientOutput(2511215880 [2.511e9], 2537250000 [2.537e9])
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 3
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [26369] MockStockToken::approve(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [287080] BaselineOracleRouter::swapExactIn(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], 0, trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   ├─ [31892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [224515] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   ├─ [222287] BaselineOracleRouter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [178626] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   ├─ [126642] 0x0000000000000000000000000000000000008044::afterSwap(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   ├─ [33875] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   ├─ [29630] MockUSDG::transfer(0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0x0000000000000000000000000000000000008044, amount: 30500597 [3.05e7])
+    │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 30500597 [3.05e7]
+    │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997488784120 [-3.402e57]
+    │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   ├─ emit Transfer(from: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   ├─ [26562] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   ├─ [24830] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2511215880 [2.511e9])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   └─ ← [Return] 2511215880 [2.511e9]
+    ├─ [0] VM::revertToState(3)
+    │   └─ ← [Return] true
+    ├─ [0] VM::revertToState(2)
+    │   └─ ← [Return] true
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 4
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
+    ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
+    │   └─ ← [Return] 3
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [467044] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0x38bb1b120f0764fc3c2f895047324df43182422c846ce871594aa0b4e4b16160, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true)
+    │   ├─ [497] StockTokenReferencePolicy::policyId() [staticcall]
+    │   │   └─ ← [Return] 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c
+    │   ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
+    │   │   └─ ← [Return] 3
+    │   ├─ [58398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
+    │   │   │   └─ ← [Return] false
+    │   │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   │   └─ ← [Return] 8
+    │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   │   └─ ← [Return] 8
+    │   │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
+    │   ├─ [2537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [2625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 100000000000000000000 [1e20]
+    │   ├─ [2625] MockStockToken::balanceOf(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [27892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [24325] MockStockToken::approve(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Approval(owner: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], spender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [256940] V4ExactInputAdapter::executeExactInput(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 0x38bb1b120f0764fc3c2f895047324df43182422c846ce871594aa0b4e4b16160)
+    │   │   ├─ [25423] MockStockToken::transferFrom(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 10000000000000000000 [1e19])
+    │   │   │   ├─ emit Transfer(from: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], to: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 10000000000000000000 [1e19])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [220151] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [217920] V4ExactInputAdapter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   │   ├─ [176126] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   │   ├─ [124142] 0x0000000000000000000000000000000000008044::afterSwap(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   │   ├─ [31375] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   ├─ [29630] MockUSDG::transfer(0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0x0000000000000000000000000000000000008044, amount: 30500597 [3.05e7])
+    │   │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 30500597 [3.05e7]
+    │   │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997488784120 [-3.402e57]
+    │   │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   │   ├─ emit Transfer(from: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   │   ├─ [24562] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   ├─ [22830] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2511215880 [2.511e9])
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000008ac7230489e800000000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000008ac7230489e800000000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   ├─ [625] MockStockToken::balanceOf(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a]) [staticcall]
+    │   │   │   └─ ← [Return] 0
+    │   │   └─ ← [Return] 10000000000000000000 [1e19], 2511215880 [2.511e9]
+    │   ├─ [2325] MockStockToken::approve(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 0)
+    │   │   ├─ emit Approval(owner: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], spender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 0)
+    │   │   └─ ← [Return] true
+    │   ├─ [625] MockStockToken::balanceOf(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 2511215880 [2.511e9]
+    │   ├─ [625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 90000000000000000000 [9e19]
+    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [510] MockStockToken::oraclePaused() [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ emit SettlementExecuted(intentHash: 0x14d9786b877327998baf528e6902cfd693e1d6f78aaa6d8370db32f308964cb3, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2511215880 [2.511e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
+    │   └─ ← [Revert] OutputBelowFloor(2511215880 [2.511e9], 2537250000 [2.537e9])
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 5
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [287080] BaselineOracleRouter::swapExactIn(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), true, 10000000000000000000 [1e19], 0, trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   ├─ [31892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [224515] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   ├─ [222287] BaselineOracleRouter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000804400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d00000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [178626] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   ├─ emit Swap(id: 0x236af2f85faa375d8b6174ea70d49264a35b8af2f3c367730753208b130c011a, sender: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   ├─ [126642] 0x0000000000000000000000000000000000008044::afterSwap(BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000008044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   ├─ [33875] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   ├─ [29630] MockUSDG::transfer(0x0000000000000000000000000000000000008044, 30500597 [3.05e7])
+    │   │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: 0x0000000000000000000000000000000000008044, amount: 30500597 [3.05e7])
+    │   │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 30500597 [3.05e7]
+    │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997488784120 [-3.402e57]
+    │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   ├─ emit Transfer(from: BaselineOracleRouter: [0xF62849F9A0B5Bf2913b396098F7c7019b51A820a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   └─ ← [Return] true
+    │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   ├─ [26562] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   ├─ [24830] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2511215880 [2.511e9])
+    │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2511215880 [2.511e9])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   └─ ← [Stop]
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000000000000095ae1d08
+    │   └─ ← [Return] 2511215880 [2.511e9]
+    ├─ [0] VM::revertToState(5)
+    │   └─ ← [Return] true
+    ├─ [0] VM::revertToState(4)
+    │   └─ ← [Return] true
+    ├─ [0] VM::snapshotState()
+    │   └─ ← [Return] 6
+    ├─ [0] VM::txGasPrice(2000000000 [2e9])
+    │   └─ ← [Return]
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [46269] MockStockToken::approve(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   ├─ emit Approval(owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], spender: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 115792089237316195423570985008687907853269984665640564039457584007913129639935 [1.157e77])
+    │   └─ ← [Return] true
+    ├─ [60398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   └─ ← [Return] 8
+    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
+    ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
+    │   └─ ← [Return] 3
+    ├─ [0] VM::prank(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d])
+    │   └─ ← [Return]
+    ├─ [398425] ExecutionGateway::settle(ExecutionIntent({ chainId: 31337 [3.133e4], gateway: 0x32850cAd1e9170614704fF8BA37a25e498e1B832, owner: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, recipient: 0x10E951fA67B511D044803c7757DA445Ddf646f6d, tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountIn: 10000000000000000000 [1e19], userMinOut: 0, adapter: 0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a, routeHash: 0xa8e0286125b981922a7e6e31cb60e92fbed6f1c2a6cc1ac4e173567a0d337f42, policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3, nonce: 1, deadline: 1790003600 [1.79e9] }), PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), true)
+    │   ├─ [497] StockTokenReferencePolicy::policyId() [staticcall]
+    │   │   └─ ← [Return] 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c
+    │   ├─ [2316] StockTokenReferencePolicy::policyVersion() [staticcall]
+    │   │   └─ ← [Return] 3
+    │   ├─ [58398] StockTokenReferencePolicy::requiredMinOut(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], 10000000000000000000 [1e19], 0) [staticcall]
+    │   │   ├─ [2510] MockStockToken::oraclePaused() [staticcall]
+    │   │   │   └─ ← [Return] false
+    │   │   ├─ [2652] MockStockToken::newUIMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   ├─ [2586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   │   └─ ← [Return] 1, 25500000000 [2.55e10], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   │   └─ ← [Return] 8
+    │   │   ├─ [10877] MockAggregatorV3::latestRoundData() [staticcall]
+    │   │   │   └─ ← [Return] 1, 100000000 [1e8], 1790000000 [1.79e9], 1790000000 [1.79e9], 1
+    │   │   ├─ [2253] MockAggregatorV3::decimals() [staticcall]
+    │   │   │   └─ ← [Return] 8
+    │   │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   │   └─ ← [Return] 2537250000 [2.537e9], ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 })
+    │   ├─ [2537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [2625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 100000000000000000000 [1e20]
+    │   ├─ [2625] MockStockToken::balanceOf(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [27892] MockStockToken::transferFrom(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], 10000000000000000000 [1e19])
+    │   │   ├─ emit Transfer(from: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], to: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [24325] MockStockToken::approve(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 10000000000000000000 [1e19])
+    │   │   ├─ emit Approval(owner: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], spender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 10000000000000000000 [1e19])
+    │   │   └─ ← [Return] true
+    │   ├─ [188168] V4ExactInputAdapter::executeExactInput(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), true, 10000000000000000000 [1e19], MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9], MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 0xa8e0286125b981922a7e6e31cb60e92fbed6f1c2a6cc1ac4e173567a0d337f42)
+    │   │   ├─ [25423] MockStockToken::transferFrom(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 10000000000000000000 [1e19])
+    │   │   │   ├─ emit Transfer(from: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], to: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 10000000000000000000 [1e19])
+    │   │   │   └─ ← [Return] true
+    │   │   ├─ [151379] PoolManager::unlock(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000404400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   ├─ [149148] V4ExactInputAdapter::unlockCallback(0x0000000000000000000000005991a2df15a8f6a256d3ec51e99254cd3fb576a9000000000000000000000000c7183455a4c133ae270771860664b6b7ec320bb10000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c000000000000000000000000000000000000000000000000000000000000404400000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000010e951fa67b511d044803c7757da445ddf646f6d)
+    │   │   │   │   ├─ [102554] PoolManager::swap(PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), 0x)
+    │   │   │   │   │   ├─ emit Swap(id: 0x6432c326daa7d52bfed708b137f7d2eed0e2dc21a707bb8919bda90b10434791, sender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount0: -10000000000000000000 [-1e19], amount1: 2541716477 [2.541e9], sqrtPriceX96: 1264857031948878837881286 [1.264e24], liquidity: 638748776906852479 [6.387e17], tick: -220914 [-2.209e5], fee: 3000)
+    │   │   │   │   │   ├─ [51886] 0x0000000000000000000000000000000000004044::afterSwap(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], PoolKey({ currency0: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, currency1: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, fee: 3000, tickSpacing: 60, hooks: 0x0000000000000000000000000000000000004044 }), SwapParams({ zeroForOne: true, amountSpecified: -10000000000000000000 [-1e19], sqrtPriceLimitX96: 4295128740 [4.295e9] }), -3402823669209384634633746074317682114559999999997458283523 [-3.402e57], 0x)
+    │   │   │   │   │   │   └─ ← [Return] 0xb47b2fb1, 0
+    │   │   │   │   │   └─ ← [Return] -3402823669209384634633746074317682114559999999997458283523 [-3.402e57]
+    │   │   │   │   ├─ [4090] PoolManager::sync(MockStockToken: [0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9])
+    │   │   │   │   │   ├─ [2625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   │   └─ ← [Return] 79999999999999999879414 [7.999e22]
+    │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   ├─ [5906] MockStockToken::transfer(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], 10000000000000000000 [1e19])
+    │   │   │   │   │   ├─ emit Transfer(from: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], to: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], amount: 10000000000000000000 [1e19])
+    │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   ├─ [2816] PoolManager::settle()
+    │   │   │   │   │   ├─ [625] MockStockToken::balanceOf(PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f]) [staticcall]
+    │   │   │   │   │   │   └─ ← [Return] 80009999999999999879414 [8e22]
+    │   │   │   │   │   └─ ← [Return] 10000000000000000000 [1e19]
+    │   │   │   │   ├─ [29362] PoolManager::take(MockUSDG: [0xc7183455a4C133Ae270771860664b6B7ec320bB1], trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2541716477 [2.541e9])
+    │   │   │   │   │   ├─ [27630] MockUSDG::transfer(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], 2541716477 [2.541e9])
+    │   │   │   │   │   │   ├─ emit Transfer(from: PoolManager: [0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f], to: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], amount: 2541716477 [2.541e9])
+    │   │   │   │   │   │   └─ ← [Return] true
+    │   │   │   │   │   └─ ← [Stop]
+    │   │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000000000000000000000000000000000000977f83fd
+    │   │   │   └─ ← [Return] 0x0000000000000000000000000000000000000000000000008ac7230489e8000000000000000000000000000000000000000000000000000000000000977f83fd
+    │   │   ├─ [625] MockStockToken::balanceOf(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a]) [staticcall]
+    │   │   │   └─ ← [Return] 0
+    │   │   └─ ← [Return] 10000000000000000000 [1e19], 2541716477 [2.541e9]
+    │   ├─ [2325] MockStockToken::approve(V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], 0)
+    │   │   ├─ emit Approval(owner: ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832], spender: V4ExactInputAdapter: [0x1742F7d30605F18f097F356E1EeAfDB5e2FDe33a], amount: 0)
+    │   │   └─ ← [Return] true
+    │   ├─ [625] MockStockToken::balanceOf(ExecutionGateway: [0x32850cAd1e9170614704fF8BA37a25e498e1B832]) [staticcall]
+    │   │   └─ ← [Return] 0
+    │   ├─ [537] MockUSDG::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 2541716477 [2.541e9]
+    │   ├─ [625] MockStockToken::balanceOf(trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d]) [staticcall]
+    │   │   └─ ← [Return] 90000000000000000000 [9e19]
+    │   ├─ [586] MockStockToken::uiMultiplier() [staticcall]
+    │   │   └─ ← [Return] 1000566080061092436 [1e18]
+    │   ├─ [510] MockStockToken::oraclePaused() [staticcall]
+    │   │   └─ ← [Return] false
+    │   ├─ emit SettlementExecuted(intentHash: 0xdae1657bf75d37dd69282a4781c40b83df6768ad58d515e2fa879bf1f88192e0, owner: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], recipient: trader: [0x10E951fA67B511D044803c7757DA445Ddf646f6d], receipt: SettlementReceipt({ tokenIn: 0x5991A2dF15A8F6A256D3Ec51E99254Cd3fb576A9, tokenOut: 0xc7183455a4C133Ae270771860664b6B7ec320bB1, amountInSpent: 10000000000000000000 [1e19], amountOutReceived: 2541716477 [2.541e9], enforcedFloor: 2537250000 [2.537e9], policyId: 0xaa584cde79a8dc5093646ef062f2a467f1664435dae453c54e109b5db844ef7c, policyVersion: 3 }), evidence: ReferenceEvidence({ baseRoundId: 1, quoteRoundId: 1, basePrice: 25500000000 [2.55e10], quotePrice: 100000000 [1e8], baseUpdatedAt: 1790000000 [1.79e9], quoteUpdatedAt: 1790000000 [1.79e9], uiMultiplier: 1000566080061092436 [1e18], referenceOut: 2550000000 [2.55e9], policyVersion: 3 }))
+    │   └─ ← [Return] 2541716477 [2.541e9]
+    ├─ [0] VM::revertToState(6)
+    │   └─ ← [Return] true
+    ├─ [0] console::log("A  quote-derived min (2%)   ", "SETTLED", 2511215880 [2.511e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("B  ordinary router + floor  ", "REVERTED", 2511215880 [2.511e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("C  HookFence full policy    ", "REVERTED", 2511215880 [2.511e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] console::log("D  honest-hook control      ", "SETTLED", 2541716477 [2.541e9]) [staticcall]
+    │   └─ ← [Stop]
+    ├─ [0] VM::serializeUint("<stringified JSON>", "tradeSizeStock18dp", 10000000000000000000 [1e19])
+    │   └─ ← [Return] "{\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "quotedOutUsdg6dp", 2541716477 [2.541e9])
+    │   └─ ← [Return] "{\"quotedOutUsdg6dp\":2541716477,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "referenceOutUsdg6dp", 2550000000 [2.55e9])
+    │   └─ ← [Return] "{\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "oracleFloorUsdg6dp", 2537250000 [2.537e9])
+    │   └─ ← [Return] "{\"oracleFloorUsdg6dp\":2537250000,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "quoteDerivedMinUsdg6dp", 2490882147 [2.49e9])
+    │   └─ ← [Return] "{\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeBool("<stringified JSON>", "A_settled", true)
+    │   └─ ← [Return] "{\"A_settled\":true,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "A_amountOut", 2511215880 [2.511e9])
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeBool("<stringified JSON>", "B_settled", false)
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_settled\":false,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "B_enforcedMin", 2537250000 [2.537e9])
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_enforcedMin\":2537250000,\"B_settled\":false,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeBool("<stringified JSON>", "C_settled", false)
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_enforcedMin\":2537250000,\"B_settled\":false,\"C_settled\":false,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "C_enforcedMin", 2537250000 [2.537e9])
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_enforcedMin\":2537250000,\"B_settled\":false,\"C_enforcedMin\":2537250000,\"C_settled\":false,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeBool("<stringified JSON>", "D_settled", true)
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_enforcedMin\":2537250000,\"B_settled\":false,\"C_enforcedMin\":2537250000,\"C_settled\":false,\"D_settled\":true,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::serializeUint("<stringified JSON>", "D_amountOut", 2541716477 [2.541e9])
+    │   └─ ← [Return] "{\"A_amountOut\":2511215880,\"A_settled\":true,\"B_enforcedMin\":2537250000,\"B_settled\":false,\"C_enforcedMin\":2537250000,\"C_settled\":false,\"D_amountOut\":2541716477,\"D_settled\":true,\"oracleFloorUsdg6dp\":2537250000,\"quoteDerivedMinUsdg6dp\":2490882147,\"quotedOutUsdg6dp\":2541716477,\"referenceOutUsdg6dp\":2550000000,\"tradeSizeStock18dp\":10000000000000000000}"
+    ├─ [0] VM::writeJson("<stringified JSON>", "./reports/phase0-baselines.json")
+    │   └─ ← [Return]
+    └─ ← [Return]
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 26.18ms (17.05ms CPU time)
+
+Ran 1 test suite in 38.46ms (26.18ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
