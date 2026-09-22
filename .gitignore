@@ -28,3 +28,7 @@ Thumbs.db
 # Local scratch
 scratch/
 *.log
+
+# Local demo artefacts
+contracts/reports/jayo-local.json
+contracts/broadcast/

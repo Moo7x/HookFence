@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jayo — portfolio baskets</title>
+<style>
+  :root{
+    --bg:#0b0d10; --panel:#14171c; --panel2:#1a1e24; --line:#262b33;
+    --txt:#e6e9ef; --dim:#8b94a3; --accent:#5eead4; --accent2:#818cf8;
+    --warn:#fbbf24; --bad:#f87171; --good:#4ade80;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  a{color:var(--accent)}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 16px 80px}
+
+  .mockbar{background:var(--warn);color:#1a1200;font-weight:700;
+    padding:10px 16px;text-align:center;letter-spacing:.2px;font-size:13px}
+  header{padding:28px 0 8px}
+  h1{margin:0;font-size:30px;letter-spacing:-.5px}
+  .tag{color:var(--dim);margin-top:6px}
+  .net{display:inline-flex;gap:8px;align-items:center;margin-top:12px;
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:6px 12px;font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--bad)}
+  .dot.on{background:var(--good)}
+
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:20px;margin-top:16px}
+  .step h2{margin:0 0 4px;font-size:17px;display:flex;align-items:center;gap:10px}
+  .n{width:24px;height:24px;border-radius:50%;background:var(--panel2);
+    border:1px solid var(--line);display:grid;place-items:center;
+    font-family:var(--mono);font-size:12px;color:var(--accent);flex:none}
+  .step p.sub{margin:0 0 14px;color:var(--dim);font-size:13px}
+
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label{font-size:12px;color:var(--dim);display:block;margin-bottom:4px}
+  input{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+    color:var(--txt);padding:9px 11px;font-family:var(--mono);font-size:13px}
+  input:focus{outline:none;border-color:var(--accent2)}
+  button{background:var(--accent);color:#04231e;border:0;border-radius:8px;
+    padding:10px 16px;font-weight:650;font-size:13px;cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button.danger{background:var(--bad);color:#2a0000}
+
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-family:var(--mono);font-size:13px}
+  th{text-align:left;color:var(--dim);font-weight:500;font-size:11px;
+    text-transform:uppercase;letter-spacing:.6px;padding:6px 8px;border-bottom:1px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid var(--line)}
+  td.num{text-align:right}
+
+  .log{background:#070809;border:1px solid var(--line);border-radius:10px;
+    padding:12px;margin-top:12px;font-family:var(--mono);font-size:12px;
+    max-height:220px;overflow:auto;white-space:pre-wrap}
+  .log .ok{color:var(--good)} .log .err{color:var(--bad)} .log .info{color:var(--dim)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;
+    font-family:var(--mono);border:1px solid var(--line)}
+  .pill.ok{color:var(--good);border-color:#1e4030} .pill.no{color:var(--bad);border-color:#4a2020}
+  .hint{font-size:12px;color:var(--dim);margin-top:10px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:700px){.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="mockbar">
+  ⚠ DEMO ON A LOCAL CHAIN — ALL ASSETS ARE MOCKS. Not Robinhood Stock Tokens, not Paxos USDG, not Chainlink feeds.
+</div>
+
+<div class="wrap">
+<header>
+  <h1>Jayo</h1>
+  <div class="tag">Build a funded token basket, own and transfer it as one position,
+    copy its allocation with your own funds, and withdraw its underlying assets.</div>
+  <div class="net"><span class="dot" id="dot"></span><span id="netinfo">connecting…</span></div>
+</header>
+
+<!-- 1 CREATE -->
+<div class="step">
+  <h2><span class="n">1</span> Create a basket</h2>
+  <p class="sub">Fund with USDG. The contract buys each asset through Uniswap v4 and an
+    ERC-721 holds the result. Preview first — those are <em>reference</em> amounts, not fills.</p>
+  <div class="row">
+    <div><label>USDG to fund</label><input id="fund" value="10000" size="10"></div>
+    <div><label>AAPL weight (bps)</label><input id="w1" value="6000" size="6"></div>
+    <div><label>NVDA weight (bps)</label><input id="w2" value="4000" size="6"></div>
+    <div style="align-self:flex-end"><button class="ghost" id="btnPreview">Preview</button></div>
+    <div style="align-self:flex-end"><button id="btnCreate">Create basket</button></div>
+  </div>
+  <div id="previewOut"></div>
+</div>
+
+<!-- 2 HOLDINGS -->
+<div class="step">
+  <h2><span class="n">2</span> Actual holdings</h2>
+  <p class="sub">What the position really owns, read from the contract — not what was quoted.</p>
+  <div class="row">
+    <div><label>Position #</label><input id="tokenId" value="1" size="6"></div>
+    <div style="align-self:flex-end"><button class="ghost" id="btnHoldings">Load</button></div>
+  </div>
+  <div id="holdingsOut"></div>
+</div>
+
+<!-- 3+4 TRANSFER & AUTHORITY -->
+<div class="step">
+  <h2><span class="n">3</span> Transfer, and prove prior authority dies</h2>
+  <p class="sub">Appoint a manager, transfer the position, then confirm the old owner and
+    their delegate can no longer control it.</p>
+  <div class="grid2">
+    <div>
+      <label>Delegate (manager) address</label>
+      <input id="mgr" style="width:100%" value="">
+      <div style="margin-top:8px"><button class="ghost" id="btnSetMgr">Appoint manager</button></div>
+    </div>
+    <div>
+      <label>Transfer to</label>
+      <input id="to" style="width:100%" value="">
+      <div style="margin-top:8px"><button id="btnTransfer">Transfer position</button></div>
+    </div>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button class="ghost" id="btnAuthority">Check authority</button>
+    <button class="danger" id="btnOldOwnerRedeem">Try redeem as previous owner</button>
+  </div>
+  <div id="authOut"></div>
+</div>
+
+<!-- 5 COPY -->
+<div class="step">
+  <h2><span class="n">4</span> Copy the allocation</h2>
+  <p class="sub">Creates a new position with the same recipe, funded entirely by you.
+    No holdings, ownership or history are copied.</p>
+  <div class="row">
+    <div><label>Copy position #</label><input id="copyFrom" value="1" size="6"></div>
+    <div><label>USDG to fund</label><input id="copyFund" value="5000" size="10"></div>
+    <div style="align-self:flex-end"><button id="btnCopy">Copy</button></div>
+  </div>
+  <div id="copyOut"></div>
+</div>
+
+<!-- 6 REDEEM -->
+<div class="step">
+  <h2><span class="n">5</span> Redeem in kind, with pricing unavailable</h2>
+  <p class="sub">Make every feed stale — a weekend, in effect. Creating anything becomes
+    impossible. Redemption still works, because it never asks for a price.</p>
+  <div class="row">
+    <button class="ghost" id="btnStale">Make feeds stale (+48h)</button>
+    <button class="ghost" id="btnTestCreate">Try to create (should fail)</button>
+    <div><label>Redeem position #</label><input id="redeemId" value="1" size="6"></div>
+    <div style="align-self:flex-end"><button id="btnRedeem">Redeem in kind</button></div>
+  </div>
+  <div id="redeemOut"></div>
+</div>
+
+<div class="step">
+  <h2>Activity</h2>
+  <div class="log" id="log"></div>
+</div>
+</div>
+
+<script type="module">
+import {createPublicClient, createWalletClient, http, parseUnits, formatUnits,
+        getContract, decodeErrorResult} from 'https://esm.sh/viem@2.21.55';
+import {privateKeyToAccount} from 'https://esm.sh/viem@2.21.55/accounts';
+import {foundry} from 'https://esm.sh/viem@2.21.55/chains';
+
+const RPC = 'http://127.0.0.1:8545';
+// Anvil's deterministic accounts. Local demo only — these keys are public knowledge
+// and hold nothing on any real network.
+const KEYS = [
+ '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+ '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+];
+const A = privateKeyToAccount(KEYS[0]);   // owner
+const B = privateKeyToAccount(KEYS[1]);   // transfer target
+
+const pub = createPublicClient({chain:foundry, transport:http(RPC)});
+const wA  = createWalletClient({account:A, chain:foundry, transport:http(RPC)});
+const wB  = createWalletClient({account:B, chain:foundry, transport:http(RPC)});
+
+const BASKET_ABI = [
+ {type:'function',name:'previewCreate',stateMutability:'view',
+  inputs:[{name:'allocation',type:'tuple[]',components:[{name:'asset',type:'address'},{name:'weightBps',type:'uint16'}]},{name:'usdgIn',type:'uint256'}],
+  outputs:[{type:'uint256[]'},{type:'uint256[]'},{type:'uint256[]'},{type:'uint256'}]},
+ {type:'function',name:'create',stateMutability:'nonpayable',
+  inputs:[{name:'allocation',type:'tuple[]',components:[{name:'asset',type:'address'},{name:'weightBps',type:'uint16'}]},{name:'usdgIn',type:'uint256'},{name:'deadline',type:'uint256'}],
+  outputs:[{type:'uint256'}]},
+ {type:'function',name:'copyAllocation',stateMutability:'nonpayable',
+  inputs:[{name:'sourceTokenId',type:'uint256'},{name:'usdgIn',type:'uint256'},{name:'deadline',type:'uint256'}],
+  outputs:[{type:'uint256'}]},
+ {type:'function',name:'holdingsOf',stateMutability:'view',inputs:[{type:'uint256'}],
+  outputs:[{type:'address[]'},{type:'uint256[]'}]},
+ {type:'function',name:'ownerOf',stateMutability:'view',inputs:[{type:'uint256'}],outputs:[{type:'address'}]},
+ {type:'function',name:'transferFrom',stateMutability:'nonpayable',
+  inputs:[{type:'address'},{type:'address'},{type:'uint256'}],outputs:[]},
+ {type:'function',name:'setManager',stateMutability:'nonpayable',inputs:[{type:'uint256'},{type:'address'}],outputs:[]},
+ {type:'function',name:'positionManager',stateMutability:'view',inputs:[{type:'uint256'}],outputs:[{type:'address'}]},
+ {type:'function',name:'positionVersion',stateMutability:'view',inputs:[{type:'uint256'}],outputs:[{type:'uint64'}]},
+ {type:'function',name:'isAuthorised',stateMutability:'view',inputs:[{type:'uint256'},{type:'address'}],outputs:[{type:'bool'}]},
+ {type:'function',name:'redeem',stateMutability:'nonpayable',inputs:[{type:'uint256'}],outputs:[]},
+ {type:'function',name:'allocationOf',stateMutability:'view',inputs:[{type:'uint256'}],
+  outputs:[{type:'tuple[]',components:[{name:'asset',type:'address'},{name:'weightBps',type:'uint16'}]}]},
+ // Errors from every contract in the path, so a nested revert decodes to its real
+ // name instead of a generic failure. A user who is refused deserves to be told
+ // which rule refused them.
+ {type:'error',name:'LegBelowMinimum',inputs:[{type:'address'},{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'LegWouldAcquireNothing',inputs:[{type:'address'},{type:'uint256'}]},
+ {type:'error',name:'LegAcquiredNothing',inputs:[{type:'address'},{type:'uint256'}]},
+ {type:'error',name:'NotPositionOwner',inputs:[{type:'uint256'},{type:'address'}]},
+ {type:'error',name:'WeightsMustSumToBps',inputs:[{type:'uint256'}]},
+ {type:'error',name:'DuplicateAsset',inputs:[{type:'address'}]},
+ {type:'error',name:'AssetNotSupported',inputs:[{type:'address'}]},
+ {type:'error',name:'NoLegs',inputs:[]},
+ {type:'error',name:'TooManyLegs',inputs:[{type:'uint256'},{type:'uint256'}]},
+ // ExecutionGateway
+ {type:'error',name:'OutputBelowFloor',inputs:[{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'InputOverspent',inputs:[{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'IntentExpired',inputs:[{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'PolicyVersionMismatch',inputs:[{type:'uint64'},{type:'uint64'}]},
+ // StockTokenReferencePolicy
+ {type:'error',name:'FeedStale',inputs:[{type:'address'},{type:'uint256'},{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'FeedAnswerNotPositive',inputs:[{type:'address'},{type:'int256'}]},
+ {type:'error',name:'OraclePausedForCorporateAction',inputs:[{type:'address'}]},
+ {type:'error',name:'CorporateActionPending',inputs:[{type:'address'},{type:'uint256'},{type:'uint256'}]},
+ {type:'error',name:'TokenNotSupported',inputs:[{type:'address'}]},
+];
+const ERC20_ABI = [
+ {type:'function',name:'approve',stateMutability:'nonpayable',inputs:[{type:'address'},{type:'uint256'}],outputs:[{type:'bool'}]},
+ {type:'function',name:'balanceOf',stateMutability:'view',inputs:[{type:'address'}],outputs:[{type:'uint256'}]},
+ {type:'function',name:'symbol',stateMutability:'view',inputs:[],outputs:[{type:'string'}]},
+ {type:'function',name:'decimals',stateMutability:'view',inputs:[],outputs:[{type:'uint8'}]},
+ {type:'function',name:'mint',stateMutability:'nonpayable',inputs:[{type:'address'},{type:'uint256'}],outputs:[]},
+];
+const FEED_ABI = [
+ {type:'function',name:'setAnswerAt',stateMutability:'nonpayable',inputs:[{type:'int256'},{type:'uint256'}],outputs:[]},
+ {type:'function',name:'latestRoundData',stateMutability:'view',inputs:[],
+  outputs:[{type:'uint80'},{type:'int256'},{type:'uint256'},{type:'uint256'},{type:'uint80'}]},
+];
+
+let D = null, SYM = {};
+const $ = id => document.getElementById(id);
+const log = (m, cls='info') => {
+  const el = $('log');
+  el.innerHTML += `<div class="${cls}">${new Date().toLocaleTimeString()}  ${m}</div>`;
+  el.scrollTop = el.scrollHeight;
+};
+const short = a => a.slice(0,6)+'…'+a.slice(-4);
+
+async function boot(){
+  try{
+    D = await (await fetch('../contracts/reports/jayo-local.json')).json();
+  }catch(e){
+    log('Could not read contracts/reports/jayo-local.json — run the deploy script first.','err');
+    $('netinfo').textContent = 'no deployment found';
+    return;
+  }
+  const bn = await pub.getBlockNumber();
+  $('dot').classList.add('on');
+  $('netinfo').textContent = `chain ${D.chainId} · block ${bn} · basket ${short(D.basket)}`;
+  $('mgr').value = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
+  $('to').value  = B.address;
+
+  for(const k of ['aapl','nvda','usdg']){
+    SYM[D[k].toLowerCase()] = await pub.readContract({address:D[k],abi:ERC20_ABI,functionName:'symbol'});
+  }
+  log(`connected · owner ${short(A.address)} · ${D.warning}`,'ok');
+}
+
+const alloc = () => ([
+  {asset: D.aapl, weightBps: Number($('w1').value)},
+  {asset: D.nvda, weightBps: Number($('w2').value)},
+]);
+const deadline = () => BigInt(Math.floor(Date.now()/1000) + 3600);
+const fmt18 = v => Number(formatUnits(v,18)).toFixed(6);
+const fmt6  = v => Number(formatUnits(v,6)).toFixed(6);
+
+// Plain-English reasons for the contract errors a user can actually hit.
+// A rejection should say what rule refused it and, where the numbers matter,
+// which numbers — not just that something reverted.
+const REASONS = {
+  LegBelowMinimum: a => `that leg is only ${fmt6(a[1])} USDG, below the ${fmt6(a[2])} USDG minimum`,
+  LegWouldAcquireNothing: () => `that leg is too small to acquire any whole unit — it would spend USDG for nothing`,
+  LegAcquiredNothing: () => `the swap returned zero tokens, so nothing was acquired`,
+  WeightsMustSumToBps: a => `weights add up to ${a[0]} bps; they must total exactly 10000`,
+  DuplicateAsset: () => `the same asset appears twice in the allocation`,
+  AssetNotSupported: () => `that asset has no reviewed route configured`,
+  NoLegs: () => `an allocation needs at least one leg`,
+  TooManyLegs: a => `${a[0]} legs; the maximum is ${a[1]}`,
+  NotPositionOwner: a => `only the current owner of position #${a[0]} can do that`,
+  OutputBelowFloor: a =>
+    `the pool would pay ${fmt18(a[0])}, below the required floor of ${fmt18(a[1])} — ` +
+    `rejected rather than filled at a worse price`,
+  InputOverspent: a => `it would have spent ${a[0]} against an authorised ${a[1]}`,
+  IntentExpired: () => `the authorisation expired before it could settle`,
+  PolicyVersionMismatch: a => `signed against policy version ${a[0]}, but the live version is ${a[1]}`,
+  FeedStale: () => `the price feed has not updated recently enough — pricing is unavailable`,
+  FeedAnswerNotPositive: () => `the price feed returned a non-positive value`,
+  OraclePausedForCorporateAction: () => `the issuer has paused this instrument's oracle for a corporate action`,
+  CorporateActionPending: () => `a corporate action is in flight for this instrument`,
+  TokenNotSupported: () => `that token is not a configured instrument`,
+};
+
+/// Walk a viem error chain to the decoded contract error and render it plainly.
+function explain(e){
+  let cur = e, found = null;
+  for (let i = 0; i < 12 && cur; i++){
+    if (cur.errorName) { found = cur; break; }
+    if (cur.data && cur.data.errorName) { found = cur.data; break; }
+    cur = cur.cause;
+  }
+  if (found && found.errorName){
+    const why = REASONS[found.errorName];
+    return why ? `${found.errorName} — ${why(found.args || [])}` : found.errorName;
+  }
+  const s = e?.shortMessage || e?.message || String(e);
+  return s.split('\n')[0];
+}
+
+async function ensureApproval(w){
+  await w.writeContract({address:D.usdg,abi:ERC20_ABI,functionName:'approve',
+    args:[D.basket, parseUnits('100000000',6)]});
+}
+
+$('btnPreview').onclick = async () => {
+  try{
+    const r = await pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'previewCreate',
+      args:[alloc(), parseUnits($('fund').value,6)]});
+    const [ins, refs, floors, unspent] = r;
+    let h = `<table><tr><th>Asset</th><th>USDG in</th><th>Reference out</th><th>Enforced floor</th></tr>`;
+    alloc().forEach((a,i)=>{
+      h += `<tr><td>${SYM[a.asset.toLowerCase()]}</td><td class="num">${fmt6(ins[i])}</td>
+            <td class="num">${fmt18(refs[i])}</td><td class="num">${fmt18(floors[i])}</td></tr>`;
+    });
+    h += `</table><div class="hint">Unspent (weight rounding, returned to you): ${fmt6(unspent)} USDG.
+          Reference is a forecast — the pool charges a fee and moves on impact.</div>`;
+    $('previewOut').innerHTML = h;
+    log('preview ok','ok');
+  }catch(e){ $('previewOut').innerHTML=''; log('preview failed: '+explain(e),'err'); }
+};
+
+$('btnCreate').onclick = async () => {
+  try{
+    await ensureApproval(wA);
+    const hash = await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'create',
+      args:[alloc(), parseUnits($('fund').value,6), deadline()]});
+    await pub.waitForTransactionReceipt({hash});
+    log('basket created · tx '+short(hash),'ok');
+    $('btnHoldings').click();
+  }catch(e){ log('create failed: '+explain(e),'err'); }
+};
+
+$('btnHoldings').onclick = async () => {
+  const id = BigInt($('tokenId').value);
+  try{
+    const [assets, amounts] = await pub.readContract({address:D.basket,abi:BASKET_ABI,
+      functionName:'holdingsOf',args:[id]});
+    const owner = await pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'ownerOf',args:[id]});
+    let h = `<div class="hint">Owner: <span class="pill">${short(owner)}</span></div>
+             <table><tr><th>Asset</th><th>Amount actually held</th></tr>`;
+    assets.forEach((a,i)=>{ h += `<tr><td>${SYM[a.toLowerCase()]||short(a)}</td>
+      <td class="num">${fmt18(amounts[i])}</td></tr>`; });
+    $('holdingsOut').innerHTML = h+'</table>';
+    log(`position #${id} · ${assets.length} legs`,'ok');
+  }catch(e){ $('holdingsOut').innerHTML=''; log('load failed: '+explain(e),'err'); }
+};
+
+$('btnSetMgr').onclick = async () => {
+  try{
+    const hash = await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'setManager',
+      args:[BigInt($('tokenId').value), $('mgr').value]});
+    await pub.waitForTransactionReceipt({hash});
+    log('manager appointed','ok'); $('btnAuthority').click();
+  }catch(e){ log('setManager failed: '+explain(e),'err'); }
+};
+
+$('btnTransfer').onclick = async () => {
+  try{
+    const id = BigInt($('tokenId').value);
+    const hash = await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'transferFrom',
+      args:[A.address, $('to').value, id]});
+    await pub.waitForTransactionReceipt({hash});
+    log('position transferred to '+short($('to').value),'ok');
+    $('btnAuthority').click(); $('btnHoldings').click();
+  }catch(e){ log('transfer failed: '+explain(e),'err'); }
+};
+
+$('btnAuthority').onclick = async () => {
+  const id = BigInt($('tokenId').value);
+  try{
+    const [owner, mgr, ver, oldOwnerAuth, mgrAuth] = await Promise.all([
+      pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'ownerOf',args:[id]}),
+      pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'positionManager',args:[id]}),
+      pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'positionVersion',args:[id]}),
+      pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'isAuthorised',args:[id,A.address]}),
+      pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'isAuthorised',args:[id,$('mgr').value]}),
+    ]);
+    const p = (b) => b ? '<span class="pill ok">authorised</span>' : '<span class="pill no">locked out</span>';
+    $('authOut').innerHTML = `<table>
+      <tr><th>Field</th><th>Value</th></tr>
+      <tr><td>current owner</td><td>${short(owner)}</td></tr>
+      <tr><td>position manager</td><td>${mgr==='0x0000000000000000000000000000000000000000'?'— cleared —':short(mgr)}</td></tr>
+      <tr><td>position version</td><td>${ver}</td></tr>
+      <tr><td>account A (original owner)</td><td>${p(oldOwnerAuth)}</td></tr>
+      <tr><td>appointed delegate</td><td>${p(mgrAuth)}</td></tr></table>`;
+  }catch(e){ log('authority check failed: '+explain(e),'err'); }
+};
+
+$('btnOldOwnerRedeem').onclick = async () => {
+  try{
+    await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'redeem',
+      args:[BigInt($('tokenId').value)]});
+    log('UNEXPECTED: previous owner redeemed','err');
+  }catch(e){ log('previous owner rejected — '+explain(e),'ok'); }
+};
+
+$('btnCopy').onclick = async () => {
+  try{
+    await ensureApproval(wA);
+    const hash = await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'copyAllocation',
+      args:[BigInt($('copyFrom').value), parseUnits($('copyFund').value,6), deadline()]});
+    await pub.waitForTransactionReceipt({hash});
+    log('allocation copied into a new, independently funded position','ok');
+    $('copyOut').innerHTML = `<div class="hint">A new position was minted to you with the same
+      recipe. The source keeps its owner, its holdings and its history.</div>`;
+  }catch(e){ log('copy failed: '+explain(e),'err'); }
+};
+
+$('btnStale').onclick = async () => {
+  try{
+    await pub.request({method:'evm_increaseTime',params:[172800]});
+    await pub.request({method:'evm_mine',params:[]});
+    const [, , , updatedAt] = await pub.readContract({address:D.aaplFeed,abi:FEED_ABI,
+      functionName:'latestRoundData'});
+    const blk = await pub.getBlock();
+    const age = Number(blk.timestamp - updatedAt);
+    log(`feeds are now ${(age/3600).toFixed(1)}h old — past the 24h heartbeat`,'ok');
+  }catch(e){ log('could not advance time: '+explain(e),'err'); }
+};
+
+$('btnTestCreate').onclick = async () => {
+  try{
+    await wA.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'create',
+      args:[alloc(), parseUnits('100',6), deadline()]});
+    log('UNEXPECTED: creation succeeded with stale pricing','err');
+  }catch(e){ log('creation correctly blocked — '+explain(e),'ok'); }
+};
+
+$('btnRedeem').onclick = async () => {
+  const id = BigInt($('redeemId').value);
+  try{
+    const owner = await pub.readContract({address:D.basket,abi:BASKET_ABI,functionName:'ownerOf',args:[id]});
+    const w = owner.toLowerCase()===A.address.toLowerCase() ? wA : wB;
+    const [assets, amounts] = await pub.readContract({address:D.basket,abi:BASKET_ABI,
+      functionName:'holdingsOf',args:[id]});
+    const hash = await w.writeContract({address:D.basket,abi:BASKET_ABI,functionName:'redeem',args:[id]});
+    await pub.waitForTransactionReceipt({hash});
+    let h = `<table><tr><th>Asset</th><th>Returned in kind</th></tr>`;
+    assets.forEach((a,i)=>{ h+=`<tr><td>${SYM[a.toLowerCase()]||short(a)}</td>
+      <td class="num">${fmt18(amounts[i])}</td></tr>`; });
+    $('redeemOut').innerHTML = h+`</table><div class="hint">Redemption read no price, called no
+      oracle and consulted no policy — which is why it worked while every feed was stale.</div>`;
+    log('redeemed in kind to '+short(owner),'ok');
+  }catch(e){ log('redeem failed: '+explain(e),'err'); }
+};
+
+boot();
+</script>
+</body>
+</html>
