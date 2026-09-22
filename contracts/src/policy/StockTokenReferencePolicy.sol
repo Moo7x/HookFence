@@ -146,55 +146,101 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     {
         if (amountIn == 0) revert ZeroAmount();
 
-        StockTokenConfig memory inCfg = _stockTokens[tokenIn];
-        if (inCfg.feed == address(0)) revert TokenNotSupported(tokenIn);
+        (address stockToken, bool isSell) = _resolveDirection(tokenIn, tokenOut);
 
-        QuoteAssetConfig memory outCfg = _quoteAssets[tokenOut];
-        if (outCfg.feed == address(0)) revert QuoteAssetNotSupported(tokenOut);
+        StockTokenConfig memory stockCfg = _stockTokens[stockToken];
+        QuoteAssetConfig memory quoteCfg = _quoteAssets[isSell ? tokenOut : tokenIn];
 
         _checkSequencer();
-        _checkInstrumentState(tokenIn);
+        _checkInstrumentState(stockToken);
 
-        evidence = _buildEvidence(tokenIn, amountIn, inCfg, outCfg);
+        evidence = _buildEvidence(stockToken, amountIn, isSell, stockCfg, quoteCfg);
 
         // Permitted total shortfall against the independent reference value.
         // Rounding: mulDiv truncates, so the derived floor is never OVERSTATED.
-        // The maximum understatement is 1 unit of tokenOut (1e-6 USDG), which is
-        // economically immaterial and avoids rounding-induced false rejections of
-        // otherwise-honest fills. This direction is deliberate; see ARCHITECTURE.md.
-        uint256 referenceFloor = Math.mulDiv(evidence.referenceOut, BPS - inCfg.maxShortfallBps, BPS);
+        // The maximum understatement is 1 unit of tokenOut, which is economically
+        // immaterial and avoids rounding-induced false rejections of otherwise-honest
+        // fills. This direction is deliberate; see ARCHITECTURE.md.
+        uint256 referenceFloor = Math.mulDiv(evidence.referenceOut, BPS - stockCfg.maxShortfallBps, BPS);
 
         floor = userMinOut > referenceFloor ? userMinOut : referenceFloor;
+    }
+
+    /// @notice Which of the two tokens is the Stock Token, and which way we are trading.
+    ///
+    /// @dev The policy is direction-aware rather than sell-only because Jayo funds a
+    ///      basket by BUYING Stock Tokens with USDG, and every instrument check
+    ///      (issuer pause, corporate-action window, feed validity) applies identically
+    ///      whichever side the Stock Token sits on. Making the caller declare the
+    ///      direction would let a caller declare it wrongly; deriving it from the
+    ///      reviewed configuration cannot be spoofed.
+    ///
+    ///      Exactly one side must be a configured Stock Token and the other a
+    ///      configured quote asset. A pair that is neither, or both, is rejected.
+    /// @return stockToken The Stock Token side.
+    /// @return isSell True when selling the Stock Token (stock in, quote out).
+    function _resolveDirection(address tokenIn, address tokenOut)
+        internal
+        view
+        returns (address stockToken, bool isSell)
+    {
+        bool inIsStock = _stockTokens[tokenIn].feed != address(0);
+        bool outIsStock = _stockTokens[tokenOut].feed != address(0);
+
+        if (inIsStock && !outIsStock) {
+            if (_quoteAssets[tokenOut].feed == address(0)) revert QuoteAssetNotSupported(tokenOut);
+            return (tokenIn, true);
+        }
+        if (outIsStock && !inIsStock) {
+            if (_quoteAssets[tokenIn].feed == address(0)) revert QuoteAssetNotSupported(tokenIn);
+            return (tokenOut, false);
+        }
+        // Neither side configured, or both are Stock Tokens (stock-for-stock is not a
+        // reviewed route: it would need two instrument checks and a cross rate).
+        revert TokenNotSupported(inIsStock ? tokenOut : tokenIn);
+    }
+
+    /// @notice The Stock Token involved in a pair, for callers that must re-check
+    ///         instrument state after an external call.
+    /// @dev `ExecutionGateway` uses this instead of assuming the Stock Token is the
+    ///      input, which is only true on the sell side.
+    function instrumentOf(address tokenIn, address tokenOut) external view returns (address stockToken) {
+        (stockToken,) = _resolveDirection(tokenIn, tokenOut);
     }
 
     /// @dev Reads both feeds and assembles the receipt evidence.
     /// @dev Written field-by-field into the memory struct rather than through a
     ///      pile of stack locals; the latter overflows the stack in this function.
     function _buildEvidence(
-        address tokenIn,
+        address stockToken,
         uint256 amountIn,
-        StockTokenConfig memory inCfg,
-        QuoteAssetConfig memory outCfg
+        bool isSell,
+        StockTokenConfig memory stockCfg,
+        QuoteAssetConfig memory quoteCfg
     ) internal view returns (ReferenceEvidence memory e) {
-        uint8 baseFeedDec;
+        uint8 stockFeedDec;
         uint8 quoteFeedDec;
 
-        (e.baseRoundId, e.basePrice, e.baseUpdatedAt, baseFeedDec) = _readFeed(inCfg.feed, inCfg.maxStaleness);
-        (e.quoteRoundId, e.quotePrice, e.quoteUpdatedAt, quoteFeedDec) = _readFeed(outCfg.feed, outCfg.maxStaleness);
+        // `base` is always the Stock Token feed and `quote` always the settlement
+        // asset feed, regardless of trade direction, so a receipt reads the same way
+        // for a buy and a sell.
+        (e.baseRoundId, e.basePrice, e.baseUpdatedAt, stockFeedDec) = _readFeed(stockCfg.feed, stockCfg.maxStaleness);
+        (e.quoteRoundId, e.quotePrice, e.quoteUpdatedAt, quoteFeedDec) = _readFeed(quoteCfg.feed, quoteCfg.maxStaleness);
 
         e.referenceOut = _referenceOut(
             amountIn,
             uint256(e.basePrice),
             uint256(e.quotePrice),
-            inCfg.tokenDecimals,
-            outCfg.tokenDecimals,
-            baseFeedDec,
+            isSell,
+            stockCfg.tokenDecimals,
+            quoteCfg.tokenDecimals,
+            stockFeedDec,
             quoteFeedDec
         );
 
         // Recorded for audit only. Deliberately NOT applied to referenceOut:
         // the feed already includes it.
-        e.uiMultiplier = IStockToken(tokenIn).uiMultiplier();
+        e.uiMultiplier = IStockToken(stockToken).uiMultiplier();
         e.policyVersion = policyVersion;
     }
 
@@ -202,21 +248,21 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     /// @dev Exposed so the SDK and demo can show "reference value" and "enforced floor"
     ///      as separate numbers instead of one opaque threshold.
     function referenceValue(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256) {
-        StockTokenConfig memory inCfg = _stockTokens[tokenIn];
-        if (inCfg.feed == address(0)) revert TokenNotSupported(tokenIn);
-        QuoteAssetConfig memory outCfg = _quoteAssets[tokenOut];
-        if (outCfg.feed == address(0)) revert QuoteAssetNotSupported(tokenOut);
+        (address stockToken, bool isSell) = _resolveDirection(tokenIn, tokenOut);
+        StockTokenConfig memory stockCfg = _stockTokens[stockToken];
+        QuoteAssetConfig memory quoteCfg = _quoteAssets[isSell ? tokenOut : tokenIn];
 
-        (, int256 basePrice,, uint8 baseFeedDec) = _readFeed(inCfg.feed, inCfg.maxStaleness);
-        (, int256 quotePrice,, uint8 quoteFeedDec) = _readFeed(outCfg.feed, outCfg.maxStaleness);
+        (, int256 basePrice,, uint8 stockFeedDec) = _readFeed(stockCfg.feed, stockCfg.maxStaleness);
+        (, int256 quotePrice,, uint8 quoteFeedDec) = _readFeed(quoteCfg.feed, quoteCfg.maxStaleness);
 
         return _referenceOut(
             amountIn,
             uint256(basePrice),
             uint256(quotePrice),
-            inCfg.tokenDecimals,
-            outCfg.tokenDecimals,
-            baseFeedDec,
+            isSell,
+            stockCfg.tokenDecimals,
+            quoteCfg.tokenDecimals,
+            stockFeedDec,
             quoteFeedDec
         );
     }
@@ -311,26 +357,44 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
         }
     }
 
-    /// @dev Full-precision decimal normalisation.
+    /// @dev Full-precision decimal normalisation, both directions.
     ///
-    ///      referenceOut = amountIn * basePrice * 10^outDec * 10^quoteFeedDec
-    ///                   / (10^inDec * 10^baseFeedDec * quotePrice)
+    ///      Both legs are the same two steps: value the input in USD, then convert
+    ///      that USD into the output token. Only which feed prices which side swaps.
+    ///
+    ///      SELL (Stock Token in, quote asset out):
+    ///        usd = amountIn * stockPrice / 10^stockDec            [10^stockFeedDec]
+    ///        out = usd * 10^quoteDec * 10^quoteFeedDec
+    ///              / (10^stockFeedDec * quotePrice)
+    ///
+    ///      BUY (quote asset in, Stock Token out):
+    ///        usd = amountIn * quotePrice / 10^quoteDec            [10^quoteFeedDec]
+    ///        out = usd * 10^stockDec * 10^stockFeedDec
+    ///              / (10^quoteFeedDec * stockPrice)
     ///
     ///      Evaluated as two 512-bit mulDivs so no intermediate has to fit in 256
-    ///      bits. Both truncate, so the result is never overstated.
+    ///      bits. Both truncate, so the result is never overstated - which is the
+    ///      conservative direction for a MINIMUM output on either leg.
+    ///
+    ///      The multiplier is absent from both. The Stock Token feed already prices
+    ///      one whole token, so it is as wrong to apply it on the way in as on the
+    ///      way out. See test/unit/MultiplierAndUnits.t.sol.
     function _referenceOut(
         uint256 amountIn,
-        uint256 basePrice,
+        uint256 stockPrice,
         uint256 quotePrice,
-        uint8 inDec,
-        uint8 outDec,
-        uint8 baseFeedDec,
+        bool isSell,
+        uint8 stockDec,
+        uint8 quoteDec,
+        uint8 stockFeedDec,
         uint8 quoteFeedDec
     ) internal pure returns (uint256) {
-        // USD value of amountIn, scaled by 10^baseFeedDec.
-        uint256 usdValue = Math.mulDiv(amountIn, basePrice, 10 ** inDec);
-        // Convert USD -> tokenOut units.
-        return Math.mulDiv(usdValue, 10 ** outDec * 10 ** quoteFeedDec, 10 ** baseFeedDec * quotePrice);
+        if (isSell) {
+            uint256 usdValue = Math.mulDiv(amountIn, stockPrice, 10 ** stockDec);
+            return Math.mulDiv(usdValue, 10 ** quoteDec * 10 ** quoteFeedDec, 10 ** stockFeedDec * quotePrice);
+        }
+        uint256 usdIn = Math.mulDiv(amountIn, quotePrice, 10 ** quoteDec);
+        return Math.mulDiv(usdIn, 10 ** stockDec * 10 ** stockFeedDec, 10 ** quoteFeedDec * stockPrice);
     }
 
     // -----------------------------------------------------------------------

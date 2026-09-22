@@ -314,7 +314,9 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
         m.amountOutReceived = IERC20(intent.tokenOut).balanceOf(intent.recipient) - m.recipientBefore;
         m.amountInSpent = m.ownerBefore - IERC20(intent.tokenIn).balanceOf(intent.owner);
 
-        _assertInstrumentUnchanged(intent.tokenIn, m.multiplierBefore);
+        // The Stock Token is the INPUT when selling and the OUTPUT when buying, so
+        // ask the policy rather than assuming. Jayo funds baskets by buying.
+        _assertInstrumentUnchanged(policy.instrumentOf(intent.tokenIn, intent.tokenOut), m.multiplierBefore);
 
         _emitReceipt(intent, m, evidence);
     }

@@ -23,6 +23,12 @@ interface IExecutionPolicy {
         view
         returns (uint256 floor, ReferenceEvidence memory evidence);
 
+    /// @notice Which of a pair is the Stock Token.
+    /// @dev Callers that must re-check instrument state after an external call use
+    ///      this rather than assuming the Stock Token is the input - true only on
+    ///      the sell leg. Reverts if the pair is not a reviewed route.
+    function instrumentOf(address tokenIn, address tokenOut) external view returns (address stockToken);
+
     /// @notice Reference data actually used to derive a floor.
     struct ReferenceEvidence {
         uint80 baseRoundId;
