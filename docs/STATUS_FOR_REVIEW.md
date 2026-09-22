@@ -162,32 +162,79 @@ in `docs/FINDINGS_LOG.md`.
 | M7 | **Corporate-action mispricing is smaller than daily price noise.** Measured via Chainlink historical rounds: SPY multiplier +0.17% vs feed −0.17%; NVDA +0.08% vs −0.50%; MSFT +0.04% vs +0.57%. Equity feeds publish ~daily, so the multiplier step and the price move land in the **same round** — no pool ever observes a clean multiplier jump | `measure-corporate-action-impact.mjs` |
 | M8 | Full corporate-action history: 36 events / 29 tokens / 86 days, accelerating. CRWD 4:1 split. **WEEK: 2:1 split applied then reverted 15 minutes later** | `scan-corporate-actions.mjs` |
 
-### 6.1 What these killed
+### 6.1 What happened to the product direction — the part most worth reviewing
 
-M6 and M7 each invalidated a product direction that had been proposed and, in one
-case, written up as a design doc:
+Between your review and now, the project started four different directions and
+abandoned all four. Two had written design documents before being dropped. This
+is the churn that cost roughly a day and a half, and I want it reviewed rather
+than summarised away, because **some of these kills may have been wrong.**
 
-- A **market-hours dynamic-fee hook** was proposed as differentiated. M6 shows
-  94% of equity pools are already hooked with 750 distinct implementations,
-  several carrying the exact permission set for a custom-curve no-LP venue. Dead.
-- A **corporate-action arbitrage** thesis was proposed. M7 shows the effect is
-  2–14× smaller than ordinary daily noise and not separable at feed granularity.
-  Dead.
+Chronology, with the kill reason and my honest assessment of whether the kill
+was justified:
 
-Two earlier directions (dividend-yield stripping; a transferable portfolio NFT
-with a return leaderboard) died to yield thinness and to an incentive critique
-respectively. All four are logged with cause in `FINDINGS_LOG.md`.
+| # | Direction | Killed by | Was the kill justified? |
+|---|---|---|---|
+| 1 | **Dividend stripping** — separate a Stock Token into price exposure + a tradeable dividend stream, using ERC-8056 multiplier growth as the yield | Measured yields: 0.02–0.45% per payment, ~0.1–2.5%/yr | **Yes.** ~10 minutes to check, numbers are unambiguous, no market at that size. Clean kill. |
+| 2 | **Jayo — portfolio NFT** (the teammate's idea, reshaped from paper trading to real custody): deposit USDG, contract buys a real basket of equities + memecoins on v4, an ERC-721 holds it, transferable, competitive leaderboard. `docs/PROJECT_PLAN.md` and `docs/JAYO_DESIGN.md` were both written | An adversarial product critique, not a measurement | **Uncertain — please review this one.** See below. |
+| 3 | **Market-hours dynamic-fee hook** — a v4 hook refusing to quote while the equity oracle is asleep or mid-corporate-action, with fee scaled to feed age | M6: 94% of equity pools already hooked, 750 distinct implementations, several with the exact permission set for a custom-curve no-LP venue | **Yes.** Measured, not argued. I proposed it as "the one thing no gallery project has" without first checking what was already deployed on the chain — the wrong question. |
+| 4 | **Corporate-action arbitrage** — capture mispricing when a multiplier changes | M7: effect is 2–14× smaller than ordinary daily noise, and both land in the same feed round | **Yes.** ~20 minutes to measure. Would have been a week wasted otherwise. |
 
-### 6.2 A methodological error worth recording
+**Kills 1, 3 and 4 were made by measurement and I stand behind them.**
 
-Two of my own measurements were initially wrong and self-corrected:
+**Kill 2 is the one I want challenged.** Jayo was killed by an adversarial agent
+I prompted to attack it, not by data. Its strongest arguments were:
+
+- Transferability and the leaderboard cancel out: a buyer can replicate any
+  basket with N swaps, so the only non-replicable thing is the rank — and a
+  *sellable* rank is a seasoned-account market (mint 20, let variance run, sell
+  the winner, burn 19).
+- Adverse selection: you only sell a portfolio you think has topped, so listed
+  NFTs are systematically the ones about to underperform.
+- Ranking by weekly % return on a memechain is a memecoin-beta contest; the
+  optimal play is 100% one high-beta memecoin, which routes around the entire
+  equity/safety half of the product.
+- The demand evidence (M3) is a misread: swap counts show a pool was *routed
+  through*, not that any address *holds* both assets — and that gap is still
+  unmeasured (§6.3).
+
+Those are real objections. But they are objections of the kind every shipped
+product has, and the proposed fixes (soulbind the score, copy-mint instead of
+sell, risk-adjusted scoring, in-kind redemption) were never evaluated on their
+merits before the direction was dropped. **If you think Jayo was killed
+prematurely, say so — the design doc is intact at `docs/JAYO_DESIGN.md` and
+`docs/PROJECT_PLAN.md`.**
+
+### 6.2 The methodological failure behind the churn
+
+Stated plainly because it is the actual finding of the last two days, and because
+it is a repeat of the error you yourself flagged and corrected in your review:
+
+**I was applying a standard of "must survive adversarial review." Nothing
+survives that.** Not RWA.Index, not Mandate, not ArbiGuard — nor, by your own
+account, the NYC winners. I collapsed "this idea is fatally broken" into "this
+idea has weaknesses," and used the second to kill four consecutive directions.
+The user correctly identified this before I did.
+
+You wrote: *"My earlier response went too far in treating the conversation's weak
+pitch as sufficient reason to stop the whole project before reviewing its code."*
+I then repeated that failure mode four more times at the idea level.
+
+The correction: ideas are now scored on buildability, excitement, sponsor fit and
+memorability, with prior art named honestly rather than treated as
+disqualifying. That produced `docs/IDEA_SLATE.md`.
+
+### 6.3 Measurement errors of my own, self-corrected
 
 - A first pool query reported "0 swaps ever" because RPC errors were being
   swallowed. Re-run with error surfacing: the chain is extremely active.
 - Two `topics[0]` vs `topics[1]` indexing bugs conflated the event signature with
   the pool id.
+- A proposed launch asset list (SPY, AAPL, MSTR) was drawn from a 5-minute
+  sample; measuring sustained volume across 28h showed none of the three has
+  usable USDG liquidity. Corrected to ETH, GOOGL, NVDA.
 
-All figures above come from the corrected queries.
+All figures in §6 come from the corrected queries. Every script is committed so
+the numbers can be re-derived rather than trusted.
 
 ### 6.3 Still unmeasured
 
@@ -215,6 +262,36 @@ EqualFi's stated differentiator was nine index tokens **deployed** on Robinhood
 Chain testnet during the window.
 
 No product code has been written for any alternative. The decision is open.
+
+### 7.1 Three specific questions for you
+
+Answering these is worth more to the team right now than another code review.
+
+1. **Was Jayo killed prematurely?** (§6.1, kill 2.) It is the only one of the
+   four killed by argument rather than measurement, and it originated with the
+   non-technical teammate, whose product instincts have so far been better than
+   mine. The design is intact in `docs/JAYO_DESIGN.md` / `docs/PROJECT_PLAN.md`.
+   If the adversarial critique was over-weighted, that is recoverable in a day.
+
+2. **Finish or pivot?** ~12 days. The engine is roughly 60% of a submission
+   (contracts and tests done; deployment, fork tests, SDK, UI, docs not started)
+   and is certain to finish but scores low on Innovation. The alternatives score
+   higher on Innovation and Memorability but start from zero contract code, and
+   two would need their riskiest subsystem proven in the first 48 hours.
+
+3. **Is the churn itself now the biggest risk?** Four abandoned directions in two
+   days has cost more than any single wrong choice would have. There is an
+   argument that committing to *anything* today and shipping it beats another
+   round of selection. If you agree, say which one and the team will build it
+   without further relitigation — including if the answer is "finish what you
+   already have."
+
+Note on process, so you can calibrate: an earlier round of this analysis was run
+as a large parallel agent fan-out, was interrupted mid-run for cost, and one
+completed agent's output was left unread on disk until the user asked about it.
+It contained the strongest critique produced in the whole session. Subsequent
+runs assign cheaper models to mechanical checks and reserve the expensive ones
+for genuinely hard reasoning.
 
 ---
 
