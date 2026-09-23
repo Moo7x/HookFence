@@ -467,6 +467,6 @@ details.tech pre {
 
   /* Touch targets. WCAG 2.5.8 asks for 24px, Apple/Google for 44px; the
      desktop padding lands at 37px, which is under both vendor guidelines. */
-  button { min-height: 44px; }
+  button, select { min-height: 44px; }
   .demo .actions button { min-height: 40px; }
 }
