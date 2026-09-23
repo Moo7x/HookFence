@@ -37,6 +37,16 @@ interface IExecutionPolicy {
     ///      the sell leg. Reverts if the pair is not a reviewed route.
     function instrumentOf(address tokenIn, address tokenOut) external view returns (address stockToken);
 
+    /// @notice Whether `stockToken` answers `oraclePaused()`, as established when
+    ///         an owner registered it.
+    /// @dev Not every deployment implements the whole Robinhood Stock Token
+    ///      surface - the equity tokens on Robinhood Chain testnet revert on this
+    ///      call. A caller that re-checks instrument state after an external call
+    ///      needs the same answer the policy used, so that "this instrument has no
+    ///      pause flag" and "this instrument stopped answering" stay distinct.
+    ///      False for an unregistered token.
+    function instrumentAnswersPause(address stockToken) external view returns (bool);
+
     /// @notice Reference data actually used to derive a floor.
     struct ReferenceEvidence {
         uint80 baseRoundId;

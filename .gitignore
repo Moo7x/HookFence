@@ -31,4 +31,5 @@ scratch/
 
 # Local demo artefacts
 contracts/reports/jayo-local.json
+contracts/reports/jayo-testnet.json
 contracts/broadcast/

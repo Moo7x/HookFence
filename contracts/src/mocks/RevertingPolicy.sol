@@ -34,4 +34,8 @@ contract RevertingPolicy is IExecutionPolicy {
     function instrumentOf(address, address) external pure returns (address) {
         revert PolicyDeliberatelyUnavailable();
     }
+
+    function instrumentAnswersPause(address) external pure returns (bool) {
+        revert PolicyDeliberatelyUnavailable();
+    }
 }

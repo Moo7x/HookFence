@@ -221,6 +221,11 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     ///         instrument state after an external call.
     /// @dev `ExecutionGateway` uses this instead of assuming the Stock Token is the
     ///      input, which is only true on the sell side.
+    /// @inheritdoc IExecutionPolicy
+    function instrumentAnswersPause(address stockToken) external view returns (bool) {
+        return _stockTokens[stockToken].hasOraclePaused;
+    }
+
     function instrumentOf(address tokenIn, address tokenOut) external view returns (address stockToken) {
         (stockToken,) = _resolveDirection(tokenIn, tokenOut);
     }

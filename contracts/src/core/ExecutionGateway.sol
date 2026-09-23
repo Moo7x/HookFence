@@ -349,11 +349,20 @@ contract ExecutionGateway is Ownable2Step, ReentrancyGuard, EIP712 {
     ///      corporate action or an issuer pause. The floor was derived before that
     ///      call, so re-read the instrument state afterwards and refuse to settle
     ///      against a floor that is no longer the one that applies.
+    ///
+    ///      The multiplier comparison works on any ERC-8056 instrument. The pause
+    ///      read does not exist everywhere - the equity tokens on Robinhood Chain
+    ///      testnet revert on it - so it runs only where the policy established at
+    ///      registration that the instrument answers. An instrument that answered
+    ///      then and refuses now is treated as a change, not as an all-clear.
     function _assertInstrumentUnchanged(address tokenIn, uint256 multiplierBefore) internal view {
         if (IStockToken(tokenIn).uiMultiplier() != multiplierBefore) {
             revert InstrumentStateChangedDuringExecution(tokenIn);
         }
-        if (IStockToken(tokenIn).oraclePaused()) {
+        if (!policy.instrumentAnswersPause(tokenIn)) return;
+
+        (bool ok, bytes memory ret) = tokenIn.staticcall(abi.encodeCall(IStockToken.oraclePaused, ()));
+        if (!ok || ret.length != 32 || abi.decode(ret, (bool))) {
             revert InstrumentStateChangedDuringExecution(tokenIn);
         }
     }
