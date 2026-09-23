@@ -56,12 +56,19 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     error InvalidStaleness(uint256 secs);
     error ZeroAddress();
     error ZeroAmount();
+    error InstrumentStateUnavailable(address token, bytes4 selector);
 
     // -----------------------------------------------------------------------
     // Events
     // -----------------------------------------------------------------------
     event StockTokenConfigured(
         address indexed token, address indexed feed, uint256 maxStaleness, uint16 maxShortfallBps, uint64 policyVersion
+    );
+    /// @notice Which optional Robinhood Stock Token reads this instrument answers.
+    ///         Emitted alongside configuration so the capability set of a live
+    ///         instrument is auditable from logs, not only from storage.
+    event StockTokenCapabilities(
+        address indexed token, bool hasOraclePaused, bool hasCorporateActionData, uint64 policyVersion
     );
     event StockTokenRemoved(address indexed token, uint64 policyVersion);
     event QuoteAssetConfigured(address indexed token, address indexed feed, uint256 maxStaleness, uint64 policyVersion);
@@ -79,6 +86,16 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
         uint32 maxStaleness; // seconds; derived from the feed heartbeat
         uint16 maxShortfallBps; // permitted total shortfall vs the reference value
         uint8 tokenDecimals; // cached at configuration time from the live token
+        // Robinhood's mainnet Stock Tokens answer oraclePaused() and the
+        // ERC-8056 corporate-action reads. Tokens on other deployments do not
+        // all implement the same surface - the equity tokens on Robinhood Chain
+        // testnet, for instance, expose uiMultiplier()/effectiveAt() but revert
+        // on oraclePaused(). Probing once at configuration, and recording the
+        // answer on-chain, keeps that difference an explicit, auditable
+        // property of the instrument instead of a try/catch that would quietly
+        // read every failure as "not paused".
+        bool hasOraclePaused;
+        bool hasCorporateActionData;
     }
 
     /// @notice Per-settlement-asset (USDG) reference configuration.
@@ -152,7 +169,7 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
         QuoteAssetConfig memory quoteCfg = _quoteAssets[isSell ? tokenOut : tokenIn];
 
         _checkSequencer();
-        _checkInstrumentState(stockToken);
+        _checkInstrumentState(stockToken, stockCfg);
 
         evidence = _buildEvidence(stockToken, amountIn, isSell, stockCfg, quoteCfg);
 
@@ -317,11 +334,23 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
     ///      The window is therefore keyed on `effectiveAt` alone, regardless of
     ///      whether the change has already been applied. See
     ///      `test/unit/ReviewRegressions.t.sol`.
-    function _checkInstrumentState(address token) internal view {
-        if (IStockToken(token).oraclePaused()) revert OraclePausedForCorporateAction(token);
+    ///
+    ///      Both halves are conditional on what the instrument actually
+    ///      implements, decided once at configuration time. A capability the
+    ///      token claimed then and refuses now is a fault, not a pass: the read
+    ///      reverts with InstrumentStateUnavailable rather than defaulting to
+    ///      "nothing is wrong".
+    function _checkInstrumentState(address token, StockTokenConfig memory cfg) internal view {
+        if (cfg.hasOraclePaused) {
+            (bool ok, bytes memory ret) = token.staticcall(abi.encodeCall(IStockToken.oraclePaused, ()));
+            if (!ok || ret.length != 32) {
+                revert InstrumentStateUnavailable(token, IStockToken.oraclePaused.selector);
+            }
+            if (abi.decode(ret, (bool))) revert OraclePausedForCorporateAction(token);
+        }
 
         uint256 buffer = corporateActionBuffer;
-        if (buffer == 0) return;
+        if (buffer == 0 || !cfg.hasCorporateActionData) return;
 
         uint256 effectiveAt = IStockToken(token).effectiveAt();
         uint256 pending = IStockToken(token).newUIMultiplier();
@@ -412,15 +441,31 @@ contract StockTokenReferencePolicy is Ownable2Step, IExecutionPolicy {
         uint8 dec = IStockToken(token).decimals();
         if (dec > MAX_DECIMALS) revert DecimalsOutOfRange(token, dec);
 
+        bool hasPaused = _answers(token, IStockToken.oraclePaused.selector);
+        bool hasAction = _answers(token, IStockToken.effectiveAt.selector)
+            && _answers(token, IStockToken.newUIMultiplier.selector)
+            && _answers(token, IStockToken.uiMultiplier.selector);
+
         _stockTokens[token] = StockTokenConfig({
             feed: feed,
             maxStaleness: maxStaleness,
             maxShortfallBps: maxShortfallBps,
-            tokenDecimals: dec
+            tokenDecimals: dec,
+            hasOraclePaused: hasPaused,
+            hasCorporateActionData: hasAction
         });
 
         uint64 v = ++policyVersion;
         emit StockTokenConfigured(token, feed, maxStaleness, maxShortfallBps, v);
+        emit StockTokenCapabilities(token, hasPaused, hasAction, v);
+    }
+
+    /// @dev True when `token` answers a zero-argument view returning one word.
+    ///      Used only at configuration time; the result is stored, so a quote
+    ///      never pays for a probe.
+    function _answers(address token, bytes4 selector) private view returns (bool) {
+        (bool ok, bytes memory ret) = token.staticcall(abi.encodeWithSelector(selector));
+        return ok && ret.length == 32;
     }
 
     function removeStockToken(address token) external onlyOwner {
