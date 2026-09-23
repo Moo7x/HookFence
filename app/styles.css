@@ -1,0 +1,459 @@
+/* =========================================================================
+   Jayo — visual system
+   =========================================================================
+
+   Adapted from the "AuthKit / frosted glass cathedral at midnight" reference.
+   What was taken: the midnight canvas, frosted-glass surfaces, blueprint grid,
+   inset-hairline border language, and the Ice → Frost → Moon → Fog text ramp.
+
+   Deliberate deviations, and why:
+
+   1. SPACING. The reference is a marketing page: 120px section gaps, a 48px
+      hero. Jayo is an application where people read balances and act on them.
+      Cathedral rhythm here would mean scrolling past empty space to reach a
+      number. Section gap compressed to 32px, card padding kept at the
+      reference's 24px.
+
+   2. SEMANTIC COLOUR. The reference says "do not introduce additional
+      chromatic accents". A financial interface has to signal success and
+      failure unambiguously, so this is resolved INSIDE the supplied palette:
+      Ember Glow for errors, Deep Teal for success. Both are existing tokens.
+      No new hues.
+
+   3. FONTS. Untitled Sans / aeonikPro / dotDigital are licensed and
+      unavailable. The reference document names its own substitutes and those
+      are used: Inter, Space Grotesk, JetBrains Mono.
+
+   4. VIOLET. The reference reserves it for one auth CTA. Here it marks the
+      single primary action in any given view, which preserves the intent
+      (scarcity creates focus) rather than the letter.
+
+   Validation notes on the exported CSS:
+   - `--surface-steel-plate: #2f343` in the export is an invalid five-digit
+     hex; the colour token gives `#2f343e`, used here.
+   - `--radius-full-2: 4999.5px` and `--radius-full-3: 9999px` are redundant
+     with `999px` and are dropped.
+   ========================================================================= */
+
+:root {
+  /* --- Palette, from the reference ------------------------------------ */
+  --midnight:      #05060f;
+  --steel:         #2f343e;   /* corrected from the export's #2f343 */
+  --fog:           #9da7ba;
+  --moon:          #c7d3ea;
+  --frost:         #d1e4fa;
+  --ice:           #d8ecf8;
+  --white:         #ffffff;
+  --violet:        #663af3;
+  --blueprint:     #b6d9fc;
+
+  /* Semantic, drawn from the reference's own secondary accents */
+  --danger:        #e46d4c;   /* Ember Glow */
+  --success:       #269684;   /* Deep Teal  */
+  --warning:       #e4b14c;   /* Ember, shifted to amber for caution */
+
+  --skywash: linear-gradient(0deg, #d8ecf8 0%, #98c0ef 100%);
+
+  /* --- Surfaces -------------------------------------------------------- */
+  --surface-0: #05060f;
+  --surface-1: rgba(186, 214, 247, 0.03);
+  --surface-2: rgba(186, 214, 247, 0.06);
+  --surface-3: rgba(5, 6, 15, 0.97);
+
+  --hairline:  rgba(186, 215, 247, 0.12);
+  --hairline-strong: rgba(186, 215, 247, 0.24);
+
+  /* --- Elevation ------------------------------------------------------- */
+  --lift-card:
+    inset 0 1px 1px rgba(199, 211, 234, 0.12),
+    inset 0 24px 48px rgba(199, 211, 234, 0.05),
+    0 24px 32px rgba(6, 6, 14, 0.7);
+  --lift-modal:
+    inset 0 1px 1px rgba(216, 236, 248, 0.2),
+    inset 0 24px 48px rgba(168, 216, 245, 0.06),
+    0 16px 32px rgba(0, 0, 0, 0.3);
+  --ring: inset 0 0 0 1px var(--hairline);
+
+  /* --- Type ------------------------------------------------------------ */
+  --sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Space Grotesk', var(--sans);
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* --- Rhythm (compressed from the reference; see note 1) -------------- */
+  --gap-section: 32px;
+  --pad-card: 24px;
+  --gap-el: 16px;
+  --page: 1100px;
+
+  --r-card: 16px;
+  --r-input: 6px;
+  --r-badge: 6px;
+  --r-pill: 999px;
+}
+
+/* ===================== base ============================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* `display:flex` on .msg/.txstate outranks the [hidden] attribute's UA
+   `display:none`, so hidden elements stayed visible. Restore the intent. */
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--midnight);
+  color: var(--frost);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Blueprint grid + spotlight halo, straight from the reference. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(186, 215, 247, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(186, 215, 247, 0.06) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+body::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 340px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(ellipse 60% 100% at 50% 0%,
+    rgba(124, 145, 182, 0.22), transparent 70%);
+}
+
+.shell { position: relative; z-index: 1; max-width: var(--page); margin: 0 auto; padding: 0 20px 96px; }
+
+h1, h2, h3 { margin: 0; font-family: var(--display); font-weight: 500; letter-spacing: 0; }
+
+a { color: var(--frost); }
+
+/* Focus is never removed — only restyled. Keyboard users must always be able
+   to see where they are. */
+/* Headings are focused programmatically to move a keyboard user's reading
+   position; they should not then draw a focus ring as if they were controls. */
+h2[tabindex="-1"]:focus { outline: none; }
+
+:focus-visible {
+  outline: 2px solid var(--blueprint);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ===================== status bar ====================================== */
+
+.statusbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center;
+  padding: 10px 20px;
+  background: rgba(5, 6, 15, 0.88);
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 -1px 0 var(--hairline);
+  font-size: 12px;
+}
+.statusbar .mockflag {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--warning);
+  background: rgba(228, 177, 76, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(228, 177, 76, 0.28);
+  border-radius: var(--r-badge);
+  padding: 4px 8px;
+}
+.statusbar .meta { font-family: var(--mono); color: var(--fog); font-size: 11px; }
+.statusbar .spacer { flex: 1 1 auto; }
+.live { display: inline-flex; align-items: center; gap: 6px; color: var(--fog); font-family: var(--mono); font-size: 11px; }
+.live .led { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+.live .led.on { background: var(--success); box-shadow: 0 0 8px rgba(38, 150, 132, 0.8); }
+
+/* ===================== hero ============================================ */
+
+.hero { padding: 40px 0 8px; }
+.eyebrow {
+  font-family: var(--mono); font-size: 12px; font-weight: 400;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--moon);
+  display: flex; align-items: center; gap: 12px;
+}
+.eyebrow::after {
+  content: ''; flex: 1; height: 1px;
+  background: linear-gradient(90deg, var(--hairline), transparent);
+}
+.wordmark {
+  font-family: var(--display); font-size: 44px; font-weight: 500; line-height: 1.16;
+  margin: 12px 0 8px;
+  background: var(--skywash);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 12px rgba(186, 207, 247, 0.18));
+}
+.promise { color: var(--moon); max-width: 62ch; margin: 0; }
+
+/* ===================== cards =========================================== */
+
+.card {
+  background: var(--surface-1);
+  border-radius: var(--r-card);
+  box-shadow: var(--lift-card);
+  padding: var(--pad-card);
+  margin-top: var(--gap-section);
+}
+.card > header { margin-bottom: 18px; }
+.card h2 { font-size: 22px; display: flex; align-items: baseline; gap: 10px; }
+.card .step-n {
+  font-family: var(--mono); font-size: 12px; color: var(--violet);
+  background: rgba(102, 58, 243, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(102, 58, 243, 0.34);
+  border-radius: var(--r-badge); padding: 2px 7px;
+}
+.card .lede { color: var(--fog); font-size: 14px; margin: 6px 0 0; max-width: 70ch; }
+
+/* ===================== controls ======================================== */
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field label { font-size: 12px; color: var(--moon); }
+.field .unit { color: var(--fog); }
+
+input[type="text"], input[type="number"] {
+  width: 100%;
+  background: rgba(199, 211, 234, 0.06);
+  color: var(--white);
+  border: 0;
+  box-shadow: var(--ring);
+  border-radius: var(--r-input);
+  padding: 10px 12px;
+  font-family: var(--mono); font-size: 14px;
+}
+input::placeholder { color: rgba(199, 211, 234, 0.45); }
+input:focus { box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+input[aria-invalid="true"] { box-shadow: inset 0 0 0 1px rgba(228, 109, 76, 0.6); }
+
+button {
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  border: 0; cursor: pointer;
+  border-radius: var(--r-pill);
+  padding: 10px 18px;
+  display: inline-flex; align-items: center; gap: 8px;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+button.primary { background: var(--violet); color: var(--white); }
+button.primary:hover:not(:disabled) { background: #7a52f5; }
+button.ghost {
+  background: rgba(186, 214, 247, 0.06);
+  color: var(--white);
+  box-shadow: var(--ring);
+}
+button.ghost:hover:not(:disabled) { background: rgba(186, 214, 247, 0.12); }
+button.quiet { background: transparent; color: var(--frost); box-shadow: var(--ring); }
+button.quiet:hover:not(:disabled) { background: rgba(186, 214, 247, 0.06); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+button .spin {
+  width: 13px; height: 13px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.28); border-top-color: var(--white);
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  button .spin { animation-duration: 2.4s; }
+}
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* ===================== allocation builder ============================== */
+
+.alloc-row {
+  display: grid;
+  grid-template-columns: 1fr 120px auto;
+  gap: 12px; align-items: end;
+  padding: 12px 0;
+  box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.alloc-row:last-of-type { box-shadow: none; }
+.asset { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.asset .sym { font-family: var(--mono); font-size: 14px; color: var(--ice); }
+.asset .name { font-size: 12px; color: var(--fog); }
+.chip {
+  width: 34px; height: 34px; border-radius: 999px; flex: none;
+  background: rgba(186, 214, 247, 0.06); box-shadow: var(--ring);
+  display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--frost);
+}
+
+.total-line {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 14px; padding-top: 14px;
+  box-shadow: inset 0 1px 0 var(--hairline);
+  font-size: 14px;
+}
+.total-line .amount { font-family: var(--mono); }
+.total-line.bad .amount { color: var(--danger); }
+.total-line.good .amount { color: var(--success); }
+
+/* ===================== quote / summary ================================= */
+
+.summary {
+  margin-top: 18px;
+  background: var(--surface-2);
+  border-radius: var(--r-card);
+  box-shadow: var(--ring);
+  padding: 18px;
+}
+.summary dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; }
+.summary dt { color: var(--moon); font-size: 14px; }
+.summary dd { margin: 0; font-family: var(--mono); font-size: 14px; color: var(--ice); text-align: right; }
+.summary dd.big { font-size: 18px; }
+.summary .sep { grid-column: 1 / -1; height: 1px; background: var(--hairline); }
+.summary .note { grid-column: 1 / -1; color: var(--fog); font-size: 12px; margin-top: 2px; }
+
+/* ===================== holdings table ================================== */
+
+.holdings { width: 100%; border-collapse: collapse; margin-top: 4px; }
+.holdings th {
+  text-align: left; font-size: 11px; font-weight: 500; color: var(--fog);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 8px 10px; box-shadow: inset 0 -1px 0 var(--hairline);
+}
+.holdings td { padding: 12px 10px; box-shadow: inset 0 -1px 0 var(--hairline); font-size: 14px; }
+.holdings td.num { text-align: right; font-family: var(--mono); color: var(--ice); }
+.holdings tr:last-child td { box-shadow: none; }
+
+/* ===================== states / messages =============================== */
+
+.msg {
+  border-radius: var(--r-input);
+  padding: 12px 14px;
+  font-size: 14px;
+  margin-top: 14px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.msg .icon { flex: none; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+.msg.error   { background: rgba(228, 109, 76, 0.1);  box-shadow: inset 0 0 0 1px rgba(228, 109, 76, 0.32);  color: #f6c3b2; }
+.msg.success { background: rgba(38, 150, 132, 0.1);  box-shadow: inset 0 0 0 1px rgba(38, 150, 132, 0.34);  color: #9fded1; }
+.msg.warn    { background: rgba(228, 177, 76, 0.1);  box-shadow: inset 0 0 0 1px rgba(228, 177, 76, 0.3);   color: #f0d9a8; }
+.msg.info    { background: var(--surface-2); box-shadow: var(--ring); color: var(--moon); }
+.msg .body { min-width: 0; }
+.msg strong { color: inherit; font-weight: 600; }
+
+details.tech { margin-top: 10px; }
+details.tech summary {
+  cursor: pointer; font-size: 12px; color: var(--fog);
+  font-family: var(--mono); letter-spacing: 0.04em;
+  list-style: none;
+}
+details.tech summary::-webkit-details-marker { display: none; }
+details.tech summary::before { content: '▸ '; }
+details.tech[open] summary::before { content: '▾ '; }
+details.tech pre {
+  margin: 8px 0 0; padding: 10px 12px;
+  background: rgba(0,0,0,0.42); border-radius: var(--r-input);
+  box-shadow: var(--ring);
+  font-family: var(--mono); font-size: 11.5px; color: var(--moon);
+  overflow-x: auto; white-space: pre-wrap; word-break: break-word;
+}
+
+/* transaction state strip */
+.txstate {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 12px; color: var(--fog);
+  margin-top: 12px;
+}
+.txstate .pip { width: 8px; height: 8px; border-radius: 50%; background: var(--steel); flex: none; }
+.txstate[data-state="signing"] .pip,
+.txstate[data-state="pending"] .pip { background: var(--warning); animation: pulse 1.1s ease-in-out infinite; }
+.txstate[data-state="confirmed"] .pip { background: var(--success); }
+.txstate[data-state="failed"] .pip { background: var(--danger); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+@media (prefers-reduced-motion: reduce) { .txstate .pip { animation: none; } }
+
+/* ===================== position cards ================================== */
+
+.positions { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.position {
+  background: var(--surface-2); border-radius: var(--r-card);
+  box-shadow: var(--ring); padding: 18px;
+}
+.position h3 { font-size: 17px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.position .owner { font-family: var(--mono); font-size: 11px; color: var(--fog); }
+.badge {
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 7px; border-radius: var(--r-badge);
+  background: rgba(199, 211, 234, 0.12); color: var(--frost);
+}
+.badge.yours { background: rgba(102, 58, 243, 0.18); color: #c3b1fb; }
+
+/* ===================== demo panel ====================================== */
+
+.demo {
+  margin-top: var(--gap-section);
+  border-radius: var(--r-card);
+  padding: var(--pad-card);
+  background: rgba(228, 177, 76, 0.045);
+  box-shadow: inset 0 0 0 1px rgba(228, 177, 76, 0.24);
+}
+.demo h2 { font-size: 18px; color: var(--warning); }
+.demo .lede { color: rgba(240, 217, 168, 0.75); }
+.demo .actions button { font-size: 13px; }
+
+/* ===================== log ============================================= */
+
+.log {
+  margin-top: 12px; max-height: 220px; overflow: auto;
+  font-family: var(--mono); font-size: 11.5px;
+  background: rgba(0,0,0,0.4); border-radius: var(--r-input);
+  box-shadow: var(--ring); padding: 10px 12px;
+}
+.log div { padding: 2px 0; color: var(--fog); }
+.log .ok { color: #9fded1; }
+.log .err { color: #f6c3b2; }
+
+/* ===================== responsive ====================================== */
+
+@media (max-width: 860px) {
+  :root { --pad-card: 18px; --gap-section: 20px; }
+  .wordmark { font-size: 34px; }
+  .card h2 { font-size: 19px; }
+  .positions { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 620px) {
+  .shell { padding: 0 14px 72px; }
+  .alloc-row { grid-template-columns: 1fr 96px; }
+  .alloc-row .rm { grid-column: 2; justify-self: end; }
+  .summary dl { grid-template-columns: 1fr; gap: 4px 0; }
+  .summary dd { text-align: left; }
+  .summary dt { margin-top: 8px; }
+  .actions { gap: 8px; }
+  .actions button { flex: 1 1 auto; justify-content: center; }
+  .statusbar { padding: 8px 14px; }
+
+  /* The share is the whole point of a basket, so it stays on small screens.
+     Tightened instead of hidden; verified to fit at 375px. */
+  .holdings th, .holdings td { padding-left: 0; padding-right: 8px; font-size: 13px; }
+  .holdings th:last-child, .holdings td:last-child { padding-right: 0; }
+  .holdings .sub { font-size: 11px; }
+
+  /* Touch targets. WCAG 2.5.8 asks for 24px, Apple/Google for 44px; the
+     desktop padding lands at 37px, which is under both vendor guidelines. */
+  button { min-height: 44px; }
+  .demo .actions button { min-height: 40px; }
+}
