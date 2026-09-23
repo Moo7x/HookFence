@@ -100,7 +100,10 @@
     <table class="holdings">
       <caption class="sr-only">Tokens held by this basket</caption>
       <thead>
-        <tr><th scope="col">Token</th><th scope="col">Amount held</th><th scope="col">Share</th></tr>
+        <!-- "Recipe" not "Share": this column is the split the basket was BUILT
+             from, which is what copying reuses. After a partial withdrawal it is
+             no longer the split of what the basket currently holds. -->
+        <tr><th scope="col">Token</th><th scope="col">Amount held</th><th scope="col">Recipe</th></tr>
       </thead>
       <tbody id="detailRows"></tbody>
     </table>
@@ -154,12 +157,24 @@
     <div class="summary" style="margin-top:16px">
       <h3 style="font-size:16px;margin-bottom:8px">Take the tokens out</h3>
       <p style="color:var(--fog);font-size:13px;margin:0 0 14px">
-        Sends the actual tokens to your wallet and closes the basket. Nothing is sold,
-        so this works <strong>even when prices are unavailable</strong> — on a weekend,
-        for example.
+        Sends the actual tokens to your wallet. Nothing is sold, so this works
+        <strong>even when prices are unavailable</strong> — on a weekend, for example.
+        You can take part of it and keep the basket, or take everything and close it.
       </p>
+
+      <div class="field" style="max-width:280px;margin-bottom:12px">
+        <label for="redeemPart">Take out part of it</label>
+        <select id="redeemPart">
+          <option value="frac:2500">A quarter of every token</option>
+          <option value="frac:5000">Half of every token</option>
+        </select>
+      </div>
+      <div class="actions" style="margin-bottom:16px">
+        <button class="ghost" id="btnRedeemPart" type="button">Withdraw that part</button>
+      </div>
+
       <div class="actions">
-        <button class="ghost" id="btnRedeem" type="button">Withdraw my tokens</button>
+        <button class="ghost" id="btnRedeem" type="button">Withdraw everything and close</button>
       </div>
       <div id="redeemMsg" aria-live="polite"></div>
       <div class="txstate" id="redeemTx" data-state="idle" hidden>

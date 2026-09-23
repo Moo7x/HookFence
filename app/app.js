@@ -65,6 +65,8 @@ const BASKET_ABI = [
   { type:'function', name:'positionManager', stateMutability:'view', inputs:[{type:'uint256'}], outputs:[{type:'address'}] },
   { type:'function', name:'positionVersion', stateMutability:'view', inputs:[{type:'uint256'}], outputs:[{type:'uint64'}] },
   { type:'function', name:'redeem', stateMutability:'nonpayable', inputs:[{type:'uint256'}], outputs:[] },
+  { type:'function', name:'redeemAsset', stateMutability:'nonpayable', inputs:[{type:'uint256'},{type:'address'}], outputs:[] },
+  { type:'function', name:'redeemFraction', stateMutability:'nonpayable', inputs:[{type:'uint256'},{type:'uint16'}], outputs:[] },
   { type:'function', name:'minLegInput', stateMutability:'view', inputs:[], outputs:[{type:'uint256'}] },
   // Errors — every contract in the call path, so a nested revert decodes.
   { type:'error', name:'LegBelowMinimum', inputs:[{type:'address'},{type:'uint256'},{type:'uint256'}] },
@@ -76,6 +78,9 @@ const BASKET_ABI = [
   { type:'error', name:'NoLegs', inputs:[] },
   { type:'error', name:'TooManyLegs', inputs:[{type:'uint256'},{type:'uint256'}] },
   { type:'error', name:'NotPositionOwner', inputs:[{type:'uint256'},{type:'address'}] },
+  { type:'error', name:'AssetNotHeld', inputs:[{type:'uint256'},{type:'address'}] },
+  { type:'error', name:'FractionOutOfRange', inputs:[{type:'uint16'}] },
+  { type:'error', name:'FractionWouldDeliverNothing', inputs:[{type:'uint256'},{type:'uint16'}] },
   { type:'error', name:'OutputBelowFloor', inputs:[{type:'uint256'},{type:'uint256'}] },
   { type:'error', name:'InputOverspent', inputs:[{type:'uint256'},{type:'uint256'}] },
   { type:'error', name:'IntentExpired', inputs:[{type:'uint256'},{type:'uint256'}] },
@@ -108,6 +113,18 @@ const FEED_ABI = [
 // Each entry turns a contract error into something a person can act on.
 // `a` is the decoded argument list.
 const PLAIN = {
+  AssetNotHeld: a => ({
+    title: `This basket no longer holds any ${symOf(a[1])}.`,
+    fix: 'You have already taken that one out. Pick another, or withdraw everything to close the basket.',
+  }),
+  FractionOutOfRange: a => ({
+    title: `${Number(a[0]) / 100}% is not a share you can take out.`,
+    fix: 'Choose something between a sliver and all of it.',
+  }),
+  FractionWouldDeliverNothing: () => ({
+    title: 'That share is too small to move anything.',
+    fix: 'The basket holds so little that this fraction rounds to zero. Take out a bigger share, or withdraw everything.',
+  }),
   WeightsMustSumToBps: a => ({
     title: `Your allocations add up to ${(Number(a[0]) / 100).toFixed(0)}%.`,
     fix: 'They need to total exactly 100%. Adjust one of the slices.',
@@ -575,13 +592,36 @@ async function selectPosition(id, quiet = false) {
       <td class="num">${w ? (Number(w.weightBps) / 100).toFixed(0) + '%' : '—'}</td></tr>`;
   }).join('') || `<tr><td colspan="3" style="color:var(--fog)">This basket has been emptied.</td></tr>`;
 
-  $('detailNotes').innerHTML = manager !== '0x0000000000000000000000000000000000000000'
-    ? `<div class="msg info"><span class="icon">i</span><div class="body">
-         <strong>${esc(short(manager))} can manage this basket.</strong><br>
-         They cannot take the tokens out — only the owner can. Handing the basket over removes them automatically.</div></div>`
-    : '';
+  let notes = '';
+  if (manager !== '0x0000000000000000000000000000000000000000') {
+    notes += `<div class="msg info"><span class="icon">i</span><div class="body">
+       <strong>${esc(short(manager))} can manage this basket.</strong><br>
+       They cannot take the tokens out — only the owner can. Handing the basket over removes them automatically.</div></div>`;
+  }
+  // After a partial withdrawal the recipe and the holdings say different things,
+  // and both are true. Say which is which rather than letting the table imply
+  // the basket still holds a leg it no longer has.
+  const missing = alloc.filter(x => !assets.some(a => a.toLowerCase() === x.asset.toLowerCase()));
+  if (missing.length && assets.length) {
+    notes += `<div class="msg info"><span class="icon">i</span><div class="body">
+       <strong>You have taken ${missing.map(m => esc(symOf(m.asset))).join(' and ')} out of this basket.</strong><br>
+       The recipe still lists it, because that is the split this basket was built from and the one
+       anyone copying it would use. What it holds now is the table above.</div></div>`;
+  }
+  $('detailNotes').innerHTML = notes;
 
-  ['btnTransfer', 'btnRedeem', 'btnManager'].forEach(b => { $(b).disabled = !mine; });
+  ['btnTransfer', 'btnRedeem', 'btnManager', 'btnRedeemPart'].forEach(b => { $(b).disabled = !mine; });
+  $('redeemPart').disabled = !mine;
+
+  // Offer each leg by name alongside the proportional options, so "give me my
+  // NVDA back" is one click rather than a calculation.
+  const sel = $('redeemPart');
+  const keep = sel.value;
+  sel.innerHTML =
+    `<option value="frac:2500">A quarter of every token</option>` +
+    `<option value="frac:5000">Half of every token</option>` +
+    assets.map(a => `<option value="asset:${a}">All of my ${esc(symOf(a))}, and nothing else</option>`).join('');
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
   if (!quiet) {
     log(`opened basket #${id}`);
     clearMsg('receipt');
@@ -681,6 +721,40 @@ $('btnRedeem').addEventListener('click', async () => {
     // the background, so the scroll would silently never happen.
     setTimeout(() => $('receipt').scrollIntoView({ block: 'center', behavior: 'auto' }), 0);
   } catch (e) { tx('redeemTx', 'failed', 'Cancelled'); showError('redeemMsg', e); }
+  finally { busy(btn, false); }
+});
+
+$('btnRedeemPart').addEventListener('click', async () => {
+  clearMsg('redeemMsg');
+  const btn = $('btnRedeemPart'); busy(btn, true, 'Withdrawing…');
+  try {
+    const [kind, value] = $('redeemPart').value.split(':');
+    const before = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(selectedId)] });
+
+    tx('redeemTx', 'signing', 'Sending your tokens…');
+    const hash = kind === 'asset'
+      ? await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemAsset', args: [BigInt(selectedId), value] })
+      : await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemFraction', args: [BigInt(selectedId), Number(value)] });
+    tx('redeemTx', 'pending', 'Waiting for confirmation…');
+    await pub.waitForTransactionReceipt({ hash });
+    tx('redeemTx', 'confirmed', 'Done');
+
+    // Report what actually moved, read back from the contract rather than
+    // predicted - the same rule the rest of this page follows.
+    const after = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(selectedId)] });
+    const sent = before[0]
+      .map((a, i) => [a, before[1][i] - (after[0].indexOf(a) === -1 ? 0n : after[1][after[0].indexOf(a)])])
+      .filter(([, d]) => d > 0n)
+      .map(([a, d]) => `${tok(d)} ${symOf(a)}`)
+      .join(' and ');
+
+    showOk('redeemMsg', `Sent ${sent} to your wallet.`,
+      'The basket is still yours and still holds the rest. No price was needed for this.');
+    log(`partial withdrawal from basket #${selectedId}`, 'ok');
+    await selectPosition(selectedId, true);
+    await refreshStatus();
+    await loadPositions();
+  } catch (e) { tx('redeemTx', 'failed', 'Cancelled — nothing was sent'); showError('redeemMsg', e); }
   finally { busy(btn, false); }
 });
 

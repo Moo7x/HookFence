@@ -72,6 +72,9 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     error ZeroAddress();
     error ZeroAmount();
     error NothingToRecover(address asset);
+    error AssetNotHeld(uint256 tokenId, address asset);
+    error FractionOutOfRange(uint16 bps);
+    error FractionWouldDeliverNothing(uint256 tokenId, uint16 bps);
 
     // -----------------------------------------------------------------------
     // Events
@@ -97,6 +100,8 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
 
     event BasketRedeemed(uint256 indexed tokenId, address indexed to, uint256 legCount);
     event AssetRedeemed(uint256 indexed tokenId, address indexed asset, address indexed to, uint256 amount);
+    /// @notice A position survived the withdrawal; `legsLeft` is what it still holds.
+    event PartiallyRedeemed(uint256 indexed tokenId, address indexed to, uint256 legsLeft);
 
     event AllocationCopied(uint256 indexed sourceTokenId, uint256 indexed newTokenId, address indexed creator);
 
@@ -480,6 +485,92 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         }
 
         emit BasketRedeemed(tokenId, owner_, n);
+    }
+
+    /// @notice Withdraw one asset and keep the position.
+    ///
+    /// @dev Same guarantee as `redeem`: reads no price, calls no oracle, consults
+    ///      no policy. Wanting one leg back should not cost you the position, its
+    ///      allocation record, or the manager you appointed - and it should not
+    ///      have to wait for a market to open.
+    ///
+    ///      The allocation record is deliberately left alone. It is the recipe the
+    ///      basket was built from and what `copyAllocation` copies; it is not a
+    ///      claim about what the position currently holds. `holdingsOf` answers
+    ///      that, and it is read straight from the ledger.
+    function redeemAsset(uint256 tokenId, address asset) external nonReentrant {
+        address owner_ = _requireOwned(tokenId);
+        if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
+
+        uint256 amount = holdings[tokenId][asset];
+        if (amount == 0) revert AssetNotHeld(tokenId, asset);
+
+        // Effects before interactions.
+        holdings[tokenId][asset] = 0;
+        totalLiabilities[asset] -= amount;
+        uint256 legsLeft = _dropAsset(tokenId, asset);
+
+        IERC20(asset).safeTransfer(owner_, amount);
+        emit AssetRedeemed(tokenId, asset, owner_, amount);
+        emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+    }
+
+    /// @notice Withdraw the same fraction of every holding and keep the position.
+    ///
+    /// @dev Rounding truncates, so the position keeps the remainder rather than
+    ///      the caller - a withdrawal can never take out more than its share, and
+    ///      `totalLiabilities` therefore stays at or below the real balance.
+    ///
+    ///      A leg whose share rounds to zero is left untouched rather than
+    ///      silently dropped. Refusing when NOTHING would be delivered is the
+    ///      honest response to a fraction too small to matter; delivering nothing
+    ///      and emitting success is not.
+    function redeemFraction(uint256 tokenId, uint16 bps) external nonReentrant {
+        address owner_ = _requireOwned(tokenId);
+        if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
+        if (bps == 0 || bps > BPS) revert FractionOutOfRange(bps);
+
+        address[] memory assets = _assetsOf[tokenId];
+        uint256 n = assets.length;
+        uint256[] memory amounts = new uint256[](n);
+        uint256 delivered;
+
+        for (uint256 i; i < n; ++i) {
+            uint256 amount = Math.mulDiv(holdings[tokenId][assets[i]], bps, BPS);
+            if (amount == 0) continue;
+            amounts[i] = amount;
+            delivered += amount;
+            holdings[tokenId][assets[i]] -= amount;
+            totalLiabilities[assets[i]] -= amount;
+        }
+        if (delivered == 0) revert FractionWouldDeliverNothing(tokenId, bps);
+
+        // Only now can a leg have reached zero, and only then is it dropped.
+        for (uint256 i; i < n; ++i) {
+            if (amounts[i] != 0 && holdings[tokenId][assets[i]] == 0) _dropAsset(tokenId, assets[i]);
+        }
+        uint256 legsLeft = _assetsOf[tokenId].length;
+
+        for (uint256 i; i < n; ++i) {
+            if (amounts[i] == 0) continue;
+            IERC20(assets[i]).safeTransfer(owner_, amounts[i]);
+            emit AssetRedeemed(tokenId, assets[i], owner_, amounts[i]);
+        }
+        emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+    }
+
+    /// @dev Remove `asset` from a position's leg list. Order is not meaningful, so
+    ///      the last entry fills the hole rather than shifting the tail.
+    function _dropAsset(uint256 tokenId, address asset) internal returns (uint256 legsLeft) {
+        address[] storage list = _assetsOf[tokenId];
+        uint256 n = list.length;
+        for (uint256 i; i < n; ++i) {
+            if (list[i] != asset) continue;
+            list[i] = list[n - 1];
+            list.pop();
+            break;
+        }
+        return list.length;
     }
 
     // -----------------------------------------------------------------------
