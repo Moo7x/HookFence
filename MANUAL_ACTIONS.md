@@ -1,5 +1,10 @@
 # Manual actions — things a person must do
 
+> **Current status (2026-09-22):** nothing is blocking development. Milestone 1
+> is complete and runs locally with mock assets. Item 1 below becomes blocking
+> only when we deploy to testnet, which is step 3 of the next phase.
+
+
 Only items that genuinely cannot be automated from this session appear here.
 Everything else is done in the repo. Each entry says *why* a human is needed,
 *where*, what the safe input/output is, and how completion gets verified.

@@ -9,6 +9,47 @@ supports each differentiation claim. Kept short and updated as work lands.
 
 ---
 
+## RESUME HERE
+
+**Last worked:** 2026-09-22 · **Deadline:** 2026-10-04 15:59 UTC
+**Branch:** `fix/phase0-review-defects` @ `f3c3fb4` (pushed to private GitHub)
+**Tests:** 93 passing, 0 failing, from a clean build.
+
+**Run the demo:** `./scripts/run-demo.sh` → <http://127.0.0.1:5173>
+(starts anvil, deploys everything with mock assets, serves the interface)
+
+**Milestone 1 is COMPLETE.** The whole product promise works end to end and was
+driven in a browser against a live chain, not merely unit-tested.
+
+### Next up, in order
+
+1. **Assess product improvements** — compare against competitor workflows
+   (StonkBrokers first, see the ledger below), pick the two strongest
+   improvements, state user problem / benefit / cost / how to test the benefit.
+   This is the current instruction from review and nothing else should start
+   before it.
+2. **Pinned-fork check** — executable amounts and costs at demo size against
+   real Robinhood Chain mainnet state. Mock-only tests cannot establish live
+   route viability.
+3. **Testnet deployment** — blocked on a human funding a wallet, see
+   `MANUAL_ACTIONS.md`.
+4. Demo script, README, submission copy.
+
+### Decisions already frozen — do not reopen
+
+- **Product:** Jayo, with HookFence as its execution engine underneath. Settled
+  after four abandoned directions; the churn itself became the main risk. See
+  `STATUS_FOR_REVIEW.md` §6 for what was killed and whether each kill was sound.
+- **Promise:** build a funded basket, own and transfer it as one position, copy
+  its allocation with your own funds, withdraw its underlying assets.
+- **No rebalancing.** Deliberately cut: fee pump, enables a sale/rebalance race,
+  largest source of accounting bugs.
+- **No project token.** Circular value, judges mark it down.
+- **Solvency invariant is `liabilities <= balance`**, never equality — donations
+  break equality.
+
+---
+
 ## Milestone 1 — one complete journey
 
 | Step | Status |
@@ -16,14 +57,59 @@ supports each differentiation claim. Kept short and updated as work lands.
 | 1. Buy-side reference pricing (USDG to Stock Token) | **DONE** |
 | 1a. Independently-derived pricing spec + boundary tests | **DONE** |
 | 1b. Executed buy through gateway + v4 adapter | **DONE** |
-| 2. `JayoBasket` ERC-721 + per-tokenId isolated holdings | not started |
-| 3. Fund a basket: USDG to N assets, multi-leg | not started |
-| 4. Preview expected costs/amounts before execution | not started |
-| 5. Transfer + revoke prior owner's authority and delegations | not started |
-| 6. Copy an allocation into a separately funded position | not started |
-| 7. In-kind redemption under a stale feed | not started |
-| 8. Minimal interface | not started |
-| 9. Pinned-fork check of executable amounts at demo size | not started |
+| 2. `JayoBasket` ERC-721 + per-tokenId isolated holdings | **DONE** |
+| 3. Fund a basket: USDG to N assets, multi-leg | **DONE** |
+| 4. Preview expected costs/amounts before execution | **DONE** (`previewCreate`) |
+| 5. Transfer + revoke prior owner's authority and delegations | **DONE** |
+| 6. Copy an allocation into a separately funded position | **DONE** |
+| 7. In-kind redemption under a stale feed | **DONE** |
+| 8. Minimal interface | **DONE** |
+| 9. Pinned-fork check of executable amounts at demo size | **not started** |
+
+### Verified by running it, not by assuming
+
+| Step | Observed |
+|---|---|
+| Preview | AAPL reference 23.529412, floor 23.411765 |
+| Create | actual 23.456072 — between the two (pool fee + impact) |
+| Transfer | manager cleared, version 0 → 1 |
+| Authority | original owner and delegate both locked out; redeem rejected |
+| Copy | new position, same recipe, funded by copier, source untouched |
+| Stale | feeds advanced 48.1h past the 24h heartbeat |
+| Create again | correctly blocked |
+| Redeem | AAPL 23.456072 + NVDA 26.583133 returned in kind anyway |
+
+### Where the code lives
+
+```
+contracts/src/basket/JayoBasket.sol        ERC-721 + holdings + create/copy/redeem
+contracts/src/core/ExecutionGateway.sol    intent auth, settlement, accounting
+contracts/src/policy/StockToken…Policy.sol direction-aware pricing, instrument checks
+contracts/src/adapters/V4Exact…Adapter.sol one reviewed v4 route
+contracts/script/DeployJayoLocal.s.sol     local deploy, all mocks
+app/index.html                             the interface
+```
+
+### Known limits, already documented
+
+- Max basket size is bounded by pool depth and the shortfall allowance. Oversized
+  creations are rejected with `OutputBelowFloor` naming both numbers.
+- Everything is mocked. Real `v4-core` PoolManager, but mock tokens, feeds, hooks.
+- No fork test, no deployment, no addresses anywhere.
+- No invariant tests; four fuzz tests exist.
+- No static analysis — Slither is not installed in this environment.
+
+### Traps that have cost debugging time — read before writing tests
+
+1. **An external call while a Foundry prank is armed consumes the prank.** The
+   call under test then runs as the test contract and fails on access control,
+   which looks exactly like a contract bug. Cache values in `setUp` or build
+   arguments before arming. Cost so far: three cycles.
+2. **Under `via_ir`, a local derived from `block.timestamp` is rematerialised
+   after `vm.warp`.** So `uint256 at = block.timestamp + 600; vm.warp(at + 1)`
+   does not land on `at + 1`. See `test/unit/CompilerProbe.t.sol`.
+3. **Large heredocs in bash mangle regexes and long Solidity files.** Use the
+   Write tool for anything substantial.
 
 ---
 
