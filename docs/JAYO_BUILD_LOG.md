@@ -11,29 +11,52 @@ supports each differentiation claim. Kept short and updated as work lands.
 
 ## RESUME HERE
 
-**Last worked:** 2026-09-22 · **Deadline:** 2026-10-04 15:59 UTC
-**Branch:** `fix/phase0-review-defects` @ `f3c3fb4` (pushed to private GitHub)
-**Tests:** 93 passing, 0 failing, from a clean build.
+**Last worked:** 2026-09-23 · **Deadline:** 2026-10-04 15:59 UTC
+**Branch:** `fix/phase0-review-defects` @ `89be5d3` (local; push when ready)
+**Tests:** 115 unit + 6 live-fork, 0 failing, from a clean build.
 
 **Run the demo:** `./scripts/run-demo.sh` → <http://127.0.0.1:5173>
 (starts anvil, deploys everything with mock assets, serves the interface)
 
-**Milestone 1 is COMPLETE.** The whole product promise works end to end and was
-driven in a browser against a live chain, not merely unit-tested.
+**Run the live-chain proof:** `cd contracts && forge test --match-contract TestnetJourney -vv`
+(forks Robinhood Chain testnet and runs the whole journey against real pools)
+
+**Milestone 2 is COMPLETE.** The interface was rebuilt for non-developers and
+verified in a browser at desktop and mobile size; the whole journey now also runs
+against live Robinhood Chain testnet state; partial withdrawal is built.
 
 ### Next up, in order
 
-1. **Assess product improvements** — compare against competitor workflows
-   (StonkBrokers first, see the ledger below), pick the two strongest
-   improvements, state user problem / benefit / cost / how to test the benefit.
-   This is the current instruction from review and nothing else should start
-   before it.
-2. **Pinned-fork check** — executable amounts and costs at demo size against
-   real Robinhood Chain mainnet state. Mock-only tests cannot establish live
-   route viability.
-3. **Testnet deployment** — blocked on a human funding a wallet, see
-   `MANUAL_ACTIONS.md`.
-4. Demo script, README, submission copy.
+1. **Broadcast the testnet deployment.** Blocked on ONE human action: a faucet
+   drip of **0.0003 ETH** into a throwaway wallet. See `MANUAL_ACTIONS.md` §1
+   (three faucets confirmed reachable 2026-09-23). Everything after that is
+   scripted: `forge script script/DeployJayoTestnet.s.sol --broadcast`.
+   Then paste the transaction hashes into `docs/WALKTHROUGH.md` §2.
+2. **Decide on enhancement #2** from `docs/COMPETITIVE_READ.md` §3 — creation
+   that waits for the market instead of refusing. It is the larger of the two
+   recommendations and the only one that adds a new risk surface (the contract
+   holds user funds between two transactions), so it needs an explicit yes.
+   Cheaper substitute if the timeline is tight: `addFunds(tokenId, usdgIn)`.
+3. **Pinned-fork check against mainnet** — executable amounts and costs at demo
+   size against real Robinhood Chain *mainnet* state. The testnet fork covers
+   route viability; it does not cover mainnet depth.
+4. Demo video script, README, submission copy.
+
+### Facts established 2026-09-23 that change the plan
+
+- Robinhood Chain **testnet has real equity tokens and real v4 pools**. TSLA
+  `0xC9f9c869…Bd4E`, AMZN `0x5884aD2f…9E02`, rUSDG `0x7C902600…F210`, both
+  hookless 0.30% pools. `PHASE0_EVIDENCE.md`'s claim that mainnet v4 is absent
+  on testnet was **wrong** — same address, identical code.
+- Those equity tokens **revert on `oraclePaused()`**. The policy now probes
+  capabilities at registration. Without that there is no testnet deployment.
+- **Chainlink publishes no feeds on testnet**, and its mainnet prices are ~30%
+  away from the testnet pool prices, so the reference has to come from the pool.
+  That reduces what the floor guarantees on testnet and the docs say so.
+- **Testnet liquidity is thin.** 10 rUSDG a leg costs 78 bps; 200 rUSDG is
+  refused. Testnet floor is 300 bps where mainnet would be 50.
+- rUSDG `mint` is open to any caller; equity `mint` is not. So no token faucet is
+  needed, and equity must be bought through the pool — which is what Jayo does.
 
 ### Decisions already frozen — do not reopen
 
