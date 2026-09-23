@@ -1,8 +1,10 @@
 # Manual actions — things a person must do
 
-> **Current status (2026-09-22):** nothing is blocking development. Milestone 1
-> is complete and runs locally with mock assets. Item 1 below becomes blocking
-> only when we deploy to testnet, which is step 3 of the next phase.
+> **Current status (2026-09-23):** one item blocks the public testnet
+> deployment, and it is item 1 below: a faucet drip of **0.0003 ETH** into a
+> dedicated throwaway wallet. Everything else on the testnet path is scripted and
+> already proven against live chain state — see `docs/TESTNET_SURVEY.md` and
+> `forge test --match-contract TestnetJourney`.
 
 
 Only items that genuinely cannot be automated from this session appear here.
@@ -19,29 +21,48 @@ the shape; `.gitignore` already excludes `.env`.
 
 ### 1. Fund a dedicated testnet wallet — BLOCKING for testnet deployment
 
-**Why a person:** the faucet is behind a browser flow and likely a captcha or
+**Why a person:** every faucet is behind a browser flow with a captcha or a
 social login. Automated captcha solving is out of scope and not something I will
 do.
 
-**Where:** <https://faucet.testnet.chain.robinhood.com/>
+**How much:** **0.0003 ETH.** Not a guess — the full deployment simulates against
+live testnet state at 13,990,192 gas, and the chain's base fee is 0.01 gwei. Any
+faucet drip is many times more than enough.
+
+**Where** — all three were reachable on 2026-09-23, use whichever works:
+
+| Faucet | Checked |
+|---|---|
+| <https://faucet.testnet.chain.robinhood.com/> | reachable, rate-limited (HTTP 429) |
+| <https://faucet.quicknode.com/robinhood/testnet> | HTTP 200 |
+| <https://faucets.chain.link/robinhood-testnet> | HTTP 200 |
 
 **Input:** the address of a **dedicated throwaway testnet wallet**. Generate one
 with:
 
 ```bash
-cd contracts && ../scripts/new-testnet-wallet.sh
+./scripts/new-testnet-wallet.sh
 ```
 
-That prints an address and writes the key to `contracts/.env` only.
+That prints an address and writes the key to `contracts/.env` only, which is
+git-ignored. Never paste a private key into a chat window.
 
-**Expected output:** a small amount of testnet ETH on Robinhood Chain Testnet
-(chain ID 46630). Native gas token is ETH.
+**Expected output:** testnet ETH on Robinhood Chain Testnet (chain 46630).
 
 **How I verify:** I query the balance directly and will confirm the exact figure:
 
 ```bash
 cast balance <ADDRESS> --rpc-url https://rpc.testnet.chain.robinhood.com
 ```
+
+**What you do NOT need to do:**
+
+- No token faucet. `mint(address,uint256)` on testnet rUSDG
+  (`0x7C902600cb5bf24225DF1a77b333D84e03C1F210`) is open to any caller, and the
+  deploy script mints the demo wallet 10,000 rUSDG itself.
+- No RPC key, explorer key or allowlist. The public endpoint works unauthenticated.
+- No liquidity to provide. The TSLA/rUSDG and AMZN/rUSDG pools already exist,
+  already hold other people's liquidity, and carry no hook.
 
 ---
 
