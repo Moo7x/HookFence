@@ -232,9 +232,21 @@ contract DeployJayoTestnet is Script {
         vm.serializeAddress(j, "policy", address(d.policy));
         vm.serializeAddress(j, "gateway", address(d.gateway));
         vm.serializeAddress(j, "adapter", address(d.adapter));
+        address[] memory stocks = new address[](2);
+        stocks[0] = TSLA;
+        stocks[1] = AMZN;
+        vm.serializeAddress(j, "stocks", stocks);
+        // No anvil keys, no admin over these feeds from a browser, no time travel
+        // on a public chain. The demo panel does not apply here and is hidden.
+        vm.serializeBool(j, "demoControls", false);
+        vm.serializeString(j, "rpcUrl", "https://rpc.testnet.chain.robinhood.com");
+        vm.serializeString(j, "explorer", "https://explorer.testnet.chain.robinhood.com");
         vm.serializeUint(j, "suggestedFund", DEFAULT_FUND);
         string memory out = vm.serializeAddress(j, "basket", address(d.basket));
         vm.writeJson(out, "./reports/jayo-testnet.json");
+        // Also written to a fixed path so the interface fetches exactly one
+        // file and never has to probe-and-404 its way to the right network.
+        vm.writeJson(out, "./reports/jayo-deployment.json");
 
         console2.log("policy  ", address(d.policy));
         console2.log("gateway ", address(d.gateway));

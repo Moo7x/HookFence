@@ -206,9 +206,19 @@ contract DeployJayoLocal is Script {
         vm.serializeAddress(j, "policy", address(d.policy));
         vm.serializeAddress(j, "gateway", address(d.gateway));
         vm.serializeAddress(j, "adapter", address(d.adapter));
+        // Generic asset list: the interface should not have to know tickers to
+        // render a deployment, and the testnet one holds different ones.
+        address[] memory stocks = new address[](2);
+        stocks[0] = address(d.aapl);
+        stocks[1] = address(d.nvda);
+        vm.serializeAddress(j, "stocks", stocks);
+        vm.serializeBool(j, "demoControls", true);
         string memory out = vm.serializeAddress(j, "basket", address(d.basket));
 
         vm.writeJson(out, "./reports/jayo-local.json");
+        // Also written to a fixed path so the interface fetches exactly one
+        // file and never has to probe-and-404 its way to the right network.
+        vm.writeJson(out, "./reports/jayo-deployment.json");
 
         console2.log("");
         console2.log("=== Jayo deployed locally (ALL ASSETS ARE MOCKS) ===");

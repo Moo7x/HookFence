@@ -12,27 +12,37 @@
 // Everything here runs against a LOCAL chain with MOCK assets.
 // =============================================================================
 
-import { createPublicClient, createWalletClient, http, parseUnits, formatUnits }
+import { createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits }
   from 'https://esm.sh/viem@2.21.55';
 import { privateKeyToAccount } from 'https://esm.sh/viem@2.21.55/accounts';
 import { foundry } from 'https://esm.sh/viem@2.21.55/chains';
 
-const RPC = 'http://127.0.0.1:8545';
-
 // Anvil's deterministic accounts. These keys are published in Foundry's own
-// documentation and hold nothing on any real network. A demo that required a
-// wallet extension would not survive a recorded walkthrough.
-const ACCOUNTS = [
+// documentation and hold nothing on any real network. A local demo that required
+// a wallet extension would not survive a recorded walkthrough.
+//
+// They are used ONLY when the deployment report says chainId 31337. On any
+// public chain the app signs through an injected wallet instead and these are
+// never touched - see `connect()`.
+const LOCAL_ACCOUNTS = [
   { label: 'Wallet A', key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' },
   { label: 'Wallet B', key: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' },
 ];
 const THIRD_PARTY = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
 
+let ACCOUNTS = LOCAL_ACCOUNTS;
 let acctIndex = 0;
-const account = () => privateKeyToAccount(ACCOUNTS[acctIndex].key);
+let isLocal = true;
+let chain = foundry;
+let injected = null; // viem wallet client backed by window.ethereum
 
-const pub = createPublicClient({ chain: foundry, transport: http(RPC) });
-const wallet = () => createWalletClient({ account: account(), chain: foundry, transport: http(RPC) });
+const account = () => (isLocal ? privateKeyToAccount(ACCOUNTS[acctIndex].key) : { address: injectedAddress });
+let injectedAddress = null;
+
+let pub = createPublicClient({ chain: foundry, transport: http('http://127.0.0.1:8545') });
+const wallet = () => (isLocal
+  ? createWalletClient({ account: privateKeyToAccount(ACCOUNTS[acctIndex].key), chain, transport: http(chain.rpcUrls.default.http[0]) })
+  : injected);
 
 // ---------------------------------------------------------------- ABIs ------
 
@@ -248,34 +258,113 @@ function busy(btn, on, label) {
 
 // ------------------------------------------------------------------ boot ----
 
-async function boot() {
+/// Whichever deploy script ran last writes this file, so the same page serves the
+/// local chain and the testnet without a rebuild and without probing for a 404.
+const REPORT = '/contracts/reports/jayo-deployment.json';
+
+async function loadDeployment() {
   try {
-    D = await (await fetch('/contracts/reports/jayo-local.json', { cache: 'no-store' })).json();
-  } catch {
+    const r = await fetch(REPORT, { cache: 'no-store' });
+    if (r.ok) return await r.json();
+  } catch { /* fall through to the message below */ }
+  return null;
+}
+
+/// On a local chain the demo drives published anvil keys directly. On any public
+/// chain it must not hold a key at all, so it asks an injected wallet instead.
+async function connect() {
+  isLocal = D.chainId === 31337;
+
+  chain = isLocal ? foundry : {
+    id: D.chainId,
+    name: D.network || `chain ${D.chainId}`,
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: [D.rpcUrl] } },
+  };
+  pub = createPublicClient({ chain, transport: http(isLocal ? 'http://127.0.0.1:8545' : D.rpcUrl) });
+
+  if (isLocal) return true;
+
+  if (!window.ethereum) {
+    $('netmeta').textContent = `${D.network} — no browser wallet found`;
+    $('createMsg').innerHTML =
+      `<div class="msg warn"><span class="icon">!</span><div class="body">` +
+      `<strong>This deployment is on a public network, so it needs a browser wallet.</strong><br>` +
+      `Install one and reload. The built-in demo keys are only ever used on a local test chain, never here.</div></div>`;
+    return false;
+  }
+  const [addr] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  injectedAddress = addr;
+  injected = createWalletClient({ account: addr, chain, transport: custom(window.ethereum) });
+
+  const current = await window.ethereum.request({ method: 'eth_chainId' });
+  if (parseInt(current, 16) !== D.chainId) {
+    try {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: '0x' + D.chainId.toString(16),
+          chainName: D.network,
+          nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+          rpcUrls: [D.rpcUrl],
+          blockExplorerUrls: D.explorer ? [D.explorer] : undefined,
+        }],
+      });
+    } catch { /* the wallet may already know it, or the user declined */ }
+  }
+  return true;
+}
+
+async function boot() {
+  D = await loadDeployment();
+  if (!D) {
     $('netmeta').textContent = 'no deployment found — run ./scripts/run-demo.sh';
-    log('contracts/reports/jayo-local.json missing. Run the deploy script.', 'err');
+    log('no deployment report found. Run a deploy script.', 'err');
     return;
   }
 
-  for (const k of ['aapl', 'nvda', 'usdg']) {
-    const [symbol, name] = await Promise.all([
-      pub.readContract({ address: D[k], abi: ERC20_ABI, functionName: 'symbol' }),
-      pub.readContract({ address: D[k], abi: ERC20_ABI, functionName: 'name' }),
-    ]);
-    META[D[k].toLowerCase()] = { symbol, name: name.replace(' [MOCK]', '') };
+  if (!(await connect())) return;
+
+  // Demo controls need anvil (time travel) and ownership of the feeds. Neither
+  // is available on a public chain, so the panel goes rather than sitting there
+  // pretending.
+  if (D.demoControls === false) {
+    document.querySelector('.demo').hidden = true;
   }
-  ASSETS = [D.aapl, D.nvda];
+
+  // On the local chain every asset is a mock. On testnet the tokens, the pools
+  // and the PoolManager are real and only the price feeds are ours. Saying
+  // "mock assets" there would be wrong in the other direction.
+  document.querySelector('.mockflag').textContent =
+    isLocal ? 'Demo · mock assets' : 'Testnet · mock price feeds';
+
+  const stocks = D.stocks || [D.aapl, D.nvda].filter(Boolean);
+  for (const a of [...stocks, D.usdg]) {
+    const [symbol, name] = await Promise.all([
+      pub.readContract({ address: a, abi: ERC20_ABI, functionName: 'symbol' }),
+      pub.readContract({ address: a, abi: ERC20_ABI, functionName: 'name' }),
+    ]);
+    META[a.toLowerCase()] = { symbol, name: name.replace(' [MOCK]', '') };
+  }
+  ASSETS = stocks;
   minLeg = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'minLegInput' });
 
-  rows = [{ asset: D.aapl, pct: 60 }, { asset: D.nvda, pct: 40 }];
+  rows = stocks.map((asset, i) => ({ asset, pct: i === 0 ? 60 : 40 }));
   renderRows();
 
-  $('toAddr').value = ACCOUNTS[1].key ? privateKeyToAccount(ACCOUNTS[1].key).address : THIRD_PARTY;
+  if (D.suggestedFund) {
+    $('fund').value = formatUnits(BigInt(D.suggestedFund), 6);
+    $('copyFund').value = formatUnits(BigInt(D.suggestedFund) / 2n, 6);
+  }
+
+  $('toAddr').value = isLocal ? privateKeyToAccount(ACCOUNTS[1].key).address : THIRD_PARTY;
 
   $('led').classList.add('on');
   await refreshStatus();
   await loadPositions();
-  log('connected — all assets are mocks on a local chain', 'ok');
+  log(isLocal
+    ? 'connected — all assets are mocks on a local chain'
+    : `connected to ${D.network} — real tokens and pools, mock price feeds`, 'ok');
 }
 
 async function refreshStatus() {
@@ -283,8 +372,10 @@ async function refreshStatus() {
     pub.getBlockNumber(),
     pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [account().address] }),
   ]);
+  const who = isLocal ? `${ACCOUNTS[acctIndex].label} ${short(account().address)}` : short(account().address);
+  const unit = META[D.usdg.toLowerCase()]?.symbol || 'USDG';
   $('netmeta').textContent =
-    `local chain ${D.chainId} · block ${bn} · ${ACCOUNTS[acctIndex].label} ${short(account().address)} · ${usdg(bal)} USDG`;
+    `${isLocal ? 'local chain' : D.network} ${D.chainId} · block ${bn} · ${who} · ${usdg(bal)} ${unit}`;
   $('livetext').textContent = 'live';
 }
 
