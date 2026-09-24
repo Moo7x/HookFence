@@ -1,0 +1,3 @@
+# The vendored bundle is checked byte-for-byte against a fresh build
+# (node tools/build-vendor.mjs --check). Line-ending conversion would break that.
+app/vendor/viem.js -text
