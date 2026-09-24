@@ -231,7 +231,7 @@ contract DeployJayoTestnet is Script {
         vm.serializeString(
             j,
             "warning",
-            "PoolManager, TSLA, AMZN, rUSDG and both pools are real chain state we did not deploy. The three price feeds ARE mocks: Chainlink publishes no feed directory for this testnet."
+            "PoolManager, TSLA, AMZN, rUSDG and both pools are real chain state we did not deploy. The three price feeds are ours (DemoPriceFeed: deployer-only, 10% step bound, 1h heartbeat) and copy the pools own price: Chainlink publishes no feeds on this testnet."
         );
         vm.serializeUint(j, "chainId", block.chainid);
         vm.serializeAddress(j, "deployer", d.deployer);
