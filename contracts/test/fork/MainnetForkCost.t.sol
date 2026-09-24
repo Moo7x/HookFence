@@ -155,12 +155,23 @@ contract MainnetForkCostTest is Test {
 
     struct Result {
         bool accepted;
+        bytes revertData;
         uint256 jayoTsla; uint256 jayoAmzn; uint256 jayoGas;
         uint256 manTsla; uint256 manAmzn; uint256 manGas;
         uint256 refTsla; uint256 refAmzn;
         uint256 floorTsla; uint256 floorAmzn;
         uint256 nftHandoverGas; uint256 erc20HandoverGas; uint256 exitGas;
+        uint256 jayoApproveGas; uint256 manApproveGas;
+        uint256 bobTslaViaJayo; uint256 bobAmznViaJayo;
     }
+
+    /// @dev Execution gas plus 21,000 intrinsic per transaction. Calldata cost and
+    ///      the chain's L1 data fee are not included.
+    uint256 constant INTRINSIC = 21_000;
+    // No ETH/USD read here on purpose: the public RPC is not an archive node, and
+    // a pinned-block run can only use state this machine has already cached.
+    // Dollar figures are derived in docs/MAINNET_FORK_COST.md from the gas and
+    // base fee printed below.
 
     function _measure(uint256 usdgIn) internal returns (Result memory r) {
         uint256 legT = usdgIn * 6000 / 10_000;
@@ -175,13 +186,16 @@ contract MainnetForkCostTest is Test {
 
         // ---- Jayo: one approval, one transaction for both legs
         vm.startPrank(alice);
-        IERC20(USDG).approve(address(basket), type(uint256).max);
         uint256 g = gasleft();
+        IERC20(USDG).approve(address(basket), type(uint256).max);
+        r.jayoApproveGas = g - gasleft();
+        g = gasleft();
         uint256 id;
         try basket.create(_alloc(), usdgIn, block.timestamp + 1 hours) returns (uint256 newId) {
             id = newId;
             r.accepted = true;
-        } catch {
+        } catch (bytes memory reason) {
+            r.revertData = reason;
             // Refused by the floor. Still measure what a direct swap would have
             // delivered, so the refusal can be stated in bps rather than asserted.
             vm.stopPrank();
@@ -206,12 +220,16 @@ contract MainnetForkCostTest is Test {
         g = gasleft();
         basket.redeem(id);
         r.exitGas = g - gasleft();
+        r.bobTslaViaJayo = IERC20(TSLA).balanceOf(bob);
+        r.bobAmznViaJayo = IERC20(AMZN).balanceOf(bob);
 
         vm.revertToState(snap);
 
         // ---- manual: one approval, two swaps through the same pools
         vm.startPrank(alice);
+        g = gasleft();
         IERC20(USDG).approve(address(router), type(uint256).max);
+        r.manApproveGas = g - gasleft();
         g = gasleft();
         r.manTsla = _manualSwap(tslaKey, TSLA, legT);
         r.manAmzn = _manualSwap(amznKey, AMZN, legA);
@@ -227,6 +245,15 @@ contract MainnetForkCostTest is Test {
 
     function _bps(uint256 got, uint256 ref) internal pure returns (int256) {
         return (int256(ref) - int256(got)) * 10_000 / int256(ref);
+    }
+
+    /// @notice Buy, hand to someone, and the recipient takes the tokens at once.
+    ///         Jayo: approve, create, one NFT transfer, recipient redeems (4 tx).
+    ///         Manual: approve, two swaps, two token transfers (5 tx); the recipient
+    ///         already holds the tokens, so there is no withdrawal step.
+    function _totals(Result memory r) internal pure returns (uint256 jayo, uint256 manual) {
+        jayo = r.jayoApproveGas + r.jayoGas + r.nftHandoverGas + r.exitGas + 4 * INTRINSIC;
+        manual = r.manApproveGas + r.manGas + r.erc20HandoverGas + 5 * INTRINSIC;
     }
 
     function _report(uint256 usdgIn, Result memory r) internal pure {
@@ -253,6 +280,11 @@ contract MainnetForkCostTest is Test {
         console2.log("  hand-over gas, Jayo 1 NFT:             ", r.nftHandoverGas);
         console2.log("  hand-over gas, manual 2 ERC-20s:       ", r.erc20HandoverGas);
         console2.log("  recipient exit gas, Jayo redeem:       ", r.exitGas);
+        (uint256 jt, uint256 mt) = _totals(r);
+        console2.log("  BUY + HAND OVER + RECIPIENT WITHDRAWS AT ONCE (incl. 21k per tx):");
+        console2.log("    Jayo, 4 tx, gas:                     ", jt);
+        console2.log("    manual, 5 tx, gas:                   ", mt);
+        console2.log("    recipient ends with the same TSLA and AMZN either way");
     }
 
     function _context() internal view {
@@ -286,7 +318,18 @@ contract MainnetForkCostTest is Test {
                 assertEq(r.jayoAmzn, r.manAmzn, "AMZN: Jayo and a direct swap must match");
                 assertGe(r.jayoTsla, r.floorTsla, "TSLA inside the floor");
                 assertGe(r.jayoAmzn, r.floorAmzn, "AMZN inside the floor");
+                // After the hand-over the recipient withdraws in kind and holds
+                // exactly what a manual buyer would have handed over.
+                assertEq(r.bobTslaViaJayo, r.manTsla, "recipient's TSLA");
+                assertEq(r.bobAmznViaJayo, r.manAmzn, "recipient's AMZN");
             } else {
+                // The EXACT revert: the gateway's OutputBelowFloor for the first leg,
+                // in execution order, that a direct swap shows would fill below its
+                // floor - with the received and required amounts to the unit.
+                bytes memory expected = r.manTsla < r.floorTsla
+                    ? abi.encodeWithSelector(ExecutionGateway.OutputBelowFloor.selector, r.manTsla, r.floorTsla)
+                    : abi.encodeWithSelector(ExecutionGateway.OutputBelowFloor.selector, r.manAmzn, r.floorAmzn);
+                assertEq(r.revertData, expected, "refused for exactly the floor, on exactly that leg");
                 // The refusal must be justified against the policy's exact floor, not
                 // a rounded percentage: at least one leg really would have come in below it.
                 bool justified = r.manTsla < r.floorTsla || r.manAmzn < r.floorAmzn;

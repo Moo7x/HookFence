@@ -113,26 +113,30 @@ of its numbers here were measured.
 | Transactions to buy | **1** | 2 | 1 (zap) |
 | What you receive | the swap output, recorded per asset in your own position | the swap output, in your wallet | ERC-20 shares of a shared vault |
 | Received vs a direct swap | **identical to the wei** (20, 1,000, 2,500 USDG) | — | minus an entry fee of up to 3% |
-| Price check at purchase | each leg must land within 50 bps of **Chainlink** or the whole purchase reverts | none beyond your own slippage | `minSharesOut` against your slippage setting |
+| Price check at purchase | each leg must land within 50 bps of **Chainlink** or the whole purchase reverts, applied by default | none unless you compute and pass a minimum yourself | `minSharesOut` from your slippage setting; its docs say Chainlink is used for one-click pricing |
 | Buy gas | 1,257,221 (~$0.14) | 518,238 (~$0.06) | not measured |
 | Hand everything to someone | 1 transfer: one NFT carrying exact units (117,281 gas) | 2 transfers, one per asset (205,592 gas) | 1 transfer of shares: a fraction of a shared vault |
+| Buy, hand over, recipient withdraws at once | **4 tx · 1,691,802 gas · ~$0.19** | 5 tx · 805,924 gas · ~$0.09 (recipient already holds the tokens) | not measured |
 | What the recipient can take out | all, or **one named asset**, or a fraction — in kind, no price needed | already theirs | a proportional slice of every asset (exit fee up to 1%), or zap out to USDG |
 | Ongoing fee | none | none | management up to 3% a year |
 | Copying someone's mix | recipe only, your money, separate position, source paid nothing | by hand | buy the creator's shares; the creator earns fees |
 
 Where each wins, on these facts:
 
-- **Manual swaps** are the cheapest way to buy — about 2.4× less gas than Jayo —
-  and need no contract at all. They give no independent price check, and handing
-  the result over is one transfer per asset.
+- **Manual swaps** are the cheapest way to buy — about 2.4× less gas than Jayo,
+  and about 2.1× less for the whole buy-hand-over-withdraw path — and need no
+  contract at all. They check price only if you compute and pass a minimum
+  yourself, and handing the result over is one transfer per asset.
 - **HoodETF** is, of these three, the one that exits to USDG in one step and whose position
   is a fungible, composable token. It charges creator-set fees and cannot give
   back a single chosen asset.
-- **Jayo** costs more gas to buy with, charges nothing else, delivers exactly the
-  same tokens a direct swap would, refuses when the pool is off an independent
-  price (run 2 of the mainnet measurement: it refused while a direct swap would
-  have filled 66 bps worse), and, of these three, is the one where the recipient of a handed-
-  over position can take out one asset and keep the rest.
+- **Jayo** costs more gas, charges nothing else, and delivers exactly the same
+  tokens a direct swap would. Its default price check did real work on live
+  mainnet state (it refused while a direct swap would have filled 66 bps below
+  Chainlink) — a demonstrated benefit, not a unique one: an ordinary router given
+  the same oracle-derived minimum refuses the same trade. Of these three, it is
+  the one where the recipient of a handed-over position can take out one asset
+  and keep the rest.
 
 ## 1a. The earlier comparison (dHEDGE, index tokens, copy-trading bots)
 

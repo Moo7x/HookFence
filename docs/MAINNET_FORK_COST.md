@@ -1,13 +1,20 @@
 # What Jayo costs on Robinhood Chain mainnet state — and what it refuses
 
 **Measured 2026-09-24 on a fork of chain 4663.** Nothing was broadcast. Every
-number below comes from `contracts/test/fork/MainnetForkCost.t.sol`; pin the block
-to reproduce it:
+number below comes from `contracts/test/fork/MainnetForkCost.t.sol`:
 
 ```bash
 cd contracts
-MAINNET_FORK_BLOCK=71413360 forge test --match-contract MainnetForkCost -vv
+forge test --match-contract MainnetForkCost -vv                           # live state
+MAINNET_FORK_BLOCK=71413360 forge test --match-contract MainnetForkCost -vv  # pinned
 ```
+
+**Reproducing a pinned block needs an archive RPC.** The public endpoint
+`rpc.mainnet.chain.robinhood.com` prunes historical state: a later run at block
+71,413,360 failed with "historical state … is not available" the moment it
+touched an account this machine had not already cached. The pinned figures below
+were re-run from forge's local cache on this machine; anyone else needs an
+archive endpoint (or runs at the live block and gets that block's numbers).
 
 ## Configuration — exactly what a mainnet deployment would use
 
@@ -42,10 +49,12 @@ from the *same* starting state, via v4's reference swap router).
 | 10,000 | refused | 25 | 85 | — |
 | 25,000 | refused | 34 | 189 | — |
 
-Every refusal is checked against the policy's exact floor, not a rounded
-percentage: at each refused size a direct swap of the AMZN leg really would have
-delivered less than the floor. The limit is the AMZN pool's depth; the TSLA leg
-alone stays inside the floor even at 25,000 USDG.
+Every refusal is asserted exactly. The test captures the revert data from
+`create` and requires it to equal `OutputBelowFloor(received, required)` from the
+gateway, for the first leg in execution order that a direct swap from the same
+state shows would fill below its floor, with both amounts matching to the unit.
+At every refused size here that leg is AMZN. The limit is the AMZN pool's depth;
+the TSLA leg alone stays inside the floor even at 25,000 USDG.
 
 ## Run 2 — L2 block 71,417,436, a few minutes later (AMZN $246.11)
 
@@ -65,6 +74,12 @@ swapping by hand would have filled; Jayo would not. Whether that is what the use
 wants is a real product question — a 50 bps floor on a pool that lags the feed
 will sometimes block a trade the user would accept — and the floor is a
 per-asset setting, not a constant.
+
+### Run 3 — L2 block 71,432,165 (live, about 25 minutes after run 1)
+
+Still refused at every size, 20 USDG included, and every refusal again asserted
+exactly as `OutputBelowFloor` on the AMZN leg. The pool had not come back to the
+Chainlink price.
 
 ## Cost next to doing it by hand (run 1)
 
@@ -91,8 +106,33 @@ Stated plainly:
   the amounts matched to the wei at every accepted size.
 - **It is cheaper to hand over** — one transfer instead of one per asset — and
   what moves is one object with a recorded composition.
-- **What the extra gas buys is the independent price check**, and run 2 shows it
-  doing real work on live mainnet state.
+- **What the extra gas buys is the price check against an independent
+  reference, applied by default to every leg** — and runs 2 and 3 show it doing
+  real work on live mainnet state. It is a demonstrated benefit, not a unique
+  one: Phase 0 (`docs/BASELINE_RESULTS.md`) showed an ordinary router given the
+  same Chainlink-derived minimum refuses the same trades, and other products
+  (HoodETF among them) use Chainlink for pricing. What Jayo adds is that the user
+  does not have to compute or supply that minimum.
+
+## If the recipient withdraws the tokens immediately
+
+The full path when a basket is bought, handed to someone, and that person takes
+the tokens out at once. Run 1, pinned block, base fee 0.042112 gwei, ETH $2,664.10
+(Chainlink ETH/USD read the same day). Gas is execution plus 21,000 per
+transaction; calldata cost and the L1 data fee are not included.
+
+| Basket | Jayo: approve, create, hand over NFT, recipient redeems (4 tx) | Manual: approve, two swaps, two transfers (5 tx) | Jayo ÷ manual |
+|---:|---|---|---:|
+| 20 USDG | 1,691,802 gas · 0.0000713 ETH · **$0.19** | 805,924 gas · 0.0000339 ETH · **$0.09** | 2.10× |
+| 1,000 USDG | 1,692,657 gas · $0.19 | 806,819 gas · $0.09 | 2.10× |
+| 2,500 USDG | 1,698,530 gas · $0.19 | 812,706 gas · $0.09 | 2.09× |
+
+The recipient ends up holding exactly the same TSLA and AMZN either way; the test
+asserts it. So if the only goal is to give someone two tokens right now, doing it
+by hand is about ten cents cheaper and one transaction longer. Jayo's case rests on
+what happens before that: one object to hand over, a recorded composition, a price
+check on the way in, and the option for the recipient to take out one asset and
+leave the rest.
 
 ## Not measured
 
