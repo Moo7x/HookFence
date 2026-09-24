@@ -1,0 +1,29 @@
+{
+  "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+  "usdg": "0x7C902600cb5bf24225DF1a77b333D84e03C1F210",
+  "basket": "0xff5c76EAc645cb07317c95215B382909b9A00218",
+  "gateway": "0x8bae4Bc2B97D607a4409F74a708FeDFA2b43d01e",
+  "policy": "0xf32DfbF47Ce18bFCC56f0C4B8a914E278385044f",
+  "adapter": "0x06E42d75a72FD0b6eBD93c07baa5BBdf07Eea236",
+  "deployer": "0x42FeA32CFe3A7eFf9c2144ccc6eb0172D19b82B7",
+  "tsla": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+  "amzn": "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+  "tslaFeed": "0x0E7fC99AF7183C4e4E3230Cb6F43F059CA134F8c",
+  "amznFeed": "0x06dfc263D15999501A82899Ac862C16fDEc430d8",
+  "usdgFeed": "0xC51552296278d1cEfd998964cD5066e9fB02cE00",
+  "multicall3": "0xcA11bde05977b3631167028862bE2a173976CA11",
+  "stocks": [
+    "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+    "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02"
+  ],
+  "chainId": 46630,
+  "suggestedFund": 20000000,
+  "feedHeartbeat": 3600,
+  "maxShortfallBps": 300,
+  "demoControls": false,
+  "network": "robinhood-chain-testnet",
+  "warning": "Robinhood Chain testnet. TSLA, AMZN and rUSDG are valueless test tokens; the pools and the Uniswap v4 PoolManager are real testnet state not deployed by Jayo. The three price feeds are Jayo's DemoPriceFeed: written only by the deployer, copied from the same pools, bounded to 10% per update, expiring after one hour.",
+  "priceSource": "pool",
+  "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
+  "explorer": "https://explorer.testnet.chain.robinhood.com"
+}

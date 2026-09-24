@@ -1,0 +1,7 @@
+# Cloudflare Pages project for Jayo's public testnet site.
+# The site is plain static files built by `node scripts/build-site.mjs`; there
+# are no Pages Functions and no server-side code. Response headers (CSP etc.)
+# come from site/dist/_headers, which the build generates.
+name = "jayo-testnet"
+pages_build_output_dir = "site/dist"
+compatibility_date = "2025-02-14"  # static files only; no runtime features used

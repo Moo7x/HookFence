@@ -35,9 +35,10 @@
     "tslaFeed": "0x0E7fC99AF7183C4e4E3230Cb6F43F059CA134F8c",
     "usdg": "0x7C902600cb5bf24225DF1a77b333D84e03C1F210",
     "usdgFeed": "0xC51552296278d1cEfd998964cD5066e9fB02cE00",
-    "warning": "PoolManager, TSLA, AMZN, rUSDG and both pools are real chain state we did not deploy. The three price feeds ARE mocks: Chainlink publishes no feed directory for this testnet."
+    "warning": "Robinhood Chain testnet. TSLA, AMZN and rUSDG are valueless test tokens; the pools and the Uniswap v4 PoolManager are real testnet state not deployed by Jayo. The three price feeds are Jayo's DemoPriceFeed: written only by the deployer, copied from the same pools, bounded to 10% per update, expiring after one hour.",
+    "multicall3": "0xcA11bde05977b3631167028862bE2a173976CA11"
   },
-  "totalFeesWei": "156010740000000",
+  "totalFeesWei": "168954140000000",
   "transactions": [
     {
       "phase": "deploy",
@@ -415,7 +416,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x086eccf03d2e057ef4e4ff1722c133652d037ec193ef1d985eb388f0dfd6bde5"
     },
     {
-      "phase": "keeper: republish feeds from the pools",
+      "phase": "keeper: republish feeds from the pools (session 1)",
       "what": "setAnswer",
       "hash": "0xeaa85a140ac79d7e1078c881e62ddc9c7720d35f3e53f6f15ea1eacd2d32e0d2",
       "created": "0x0e7fc99af7183c4e4e3230cb6f43f059ca134f8c",
@@ -428,7 +429,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xeaa85a140ac79d7e1078c881e62ddc9c7720d35f3e53f6f15ea1eacd2d32e0d2"
     },
     {
-      "phase": "keeper: republish feeds from the pools",
+      "phase": "keeper: republish feeds from the pools (session 1)",
       "what": "setAnswer",
       "hash": "0xf28654fc93c57398e367383ec6dd74407ccd48a6a0d8c739d458492d509432f5",
       "created": "0x06dfc263d15999501a82899ac862c16fdec430d8",
@@ -441,7 +442,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xf28654fc93c57398e367383ec6dd74407ccd48a6a0d8c739d458492d509432f5"
     },
     {
-      "phase": "keeper: republish feeds from the pools",
+      "phase": "keeper: republish feeds from the pools (session 1)",
       "what": "setAnswer",
       "hash": "0x54bc63df2a8ab5c50b7af4cda534d9a93ec09cd8691f9f403dcab240b7f0c6a4",
       "created": "0xc51552296278d1cefd998964cd5066e9fb02ce00",
@@ -454,7 +455,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x54bc63df2a8ab5c50b7af4cda534d9a93ec09cd8691f9f403dcab240b7f0c6a4"
     },
     {
-      "phase": "4. INTERFACE (Alice): create basket #3",
+      "phase": "4. LOCAL INTERFACE (Alice): create basket #3",
       "hash": "0xa828d572700e458f1d816d4b3df77627e00fb38c411a210adae53fb0e31eb7aa",
       "status": "success",
       "block": 123660234,
@@ -465,7 +466,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xa828d572700e458f1d816d4b3df77627e00fb38c411a210adae53fb0e31eb7aa"
     },
     {
-      "phase": "5. INTERFACE (Alice): hand basket #3 to Bob, address typed and confirmed",
+      "phase": "5. LOCAL INTERFACE (Alice): hand basket #3 to Bob, address typed and confirmed",
       "hash": "0xb6b5af353a635164367c25607a00c8ab9e9101729211695028a808fa626dbf61",
       "status": "success",
       "block": 123660444,
@@ -476,7 +477,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xb6b5af353a635164367c25607a00c8ab9e9101729211695028a808fa626dbf61"
     },
     {
-      "phase": "6. INTERFACE (Bob): take only the AMZN out of basket #3",
+      "phase": "6. LOCAL INTERFACE (Bob): take only the AMZN out of basket #3",
       "hash": "0x23fe59b9fa408b644fd3a689b006473a7f0dd65103b9adcee595ddc1ca0429f9",
       "status": "success",
       "block": 123660624,
@@ -485,6 +486,100 @@
       "gasUsed": 93714,
       "feeWei": "937140000000",
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x23fe59b9fa408b644fd3a689b006473a7f0dd65103b9adcee595ddc1ca0429f9"
+    },
+    {
+      "phase": "7. HOSTED BUILD (Bob): withdraw basket #1 while every price feed had expired",
+      "hash": "0xd89ded624be0bf35fb13775c24fbb711637406095c3aac98be1c513ae1cc12e4",
+      "status": "success",
+      "block": 123723310,
+      "from": "0xe3c1dd3e6f3cb0760516aede0ecf28bc538b8953",
+      "sender": "Bob",
+      "gasUsed": 121250,
+      "feeWei": "1212500000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xd89ded624be0bf35fb13775c24fbb711637406095c3aac98be1c513ae1cc12e4"
+    },
+    {
+      "phase": "keeper: republish feeds (session 2; AMZN skipped by the 10% step bound)",
+      "what": "setAnswer",
+      "hash": "0x294d4abb53f587079d7d15484553ec20fb72d4f7cc90d4d8d9a4637a7c4768fd",
+      "created": "0x0e7fc99af7183c4e4e3230cb6f43f059ca134f8c",
+      "status": "success",
+      "block": 123723564,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 44148,
+      "feeWei": "441480000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x294d4abb53f587079d7d15484553ec20fb72d4f7cc90d4d8d9a4637a7c4768fd"
+    },
+    {
+      "phase": "keeper: republish feeds (session 2; AMZN skipped by the 10% step bound)",
+      "what": "setAnswer",
+      "hash": "0xc19a1354b16c7b46fdce3aaba74c03ea34128be5b9f94107cca181a2091d9c7e",
+      "created": "0xc51552296278d1cefd998964cd5066e9fb02ce00",
+      "status": "success",
+      "block": 123723582,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 41337,
+      "feeWei": "413370000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xc19a1354b16c7b46fdce3aaba74c03ea34128be5b9f94107cca181a2091d9c7e"
+    },
+    {
+      "phase": "operator: force AMZN after checking the move (+12.29%, an unrelated address buying over hours)",
+      "what": "forceAnswer",
+      "hash": "0x4ce0a9be6be8dc5497e800531050313d4ac223ced91ddf510ff5c75ca60d2500",
+      "created": "0x06dfc263d15999501a82899ac862c16fdec430d8",
+      "status": "success",
+      "block": 123724181,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 47464,
+      "feeWei": "474640000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x4ce0a9be6be8dc5497e800531050313d4ac223ced91ddf510ff5c75ca60d2500"
+    },
+    {
+      "phase": "8. HOSTED BUILD (Alice): mint 100 test rUSDG from the onboarding step",
+      "hash": "0xc4dcb5602cd1cbbd0f2dcfb8ea03355dcbe14b6969b65ea25c998527a293ce8a",
+      "status": "success",
+      "block": 123724354,
+      "from": "0x238625a72e5fe0ec560eb449a8b62817c84fcc4f",
+      "sender": "Alice",
+      "gasUsed": 42357,
+      "feeWei": "423570000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xc4dcb5602cd1cbbd0f2dcfb8ea03355dcbe14b6969b65ea25c998527a293ce8a"
+    },
+    {
+      "phase": "9. HOSTED BUILD (Alice): create basket #4",
+      "hash": "0x13b91bd36a9593db502784c18b14adab2c9237bace0df837dae7989879d96a7d",
+      "status": "success",
+      "block": 123724514,
+      "from": "0x238625a72e5fe0ec560eb449a8b62817c84fcc4f",
+      "sender": "Alice",
+      "gasUsed": 824848,
+      "feeWei": "8248480000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x13b91bd36a9593db502784c18b14adab2c9237bace0df837dae7989879d96a7d"
+    },
+    {
+      "phase": "10. HOSTED BUILD (Alice): hand basket #4 to Bob",
+      "hash": "0xe6afd9d0f990a1cba876b7fc5def8f653ed9abf50c655f7cc153887d71af6f17",
+      "status": "success",
+      "block": 123724811,
+      "from": "0x238625a72e5fe0ec560eb449a8b62817c84fcc4f",
+      "sender": "Alice",
+      "gasUsed": 78874,
+      "feeWei": "788740000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xe6afd9d0f990a1cba876b7fc5def8f653ed9abf50c655f7cc153887d71af6f17"
+    },
+    {
+      "phase": "11. HOSTED BUILD (Bob): take only the AMZN out of basket #4",
+      "hash": "0x0097532e51c700d98927ff17551ec7f6603925b7941a044c68c34e12a63879ce",
+      "status": "success",
+      "block": 123725026,
+      "from": "0xe3c1dd3e6f3cb0760516aede0ecf28bc538b8953",
+      "sender": "Bob",
+      "gasUsed": 94062,
+      "feeWei": "940620000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x0097532e51c700d98927ff17551ec7f6603925b7941a044c68c34e12a63879ce"
     }
   ]
 }

@@ -9,7 +9,10 @@
 //   3. Transaction state is always explicit: idle, signing, pending, confirmed
 //      or failed. Never a button that silently does nothing.
 //
-// Everything here runs against a LOCAL chain with MOCK assets.
+// The same file serves two builds: the local demo (mock assets, a demo panel)
+// and the HOSTED site (Robinhood Chain testnet, the visitor's own browser
+// wallet). scripts/build-site.mjs removes the local-only blocks and refuses to
+// emit a hosted build that still contains a key or the local test signer.
 // =============================================================================
 
 // viem 2.21.55, bundled locally by tools/build-vendor.mjs. The page used to load
@@ -17,35 +20,48 @@
 // test signer's token. It now loads nothing from any other origin.
 import {
   createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits,
-  isAddress, getAddress, privateKeyToAccount, foundry,
+  isAddress, getAddress,
 } from '/app/vendor/viem.js';
+/* @local-only-start */
+import { privateKeyToAccount, foundry } from '/app/vendor/viem.js';
+/* @local-only-end */
 
+let isLocal = false;
+let chain = null;
+let pub = null;
+let injected = null;         // viem wallet client backed by the visitor's wallet
+let injectedAddress = null;  // null until the visitor connects
+let signerLabel = 'browser wallet';
+let LOCAL = null;            // the local demo's hooks; present only in the local build
+
+/* @local-only-start */
 // Anvil's deterministic accounts. These keys are published in Foundry's own
 // documentation and hold nothing on any real network. A local demo that required
-// a wallet extension would not survive a recorded walkthrough.
-//
-// They are used ONLY when the deployment report says chainId 31337. On any
-// public chain the app signs through an injected wallet instead and these are
-// never touched - see `connect()`.
+// a wallet extension would not survive a recorded walkthrough. They are used ONLY
+// when the deployment is chainId 31337, and the hosted build does not contain them.
 const LOCAL_ACCOUNTS = [
   { label: 'Wallet A', key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' },
   { label: 'Wallet B', key: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' },
 ];
-
-let ACCOUNTS = LOCAL_ACCOUNTS;
 let acctIndex = 0;
-let isLocal = true;
-let chain = foundry;
-let injected = null; // viem wallet client backed by window.ethereum
+LOCAL = {
+  chain: foundry,
+  rpc: 'http://127.0.0.1:8545',
+  account: () => privateKeyToAccount(LOCAL_ACCOUNTS[acctIndex].key),
+  wallet: () => createWalletClient({ account: privateKeyToAccount(LOCAL_ACCOUNTS[acctIndex].key), chain, transport: http('http://127.0.0.1:8545') }),
+  label: () => LOCAL_ACCOUNTS[acctIndex].label,
+  // On anvil the latest block can be hours old if nothing has been mined, and the
+  // next block's timestamp then jumps past any deadline derived from it - create
+  // failed with IntentExpired after the demo chain sat idle. Mining an empty block
+  // first makes "latest" mean now. Public chains produce blocks continuously.
+  freshBlock: () => pub.request({ method: 'evm_mine', params: [] }),
+};
+/* @local-only-end */
 
-const account = () => (isLocal ? privateKeyToAccount(ACCOUNTS[acctIndex].key) : { address: injectedAddress });
-let injectedAddress = null;
-let signerLabel = 'browser wallet';
-
-let pub = createPublicClient({ chain: foundry, transport: http('http://127.0.0.1:8545') });
-const wallet = () => (isLocal
-  ? createWalletClient({ account: privateKeyToAccount(ACCOUNTS[acctIndex].key), chain, transport: http(chain.rpcUrls.default.http[0]) })
-  : injected);
+/** The acting account, or null on a public network before the visitor connects. */
+const account = () => (isLocal ? LOCAL.account() : (injectedAddress ? { address: injectedAddress } : null));
+const wallet = () => (isLocal ? LOCAL.wallet() : injected);
+const connected = () => account() !== null;
 
 // ---------------------------------------------------------------- ABIs ------
 
@@ -104,6 +120,8 @@ const ERC20_ABI = [
   { type:'function', name:'name', stateMutability:'view', inputs:[], outputs:[{type:'string'}] },
   { type:'function', name:'setOraclePaused', stateMutability:'nonpayable', inputs:[{type:'bool'}], outputs:[] },
   { type:'function', name:'oraclePaused', stateMutability:'view', inputs:[], outputs:[{type:'bool'}] },
+  // The testnet rUSDG mints to anyone; "Get 100 test rUSDG" calls it from the visitor's wallet.
+  { type:'function', name:'mint', stateMutability:'nonpayable', inputs:[{type:'address'},{type:'uint256'}], outputs:[] },
 ];
 
 const FEED_ABI = [
@@ -253,11 +271,20 @@ const usdg = v => Number(formatUnits(BigInt(v), 6)).toLocaleString(NUM, { minimu
 const tok  = v => Number(formatUnits(BigInt(v), 18)).toLocaleString(NUM, { minimumFractionDigits: 4, maximumFractionDigits: 6 });
 const symOf = a => (META[String(a).toLowerCase()]?.symbol) || short(a);
 
-function log(msg, cls = '') {
+const txUrl = hash => (D?.explorer && hash ? `${D.explorer}/tx/${hash}` : null);
+
+function log(msg, cls = '', hash = null) {
   const el = $('log');
   const d = document.createElement('div');
   if (cls) d.className = cls;
-  d.textContent = `${new Date().toLocaleTimeString()}  ${msg}`;
+  d.textContent = `${new Date().toLocaleTimeString(NUM)}  ${msg}`;
+  const url = txUrl(hash);
+  if (url) {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = ` receipt ${short(hash)}`;
+    d.appendChild(a);
+  }
   el.appendChild(d);
   el.scrollTop = el.scrollHeight;
 }
@@ -302,13 +329,30 @@ function showOk(target, title, body = '') {
 function clearMsg(...ids) { ids.forEach(i => { if ($(i)) $(i).innerHTML = ''; }); }
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-/** Explicit transaction lifecycle. */
-function tx(id, state, label) {
+/** Explicit transaction lifecycle, with a link to the receipt once there is one. */
+function tx(id, state, label, hash = null) {
   const el = $(id);
   el.hidden = false;
   el.dataset.state = state;
-  el.querySelector('.label').textContent = label;
-  if (state === 'confirmed' || state === 'failed') setTimeout(() => { el.hidden = true; }, 6000);
+  const lab = el.querySelector('.label');
+  lab.textContent = label;
+  const url = txUrl(hash);
+  if (url) {
+    const a = document.createElement('a');
+    a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+    a.textContent = ' · view on explorer';
+    lab.appendChild(a);
+  }
+  // A confirmed state with a receipt link stays up; the link is the evidence.
+  if (state === 'failed' || (state === 'confirmed' && !url)) setTimeout(() => { el.hidden = true; }, 6000);
+}
+
+/** On a public network, every write needs a connected wallet first. */
+function needWallet(target) {
+  if (connected()) return false;
+  $(target).innerHTML = `<div class="msg info"><span class="icon">i</span><div class="body">
+    <strong>Connect a wallet first.</strong><br>Use "Connect wallet" at the top. Looking around needs no wallet; changing anything does.</div></div>`;
+  return true;
 }
 
 function busy(btn, on, label) {
@@ -332,25 +376,27 @@ async function loadDeployment() {
   return null;
 }
 
-/// On a local chain the demo drives published anvil keys directly. On any public
-/// chain it must not hold a key at all, so it asks an injected wallet instead.
+/// Set up the chain connection. On a public network this is READ-ONLY: nothing
+/// is asked of the visitor's wallet until they press "Connect wallet".
 async function connect() {
+  if (D.chainId === 31337 && !LOCAL) {
+    $('netmeta').textContent = 'this build does not include the local demo';
+    return false;
+  }
   isLocal = D.chainId === 31337;
-
-  chain = isLocal ? foundry : {
+  chain = isLocal ? LOCAL.chain : {
     id: D.chainId,
     name: D.network || `chain ${D.chainId}`,
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
     rpcUrls: { default: { http: [D.rpcUrl] } },
+    ...(D.multicall3 ? { contracts: { multicall3: { address: D.multicall3 } } } : {}),
   };
-  pub = createPublicClient({ chain, transport: http(isLocal ? 'http://127.0.0.1:8545' : D.rpcUrl) });
-
+  pub = createPublicClient({ chain, transport: http(isLocal ? LOCAL.rpc : D.rpcUrl) });
   if (isLocal) return true;
 
-  // A browser wallet always wins. Failing that, the local server may offer a
-  // test signer (node app/serve.mjs --testnet-signer). It holds the testnet key
-  // in its own process and hands the page nothing but signatures; it answers
-  // only this origin, and only with the per-run token embedded in this page.
+  /* @local-only-start */
+  // Served by `node app/serve.mjs --testnet-signer` only: a local test signer
+  // holding two demo user wallets, which signs nothing but the decoded journey.
   const token = document.querySelector('meta[name="jayo-signer-token"]')?.content;
   if (!window.ethereum && Array.isArray(D.localSigners) && D.localSigners.length && token) {
     let id = 0;
@@ -366,8 +412,6 @@ async function connect() {
         return out.result;
       },
     };
-    // Two independent user wallets, so a hand-over can be followed by the
-    // recipient withdrawing. The signer refuses anything outside the journey.
     const labels = ['Test wallet A', 'Test wallet B'];
     const useSigner = addr => {
       injectedAddress = addr;
@@ -380,44 +424,71 @@ async function connect() {
     $('signerPick').hidden = false;
     $('signerSel').addEventListener('change', async () => {
       useSigner($('signerSel').value);
-      hideTransferConfirm();
-      $('toAddr').value = '';
-      validateRecipient();
-      await refreshStatus();
-      await loadPositions();
+      await afterAccountChange();
       log(`now signing as ${short(injectedAddress)}`);
     });
     return true;
   }
+  /* @local-only-end */
 
-  if (!window.ethereum) {
-    $('netmeta').textContent = `${D.network} — no browser wallet found`;
-    $('createMsg').innerHTML =
-      `<div class="msg warn"><span class="icon">!</span><div class="body">` +
-      `<strong>This deployment is on a public network, so it needs a browser wallet.</strong><br>` +
-      `Install one and reload. The built-in demo keys are only ever used on a local test chain, never here.</div></div>`;
-    return false;
-  }
-  const [addr] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  injectedAddress = addr;
-  injected = createWalletClient({ account: addr, chain, transport: custom(window.ethereum) });
-
-  const current = await window.ethereum.request({ method: 'eth_chainId' });
-  if (parseInt(current, 16) !== D.chainId) {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_addEthereumChain',
-        params: [{
-          chainId: '0x' + D.chainId.toString(16),
-          chainName: D.network,
-          nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-          rpcUrls: [D.rpcUrl],
-          blockExplorerUrls: D.explorer ? [D.explorer] : undefined,
-        }],
-      });
-    } catch { /* the wallet may already know it, or the user declined */ }
+  // Public network: read-only until the visitor asks to connect.
+  for (const b of ['btnConnect', 'btnConnect2']) {
+    $(b).hidden = false;
+    $(b).addEventListener('click', connectWallet);
   }
   return true;
+}
+
+async function afterAccountChange() {
+  hideTransferConfirm();
+  $('toAddr').value = '';
+  validateRecipient();
+  await refreshStatus();
+  await loadPositions();
+}
+
+/// The visitor's own wallet: request accounts, then make sure it is on this chain.
+async function connectWallet() {
+  if (!window.ethereum) {
+    $('onboardMsg').innerHTML = `<div class="msg warn"><span class="icon">!</span><div class="body">
+      <strong>No browser wallet found.</strong><br>Install a wallet extension (MetaMask, Rabby, or another
+      that supports custom networks), then reload this page.</div></div>`;
+    $('onboard').scrollIntoView({ block: 'start' });
+    return;
+  }
+  try {
+    const [addr] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    const hex = '0x' + D.chainId.toString(16);
+    const current = await window.ethereum.request({ method: 'eth_chainId' });
+    if (parseInt(current, 16) !== D.chainId) {
+      try {
+        await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: hex }] });
+      } catch {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [{
+            chainId: hex, chainName: 'Robinhood Chain Testnet',
+            nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+            rpcUrls: [D.rpcUrl], blockExplorerUrls: D.explorer ? [D.explorer] : undefined,
+          }],
+        });
+      }
+    }
+    injectedAddress = getAddress(addr);
+    injected = createWalletClient({ account: injectedAddress, chain, transport: custom(window.ethereum) });
+    if (!window.__jayoWired && window.ethereum.on) {
+      // Simplest correct response to a wallet changing account or network: start over.
+      window.ethereum.on('accountsChanged', () => location.reload());
+      window.ethereum.on('chainChanged', () => location.reload());
+      window.__jayoWired = true;
+    }
+    for (const b of ['btnConnect', 'btnConnect2']) $(b).hidden = true;
+    clearMsg('onboardMsg');
+    log(`wallet connected: ${short(injectedAddress)}`, 'ok');
+    await afterAccountChange();
+  } catch (e) {
+    showError('onboardMsg', e);
+  }
 }
 
 async function boot() {
@@ -430,18 +501,20 @@ async function boot() {
 
   if (!(await connect())) return;
 
-  // Demo controls need anvil (time travel) and ownership of the feeds. Neither
-  // is available on a public chain, so the panel goes rather than sitting there
-  // pretending.
-  if (D.demoControls === false) {
-    document.querySelector('.demo').hidden = true;
-  }
+  // Demo controls need a local chain (time travel) and ownership of the feeds.
+  // Neither is available on a public chain; the hosted build does not contain them.
+  const demo = document.querySelector('.demo');
+  if (demo && (D.demoControls === false || !isLocal)) demo.hidden = true;
 
-  // On the local chain every asset is a mock. On testnet the tokens, the pools
-  // and the PoolManager are real and only the price feeds are ours. Saying
-  // "mock assets" there would be wrong in the other direction.
+  // On the local chain every asset is a mock. On testnet the tokens and pools are
+  // real test assets with no value, and the price feeds are ours.
   document.querySelector('.mockflag').textContent =
-    isLocal ? 'Demo · mock assets' : 'Testnet · mock price feeds';
+    isLocal ? 'Demo · mock assets' : 'Testnet · test assets with no value';
+  if (!isLocal) {
+    $('testnetNote').hidden = false;
+    $('onboard').hidden = false;
+    $('sizeGuide').hidden = D.priceSource !== 'pool';
+  }
 
   const stocks = D.stocks || [D.aapl, D.nvda].filter(Boolean);
   for (const a of [...stocks, D.usdg]) {
@@ -461,6 +534,11 @@ async function boot() {
     $('fund').value = formatUnits(BigInt(D.suggestedFund), 6);
     $('copyFund').value = formatUnits(BigInt(D.suggestedFund) / 2n, 6);
   }
+  const unit = stableSym();
+  $('fund-unit').textContent = isLocal
+    ? `${unit} — a mock dollar stablecoin on the local demo chain`
+    : `${unit} — a free test stablecoin with no value`;
+  document.querySelector('label[for="copyFund"]').textContent = `Your amount (${unit})`;
 
   $('toAddr').value = '';
   validateRecipient();
@@ -474,7 +552,7 @@ async function boot() {
   await loadPositions();
   log(isLocal
     ? 'connected — all assets are mocks on a local chain'
-    : `connected to ${D.network} — real tokens and pools, mock price feeds`, 'ok');
+    : `reading ${D.network} — test assets with no value; connect a wallet to act`, 'ok');
 }
 
 // ------------------------------------------------------------- freshness ---
@@ -512,11 +590,41 @@ async function renderPrices() {
   }).join('');
 
   $('priceRows').setAttribute('aria-label', anyStale ? 'At least one price has expired. Buying is paused.' : 'All prices current.');
+
+  // Freshest-to-expire decides how long buying stays open.
+  const minLeft = Math.min(...cfgs.map((c, i) => Number(c.maxStaleness) - Math.max(0, now - Number(rounds[i][3]))));
+  buyingOpen = !anyStale;
+  const whenBack = D.priceSource === 'pool'
+    ? 'Prices are republished from the pools only during supervised demo sessions.'
+    : 'Use "Refresh prices" in the demo controls.';
+  $('sessionNote').innerHTML = buyingOpen
+    ? `<p class="session open">${isLocal ? 'Prices are current' : 'Demo session running'} — buying is open for about ${esc(ago(minLeft))}.</p>`
+    : `<div class="msg warn"><span class="icon">!</span><div class="body">
+         <strong>Buying is unavailable right now.</strong><br>
+         The reference prices expired, so Jayo refuses every purchase rather than guess.
+         ${esc(whenBack)} <strong>Withdrawing never needs a price</strong> — you can still take tokens
+         out of any basket you own, below.</div></div>`;
+  applyBuyingState();
+}
+
+let buyingOpen = true;
+function applyBuyingState() {
+  const total = rows.reduce((s, r) => s + (Number(r.pct) || 0), 0);
+  $('btnCreate').disabled = total !== 100 || !buyingOpen;
+  $('btnQuote').disabled = !buyingOpen;
+  $('btnCopy').disabled = !buyingOpen;
+  $('copyNotice').innerHTML = buyingOpen ? '' :
+    `<p class="guide">Copying buys tokens, so it is paused while prices are expired. Withdrawing still works.</p>`;
 }
 
 function describePriceSource() {
   const floorPct = D.maxShortfallBps ? `${D.maxShortfallBps / 100}%` : 'the allowed margin';
   const life = D.feedHeartbeat ? ago(D.feedHeartbeat) : 'its limit';
+  $('priceOrigin').hidden = false;
+  $('priceOrigin').textContent = D.priceSource === 'pool'
+    ? 'On this testnet the reference prices are read from the same trading pools Jayo buys in. ' +
+      'The mainnet-fork test uses Chainlink\'s independent price feeds instead.'
+    : 'These are demo prices set by the local demo deployer.';
   if (D.priceSource === 'pool') {
     $('priceSourceTag').textContent = 'read from the pool · demo feed';
     $('aboutPrices').innerHTML = `
@@ -531,7 +639,8 @@ function describePriceSource() {
       tell you whether the pool is fairly priced against the real market. If the pool is off, this
       price is off by exactly the same amount and your purchase will still go through. For example, on
       23 September Chainlink's mainnet feed put TSLA at $380.26 while this pool priced it near $256.
-      Only a price from outside the pool, such as Chainlink's on mainnet, can catch that.</p>
+      Only a price from outside the pool, such as Chainlink's on mainnet, can catch that — and the
+      project's mainnet-fork test, which uses Chainlink's feeds, shows it doing so.</p>
       <p>Withdrawals never use these prices, so they work even when every price has expired.</p>`;
   } else {
     $('priceSourceTag').textContent = 'demo prices · local chain';
@@ -546,15 +655,29 @@ function describePriceSource() {
 }
 
 async function refreshStatus() {
-  const [bn, bal] = await Promise.all([
-    pub.getBlockNumber(),
-    pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [account().address] }),
-  ]);
-  const who = isLocal ? `${ACCOUNTS[acctIndex].label} ${short(account().address)}` : `${short(account().address)} (${signerLabel})`;
-  const unit = META[D.usdg.toLowerCase()]?.symbol || 'USDG';
-  $('netmeta').textContent =
-    `${isLocal ? 'local chain' : D.network} ${D.chainId} · block ${bn} · ${who} · ${usdg(bal)} ${unit}`;
+  const bn = await pub.getBlockNumber();
+  const where = `${isLocal ? 'local chain' : D.network} ${D.chainId} · block ${bn}`;
   $('livetext').textContent = 'live';
+  if (!connected()) {
+    $('netmeta').textContent = `${where} · no wallet connected (read-only)`;
+    return;
+  }
+  const me = account().address;
+  const [bal, eth] = await Promise.all([
+    pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [me] }),
+    pub.getBalance({ address: me }),
+  ]);
+  const who = isLocal ? `${LOCAL.label()} ${short(me)}` : `${short(me)} (${signerLabel})`;
+  $('netmeta').textContent = `${where} · ${who} · ${usdg(bal)} ${stableSym()}`;
+
+  if (!isLocal) {
+    const ethTxt = Number(formatUnits(eth, 18)).toLocaleString(NUM, { maximumFractionDigits: 6 });
+    $('stepWallet').dataset.done = 'true';
+    $('gasBal').textContent = `You have ${ethTxt} test ETH.`;
+    $('stepGas').dataset.done = String(eth >= 20_000_000_000_000n); // 0.00002 ETH covers several actions
+    $('usdBal').textContent = `You have ${usdg(bal)} ${stableSym()}.`;
+    $('stepUsd').dataset.done = String(bal >= 20_000000n);
+  }
 }
 
 // ------------------------------------------------------- allocation rows ----
@@ -594,7 +717,7 @@ function updateTotal() {
   line.firstElementChild.textContent = total === 100
     ? 'Allocations add up to 100%'
     : `Allocations must add up to 100% — currently ${total}%`;
-  $('btnCreate').disabled = total !== 100;
+  applyBuyingState();
   rows.forEach((_, i) => $(`pct${i}`)?.setAttribute('aria-invalid', total !== 100 ? 'true' : 'false'));
 
   // A success notice from the previous basket sitting next to a now-disabled
@@ -608,12 +731,7 @@ const allocArg = () => rows.map(r => ({ asset: r.asset, weightBps: Math.round(r.
 // control, and on a real network a user's clock can simply be wrong. Using
 // Date.now() produced an immediate IntentExpired with no obvious cause.
 async function deadline() {
-  // On anvil the latest block can be hours old if nothing has been mined, and the
-  // next block's timestamp then jumps past any deadline derived from it - create
-  // failed with IntentExpired after the demo chain sat idle. Mining an empty block
-  // first makes "latest" mean now. Public chains produce blocks continuously, so
-  // this is local only.
-  if (isLocal) await pub.request({ method: 'evm_mine', params: [] });
+  if (isLocal) await LOCAL.freshBlock();
   const blk = await pub.getBlock();
   return blk.timestamp + 3600n;
 }
@@ -668,6 +786,7 @@ $('btnQuote').addEventListener('click', async () => {
 
 $('btnCreate').addEventListener('click', async () => {
   clearMsg('createMsg');
+  if (needWallet('createMsg')) return;
   const btn = $('btnCreate');
   busy(btn, true, 'Creating…');
   try {
@@ -679,10 +798,11 @@ $('btnCreate').addEventListener('click', async () => {
       args: [account().address, D.basket],
     });
     if (allowance < amount) {
-      tx('createTx', 'signing', `Allowing Jayo to use your ${stableSym()}…`);
-      const ah = await w.writeContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
-      tx('createTx', 'pending', 'Waiting for confirmation…');
+      tx('createTx', 'signing', `Allowing Jayo to use your ${stableSym()} — confirm in your wallet…`);
+      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
+      tx('createTx', 'pending', 'Waiting for the approval to confirm…', ah);
       await pub.waitForTransactionReceipt({ hash: ah });
+      log('approved the basket contract to spend your test stablecoin', 'ok', ah);
     }
 
     tx('createTx', 'signing', 'Buying your tokens…');
@@ -690,12 +810,12 @@ $('btnCreate').addEventListener('click', async () => {
       address: D.basket, abi: BASKET_ABI, functionName: 'create',
       args: [allocArg(), amount, await deadline()],
     });
-    tx('createTx', 'pending', 'Waiting for confirmation…');
+    tx('createTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    tx('createTx', 'confirmed', 'Done');
+    tx('createTx', 'confirmed', 'Done', hash);
 
     showOk('createMsg', 'Your basket is ready.', 'It is listed below with what it actually holds.');
-    log('basket created', 'ok');
+    log('basket created', 'ok', hash);
     $('quote').innerHTML = '';
     await refreshStatus();
     await loadPositions();
@@ -707,19 +827,43 @@ $('btnCreate').addEventListener('click', async () => {
 
 // -------------------------------------------------------------- positions ---
 
+/// Every existing basket with its owner and holdings. The contract has no public
+/// token counter, so ids are probed in batches; on a public network each batch is
+/// one Multicall3 request rather than one request per id, which keeps a visitor
+/// under the public RPC's rate limit.
+async function readBaskets() {
+  const out = [];
+  const BATCH = 20n;
+  for (let start = 1n; start <= 400n; start += BATCH) {
+    const ids = Array.from({ length: Number(BATCH) }, (_, i) => start + BigInt(i));
+    let owners;
+    if (D.multicall3 && !isLocal) {
+      owners = (await pub.multicall({
+        allowFailure: true,
+        contracts: ids.map(id => ({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [id] })),
+      })).map(r => (r.status === 'success' ? r.result : null));
+    } else {
+      owners = await Promise.all(ids.map(id => pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [id] }).catch(() => null)));
+    }
+    const live = ids.map((id, i) => [id, owners[i]]).filter(([, o]) => o);
+    if (live.length === 0) break; // a whole empty batch: past the last id
+    const holdings = D.multicall3 && !isLocal
+      ? (await pub.multicall({ allowFailure: false, contracts: live.map(([id]) => ({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [id] })) }))
+      : await Promise.all(live.map(([id]) => pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [id] })));
+    live.forEach(([id, owner], i) => out.push({ id, owner, assets: holdings[i][0], amounts: holdings[i][1] }));
+  }
+  return out;
+}
+
 async function loadPositions() {
   const host = $('positions');
+  const me = account()?.address?.toLowerCase() ?? '';
+  const all = await readBaskets();
   host.innerHTML = '';
-  const me = account().address.toLowerCase();
   let found = 0;
 
-  for (let id = 1n; id <= 40n; id++) {
-    let owner;
-    try { owner = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [id] }); }
-    catch { continue; }
+  for (const { id, owner, assets, amounts } of all) {
     found++;
-
-    const [assets, amounts] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [id] });
     const mine = owner.toLowerCase() === me;
     const list = assets.map((a, i) => `${esc(symOf(a))} ${tok(amounts[i])}`).join(' · ');
 
@@ -746,7 +890,7 @@ async function selectPosition(id, quiet = false) {
 
   $('detailCard').hidden = false;
   $('detailId').textContent = `#${id}`;
-  const mine = owner.toLowerCase() === account().address.toLowerCase();
+  const mine = connected() && owner.toLowerCase() === account().address.toLowerCase();
   $('detailOwner').innerHTML = mine
     ? `You own this basket.`
     : `Owned by ${esc(short(owner))} — you are viewing it, not controlling it.`;
@@ -807,6 +951,7 @@ async function selectPosition(id, quiet = false) {
 // not go through". The simulated request is what gets sent, so nothing about
 // the call can change between the check and the signature.
 async function send(params) {
+  if (!connected()) throw new Error('Connect a wallet first.');
   const { request } = await pub.simulateContract({ ...params, account: account().address });
   const { account: _ignored, ...rest } = request;
   return wallet().writeContract({ ...rest, account: wallet().account });
@@ -890,6 +1035,7 @@ $('btnTransferCancel').addEventListener('click', () => { hideTransferConfirm(); 
 $('btnTransferConfirm').addEventListener('click', async () => {
   if (!recipient || !$('tcAck').checked) return;
   clearMsg('transferMsg');
+  if (needWallet('transferMsg')) return;
   const to = recipient;
   const btn = $('btnTransferConfirm'); busy(btn, true, 'Handing over…');
   try {
@@ -897,12 +1043,12 @@ $('btnTransferConfirm').addEventListener('click', async () => {
     // safeTransferFrom, not transferFrom: a contract that cannot hold ERC-721s
     // makes the hand-over revert instead of swallowing the basket.
     const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'safeTransferFrom', args: [account().address, to, BigInt(selectedId)] });
-    tx('transferTx', 'pending', 'Waiting for confirmation…');
+    tx('transferTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    tx('transferTx', 'confirmed', 'Done');
+    tx('transferTx', 'confirmed', 'Done', hash);
     showOk('transferMsg', `Basket #${selectedId} now belongs to ${to}.`,
       'You can no longer withdraw from it or hand it on.');
-    log(`basket #${selectedId} handed to ${short(to)} · tx ${short(hash)}`, 'ok');
+    log(`basket #${selectedId} handed to ${short(to)}`, 'ok', hash);
     hideTransferConfirm();
     $('toAddr').value = '';
     await loadPositions();
@@ -914,24 +1060,27 @@ $('btnTransferConfirm').addEventListener('click', async () => {
 
 $('btnCopy').addEventListener('click', async () => {
   clearMsg('copyMsg');
+  if (needWallet('copyMsg')) return;
   const btn = $('btnCopy'); busy(btn, true, 'Copying…');
   try {
     const amount = parseUnits(String($('copyFund').value || '0').replace(/,/g, ''), 6);
     const w = wallet();
     const allowance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, D.basket] });
     if (allowance < amount) {
-      tx('copyTx', 'signing', `Allowing Jayo to use your ${stableSym()}…`);
-      const ah = await w.writeContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
+      tx('copyTx', 'signing', `Allowing Jayo to use your ${stableSym()} — confirm in your wallet…`);
+      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
+      tx('copyTx', 'pending', 'Waiting for the approval to confirm…', ah);
       await pub.waitForTransactionReceipt({ hash: ah });
+      log('approved the basket contract to spend your test stablecoin', 'ok', ah);
     }
     tx('copyTx', 'signing', 'Buying the same mix for you…');
     const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [BigInt(selectedId), amount, await deadline()] });
-    tx('copyTx', 'pending', 'Waiting for confirmation…');
+    tx('copyTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    tx('copyTx', 'confirmed', 'Done');
+    tx('copyTx', 'confirmed', 'Done', hash);
     showOk('copyMsg', 'You now own a basket with the same mix.',
       'It was bought with your money. The original owner keeps everything of theirs.');
-    log(`copied basket #${selectedId} with your own funds`, 'ok');
+    log(`copied basket #${selectedId} with your own funds`, 'ok', hash);
     await refreshStatus(); await loadPositions();
   } catch (e) { tx('copyTx', 'failed', 'Cancelled — nothing was spent'); showError('copyMsg', e); }
   finally { busy(btn, false); }
@@ -941,16 +1090,17 @@ $('btnCopy').addEventListener('click', async () => {
 
 $('btnRedeem').addEventListener('click', async () => {
   clearMsg('redeemMsg');
+  if (needWallet('redeemMsg')) return;
   const btn = $('btnRedeem'); busy(btn, true, 'Withdrawing…');
   try {
     const [assets, amounts] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(selectedId)] });
     tx('redeemTx', 'signing', 'Sending your tokens…');
     const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeem', args: [BigInt(selectedId)] });
-    tx('redeemTx', 'pending', 'Waiting for confirmation…');
+    tx('redeemTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    tx('redeemTx', 'confirmed', 'Done');
+    tx('redeemTx', 'confirmed', 'Done', hash);
     const got = assets.map((a, i) => `${tok(amounts[i])} ${symOf(a)}`).join(' and ');
-    log(`basket #${selectedId} withdrawn in kind`, 'ok');
+    log(`basket #${selectedId} withdrawn in kind`, 'ok', hash);
     // The receipt goes above, not here: this card is about to disappear.
     showOk('receipt', `Basket #${selectedId} closed. Sent ${got} to your wallet.`,
       'No price was needed for this, which is why it works when markets are closed.');
@@ -968,6 +1118,7 @@ $('btnRedeem').addEventListener('click', async () => {
 
 $('btnRedeemPart').addEventListener('click', async () => {
   clearMsg('redeemMsg');
+  if (needWallet('redeemMsg')) return;
   const btn = $('btnRedeemPart'); busy(btn, true, 'Withdrawing…');
   try {
     const [kind, value] = $('redeemPart').value.split(':');
@@ -977,9 +1128,9 @@ $('btnRedeemPart').addEventListener('click', async () => {
     const hash = kind === 'asset'
       ? await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemAsset', args: [BigInt(selectedId), value] })
       : await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemFraction', args: [BigInt(selectedId), Number(value)] });
-    tx('redeemTx', 'pending', 'Waiting for confirmation…');
+    tx('redeemTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    tx('redeemTx', 'confirmed', 'Done');
+    tx('redeemTx', 'confirmed', 'Done', hash);
 
     // Report what actually moved, read back from the contract rather than
     // predicted - the same rule the rest of this page follows.
@@ -992,7 +1143,7 @@ $('btnRedeemPart').addEventListener('click', async () => {
 
     showOk('redeemMsg', `Sent ${sent} to your wallet.`,
       'The basket is still yours and still holds the rest. No price was needed for this.');
-    log(`partial withdrawal from basket #${selectedId}`, 'ok');
+    log(`partial withdrawal from basket #${selectedId}`, 'ok', hash);
     await selectPosition(selectedId, true);
     await refreshStatus();
     await loadPositions();
@@ -1000,21 +1151,40 @@ $('btnRedeemPart').addEventListener('click', async () => {
   finally { busy(btn, false); }
 });
 
+// ------------------------------------------------------------- onboarding ---
+
+$('btnMint').addEventListener('click', async () => {
+  clearMsg('onboardMsg');
+  if (needWallet('onboardMsg')) return;
+  const btn = $('btnMint'); busy(btn, true, 'Minting…');
+  try {
+    tx('mintTx', 'signing', 'Confirm in your wallet…');
+    const hash = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'mint', args: [account().address, 100_000000n] });
+    tx('mintTx', 'pending', 'Waiting for confirmation…', hash);
+    await pub.waitForTransactionReceipt({ hash });
+    tx('mintTx', 'confirmed', `You now have 100 more test ${stableSym()}`, hash);
+    log(`minted 100 test ${stableSym()}`, 'ok', hash);
+    await refreshStatus();
+  } catch (e) { tx('mintTx', 'failed', 'Nothing was minted'); showError('onboardMsg', e); }
+  finally { busy(btn, false); }
+});
+
+/* @local-only-start */
 // ------------------------------------------------------------ demo panel ----
 
 // Local chain only: the demo panel is hidden on any public network.
 $('btnFillOther').addEventListener('click', () => {
-  $('toAddr').value = privateKeyToAccount(ACCOUNTS[(acctIndex + 1) % ACCOUNTS.length].key).address;
+  $('toAddr').value = privateKeyToAccount(LOCAL_ACCOUNTS[(acctIndex + 1) % LOCAL_ACCOUNTS.length].key).address;
   $('toAddr').dispatchEvent(new Event('input'));
   $('toAddr').focus();
 });
 
 $('btnAcct').addEventListener('click', async () => {
-  acctIndex = (acctIndex + 1) % ACCOUNTS.length;
+  acctIndex = (acctIndex + 1) % LOCAL_ACCOUNTS.length;
   await refreshStatus(); await loadPositions();
   $('demoMsg').innerHTML = `<div class="msg info"><span class="icon">i</span><div class="body">
-    Now acting as <strong>${esc(ACCOUNTS[acctIndex].label)}</strong> (${esc(short(account().address))}).</div></div>`;
-  log(`switched to ${ACCOUNTS[acctIndex].label}`);
+    Now acting as <strong>${esc(LOCAL.label())}</strong> (${esc(short(account().address))}).</div></div>`;
+  log(`switched to ${LOCAL.label()}`);
 });
 
 $('btnTime').addEventListener('click', async () => {
@@ -1051,7 +1221,7 @@ $('btnRefresh').addEventListener('click', async () => {
   try {
     // The feeds only accept their owner (the local deployer, Wallet A), so this
     // signs as Wallet A whichever wallet the page is currently acting as.
-    const w = createWalletClient({ account: privateKeyToAccount(LOCAL_ACCOUNTS[0].key), chain, transport: http('http://127.0.0.1:8545') });
+    const w = createWalletClient({ account: privateKeyToAccount(LOCAL_ACCOUNTS[0].key), chain, transport: http(LOCAL.rpc) });
     for (const [feed, price] of [[D.aaplFeed, 255_00000000n], [D.nvdaFeed, 150_00000000n], [D.usdgFeed, 1_00000000n]]) {
       const h = await w.writeContract({ address: feed, abi: FEED_ABI, functionName: 'setAnswer', args: [price] });
       await pub.waitForTransactionReceipt({ hash: h });
@@ -1065,5 +1235,6 @@ $('btnRefresh').addEventListener('click', async () => {
 });
 
 $('btnReload').addEventListener('click', async () => { await refreshStatus(); await loadPositions(); log('state reloaded'); });
+/* @local-only-end */
 
 boot();

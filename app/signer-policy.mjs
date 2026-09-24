@@ -24,6 +24,8 @@ const { decodeFunctionData, encodeFunctionData, getAddress } =
 // fails to decode and is refused.
 const STABLECOIN_ABI = [
   { type: "function", name: "approve", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }] },
+  // The testnet rUSDG mints to anyone; the hosted page offers "get test rUSDG".
+  { type: "function", name: "mint", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }] },
 ];
 const BASKET_ABI = [
   { type: "function", name: "create", inputs: [
@@ -42,6 +44,7 @@ export const LIMITS = {
   maxSpend: 100_000000n,   // 100 rUSDG per create/copy: a hijacked page cannot drain the wallet in one call
   maxGas: 2_000_000n,      // create measured 917,294 and copy 821,487 on a testnet fork
   maxLegs: 8,              // the basket's own MAX_LEGS
+  maxMint: 1_000_000000n,  // 1,000 test rUSDG per mint, and only to the sender
 };
 
 const lower = a => String(a).toLowerCase();
@@ -90,6 +93,11 @@ export function vetTransaction(tx, ctx) {
     case "stablecoin.approve":
       if (lower(a0) !== lower(ctx.basket)) return refuse("the stablecoin may only be approved to the basket contract");
       return { ok: true, account, what: "approve basket" };
+
+    case "stablecoin.mint":
+      if (lower(a0) !== lower(account)) return refuse("test rUSDG may only be minted to the sending account");
+      if (a1 > LIMITS.maxMint) return refuse(`mints more than the test signer's limit of ${LIMITS.maxMint}`);
+      return { ok: true, account, what: `mint ${a1} test rUSDG` };
 
     case "basket.create":
       if (a0.length === 0 || a0.length > LIMITS.maxLegs) return refuse("allocation must have 1 to 8 legs");

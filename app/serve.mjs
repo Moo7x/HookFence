@@ -60,7 +60,7 @@ const SIGNER_TOKEN = randomBytes(24).toString("hex");
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const MANIFEST_SCHEMA = {
   address: ["poolManager", "usdg", "basket", "gateway", "policy", "adapter", "deployer",
-            "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed"],
+            "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "multicall3"],
   addressList: ["stocks"],
   uint: ["chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps"],
   bool: ["demoControls"],
@@ -114,102 +114,20 @@ async function manifest() {
 
 let signer = null;
 
-function envValue(env, name) {
-  const line = env.split(/\r?\n/).find(l => l.startsWith(name + "="));
-  return line ? line.slice(name.length + 1).trim() : "";
-}
-
 async function startSigner() {
-  const env = await readFile(ENV_SRC, "utf8").catch(() => "");
-  const keys = [["Alice", envValue(env, "ALICE_PRIVATE_KEY")], ["Bob", envValue(env, "BOB_PRIVATE_KEY")]];
-  const deployerKey = envValue(env, "PRIVATE_KEY");
-  for (const [who, k] of keys) {
-    if (!/^0x[0-9a-fA-F]{64}$/.test(k)) {
-      console.error(`--testnet-signer: no ${who.toUpperCase()}_PRIVATE_KEY in contracts/.env. Run ./scripts/new-testnet-wallet.sh --role ${who.toLowerCase()}.`);
-      process.exit(1);
-    }
-    if (deployerKey && k.toLowerCase() === deployerKey.toLowerCase()) {
-      console.error(`--testnet-signer: ${who}'s key is the deployer's key. The signer never holds an admin key. Refusing.`);
-      process.exit(1);
-    }
-  }
-  if (keys[0][1].toLowerCase() === keys[1][1].toLowerCase()) {
-    console.error("--testnet-signer: Alice and Bob must be two different wallets. Refusing.");
-    process.exit(1);
-  }
-
-  // viem is installed only for this mode (tools/package.json, pinned to the
-  // version the page itself loads), so the plain local demo needs no npm install.
-  const viemDir = join(REPO, "tools", "node_modules", "viem", "_esm");
-  const viem = await import(pathToFileURL(join(viemDir, "index.js")).href);
-  const { privateKeyToAccount } = await import(pathToFileURL(join(viemDir, "accounts", "index.js")).href);
-  const { vetTransaction } = await import(pathToFileURL(join(APP_DIR, "signer-policy.mjs")).href);
-
+  const { createTestSigner } = await import(pathToFileURL(join(APP_DIR, "test-signer.mjs")).href);
   const m = sanitiseManifest(JSON.parse(await readFile(MANIFEST_SRC, "utf8")));
-  if (m.chainId !== 46630) {
-    console.error(`--testnet-signer: the deployment manifest is for chain ${m.chainId}, not 46630. Refusing.`);
+  try {
+    signer = await createTestSigner({ envPath: ENV_SRC, manifest: m });
+  } catch (e) {
+    console.error(`--testnet-signer: ${e.message} Refusing.`);
     process.exit(1);
   }
-  const chain = {
-    id: 46630, name: m.network,
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: { default: { http: [m.rpcUrl] } },
-  };
-  const wallets = new Map();
-  for (const [, k] of keys) {
-    const account = privateKeyToAccount(k);
-    wallets.set(account.address.toLowerCase(), viem.createWalletClient({ account, chain, transport: viem.http(m.rpcUrl) }));
-  }
-  const accounts = keys.map(([, k]) => privateKeyToAccount(k).address);
-  const ctx = {
-    chainId: 46630, basket: m.basket, usdg: m.usdg, accounts,
-    protected: [m.gateway, m.policy, m.adapter, m.poolManager, ...(m.stocks || [])].filter(Boolean),
-  };
-
-  signer = { accounts, wallets, ctx, vetTransaction, rpcUrl: m.rpcUrl };
-  console.log(`test signer active on chain 46630 for Alice ${accounts[0]} and Bob ${accounts[1]}`);
+  console.log(`test signer active on chain 46630 for Alice ${signer.accounts[0]} and Bob ${signer.accounts[1]}`);
   console.log("  it decodes every call and signs only the user journey; see app/signer-policy.mjs");
 }
 
-const READ_METHODS = new Set([
-  "eth_chainId", "eth_blockNumber", "eth_call", "eth_estimateGas", "eth_getBalance",
-  "eth_getTransactionCount", "eth_gasPrice", "eth_maxPriorityFeePerGas", "eth_feeHistory",
-  "eth_getBlockByNumber", "eth_getTransactionReceipt", "eth_getTransactionByHash", "eth_getCode",
-]);
-
-async function handleSigner(body) {
-  const { id, method, params = [] } = body;
-  const ok = result => ({ jsonrpc: "2.0", id, result });
-  const fail = (code, message) => ({ jsonrpc: "2.0", id, error: { code, message } });
-
-  if (method === "eth_accounts" || method === "eth_requestAccounts") return ok(signer.accounts);
-  if (method === "eth_chainId") return ok("0xb626");
-
-  if (method === "eth_sendTransaction") {
-    const tx = params[0] || {};
-    const verdict = signer.vetTransaction(tx, signer.ctx);
-    if (!verdict.ok) {
-      console.log(`REFUSED ${verdict.reason}`);
-      return fail(4100, `test signer refused: ${verdict.reason}`);
-    }
-    // Only `to`, `data` and a bounded `gas` are taken from the page. Nonce and
-    // fees are filled from the chain; anything else the page sent is ignored.
-    const wallet = signer.wallets.get(verdict.account.toLowerCase());
-    const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, gas: tx.gas ? BigInt(tx.gas) : undefined });
-    console.log(`signed  ${verdict.what}  from=${verdict.account}  tx=${hash}`);
-    return ok(hash);
-  }
-
-  if (READ_METHODS.has(method)) {
-    const r = await fetch(signer.rpcUrl, {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
-    });
-    return await r.json();
-  }
-  console.log(`UNSUPPORTED method ${String(method).slice(0, 60)}`);
-  return fail(4200, `method ${method} is not supported by the test signer`);
-}
+const handleSigner = body => signer.handle(body);
 
 // ------------------------------------------------------------------ server ---
 

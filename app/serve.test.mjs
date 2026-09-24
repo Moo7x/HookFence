@@ -166,7 +166,7 @@ test("the live manifest route returns only schema keys", async () => {
   if (r.status === 404) return; // no deployment on this machine yet
   const keys = Object.keys(JSON.parse(r.body));
   const allowed = new Set(["poolManager", "usdg", "basket", "gateway", "policy", "adapter", "deployer",
-    "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "stocks",
+    "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "multicall3", "stocks",
     "chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps", "demoControls", "network", "warning",
     "priceSource", "rpcUrl", "explorer", "localSigners"]);
   for (const k of keys) assert.ok(allowed.has(k), `unexpected key ${k}`);

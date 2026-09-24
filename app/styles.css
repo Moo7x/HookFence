@@ -523,3 +523,34 @@ details.tech pre {
   .check input { width: 22px; height: 22px; }
   .demo .actions button { min-height: 40px; }
 }
+
+/* ===================== public testnet site ============================= */
+
+.connect { padding: 6px 14px; min-height: 0; font-size: 13px; }
+.testnet-note {
+  margin: 18px 0 0; padding: 12px 14px; border-radius: var(--r-card);
+  background: rgba(228, 177, 76, 0.08); box-shadow: inset 0 0 0 1px rgba(228, 177, 76, 0.4);
+  color: var(--frost); font-size: 14px; max-width: 62ch;
+}
+.onboard .steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.onboard .steps li {
+  display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 12px 0; border-top: 1px solid var(--hairline);
+}
+.onboard .steps li:first-child { border-top: 0; }
+.onboard .steps li > div { flex: 1 1 200px; min-width: 0; }
+.onboard .steps li > button { margin-left: 38px; }
+.onboard .steps li::before {
+  counter-increment: step; content: counter(step);
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-grid; place-items: center; font-size: 12px; font-family: var(--mono);
+  box-shadow: var(--ring); color: var(--fog);
+}
+.onboard .steps li[data-done="true"]::before { content: "✓"; background: var(--success); color: var(--white); box-shadow: none; }
+.onboard .sub { display: block; color: var(--fog); font-size: 13px; margin-top: 2px; }
+.onboard a, .guide a, .log a, .txstate a { color: var(--frost); }
+.price-origin { font-size: 13px; color: var(--frost); margin: 0 0 8px; }
+.session { font-size: 13px; margin: 8px 0 0; }
+.session.open { color: var(--success); }
+.guide { font-size: 13px; color: var(--fog); margin: 10px 0 0; max-width: 62ch; }
+.activity .log:empty::before { content: "Nothing yet."; color: var(--fog); }

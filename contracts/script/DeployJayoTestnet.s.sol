@@ -253,6 +253,9 @@ contract DeployJayoTestnet is Script {
         // on a public chain. The demo panel does not apply here and is hidden.
         vm.serializeBool(j, "demoControls", false);
         vm.serializeString(j, "rpcUrl", "https://rpc.testnet.chain.robinhood.com");
+        // Canonical Multicall3, present on chain 46630: lets the page read every
+        // basket in one request instead of one per id.
+        vm.serializeAddress(j, "multicall3", 0xcA11bde05977b3631167028862bE2a173976CA11);
         vm.serializeString(j, "explorer", "https://explorer.testnet.chain.robinhood.com");
         vm.serializeUint(j, "suggestedFund", DEFAULT_FUND);
         vm.serializeUint(j, "feedHeartbeat", FEED_HEARTBEAT);

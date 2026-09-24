@@ -72,6 +72,7 @@ const alloc = [{ asset: TSLA, weightBps: 6000 }, { asset: "0x" + "f".repeat(40),
 
 const ALLOWED = {
   "approve the basket": { from: ALICE, to: USDG, data: enc("approve", [BASKET, 10n ** 30n]) },
+  "mint test rUSDG to yourself": { from: ALICE, to: USDG, data: enc("mint", [ALICE, 100_000000n]) },
   "create within the cap": { from: ALICE, to: BASKET, data: enc("create", [alloc, 20_000000n, 1n]) },
   "copy within the cap": { from: BOB, to: BASKET, data: enc("copyAllocation", [1n, 8_000000n, 1n]) },
   "redeem": { from: BOB, to: BASKET, data: enc("redeem", [1n]) },
@@ -87,7 +88,8 @@ const REFUSED = {
   "stablecoin transfer": { from: ALICE, to: USDG, data: enc("transfer", [ATTACKER, 1n]) },
   "stablecoin transferFrom": { from: ALICE, to: USDG, data: enc("transferFrom", [BOB, ATTACKER, 1n]) },
   "stablecoin increaseAllowance": { from: ALICE, to: USDG, data: enc("increaseAllowance", [ATTACKER, 1n]) },
-  "stablecoin mint": { from: ALICE, to: USDG, data: enc("mint", [ATTACKER, 1n]) },
+  "stablecoin mint to someone else": { from: ALICE, to: USDG, data: enc("mint", [ATTACKER, 1n]) },
+  "stablecoin mint above the cap": { from: ALICE, to: USDG, data: enc("mint", [ALICE, LIMITS.maxMint + 1n]) },
   "basket NFT approve (same selector as ERC-20 approve)": { from: ALICE, to: BASKET, data: enc("approve", [ATTACKER, 1n]) },
   "basket setApprovalForAll": { from: ALICE, to: BASKET, data: enc("setApprovalForAll", [ATTACKER, true]) },
   "basket plain transferFrom": { from: ALICE, to: BASKET, data: enc("transferFrom", [ALICE, ATTACKER, 1n]) },

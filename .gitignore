@@ -39,3 +39,7 @@ contracts/broadcast/
 
 # Signer dependency (installed on demand)
 tools/node_modules/
+
+# Hosted site build output (rebuilt by scripts/build-site.mjs)
+site/dist/
+.wrangler/

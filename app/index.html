@@ -18,11 +18,14 @@
 <div class="statusbar" role="status">
   <span class="mockflag">Demo · mock assets</span>
   <span class="meta" id="netmeta">connecting…</span>
+  <!-- @local-only-start -->
   <!-- Only with the local test signer, which holds two independent user wallets. -->
   <label class="signer-pick" id="signerPick" hidden>
     <span>Signing as</span>
     <select id="signerSel" aria-label="Which test wallet signs"></select>
   </label>
+  <!-- @local-only-end -->
+  <button class="primary connect" id="btnConnect" type="button" hidden>Connect wallet</button>
   <span class="spacer"></span>
   <span class="live"><span class="led" id="led"></span><span id="livetext">offline</span></span>
 </div>
@@ -37,7 +40,45 @@
       hand to someone else, copy anyone's mix with your own money, and take the
       actual tokens out whenever you want.
     </p>
+    <p class="testnet-note" id="testnetNote" hidden>
+      <strong>Everything here is a test.</strong> This runs on Robinhood Chain
+      <em>testnet</em>. The tokens have no value and cannot be redeemed for anything —
+      not real stock, not real dollars. Nothing you do here can gain or lose money.
+    </p>
   </header>
+
+  <!-- ================= 0. GET STARTED (public networks only) ================= -->
+  <section class="card onboard" aria-labelledby="h-start" id="onboard" hidden>
+    <header>
+      <h2 id="h-start"><span class="step-n">0</span> Get set up</h2>
+      <p class="lede">Three things before your first basket. All of them are free test assets.</p>
+    </header>
+    <ol class="steps">
+      <li id="stepWallet" data-done="false">
+        <div><strong>Connect a browser wallet.</strong>
+          <span class="sub">It will ask to add or switch to Robinhood Chain testnet (chain 46630).
+          Every transaction is signed in your wallet; this site never sees a key.</span></div>
+        <button class="ghost" id="btnConnect2" type="button">Connect wallet</button>
+      </li>
+      <li id="stepGas" data-done="false">
+        <div><strong>Get test ETH for fees.</strong>
+          <span class="sub">Each action here costs well under 0.0001 test ETH. Free from a faucet:
+          <a href="https://faucets.chain.link/robinhood-testnet" target="_blank" rel="noopener noreferrer">Chainlink faucet</a> ·
+          <a href="https://faucet.quicknode.com/robinhood/testnet" target="_blank" rel="noopener noreferrer">QuickNode faucet</a>.
+          <span id="gasBal"></span></span></div>
+      </li>
+      <li id="stepUsd" data-done="false">
+        <div><strong>Get test rUSDG to buy with.</strong>
+          <span class="sub">rUSDG is a public test stablecoin on this network (not Paxos USDG, and not
+          Jayo's) that anyone can mint for free. <span id="usdBal"></span></span></div>
+        <button class="ghost" id="btnMint" type="button">Get 100 test rUSDG</button>
+      </li>
+    </ol>
+    <div id="onboardMsg" aria-live="polite"></div>
+    <div class="txstate" id="mintTx" data-state="idle" hidden>
+      <span class="pip"></span><span class="label"></span>
+    </div>
+  </section>
 
   <!-- ================= 1. BUILD ================= -->
   <section class="card" aria-labelledby="h-build">
@@ -56,7 +97,9 @@
         <h3 id="h-prices">Prices your purchase is checked against</h3>
         <span class="tag" id="priceSourceTag"></span>
       </div>
+      <p class="price-origin" id="priceOrigin" hidden></p>
       <ul class="price-rows" id="priceRows" aria-live="polite"></ul>
+      <div id="sessionNote" aria-live="polite"></div>
       <details class="about-prices">
         <summary>Where these prices come from, and what they can and cannot protect</summary>
         <div id="aboutPrices"></div>
@@ -69,6 +112,12 @@
              aria-describedby="fund-unit" />
       <span class="unit" id="fund-unit" style="font-size:12px">USDG — a dollar-backed stablecoin</span>
     </div>
+    <p class="guide" id="sizeGuide" hidden>
+      These test pools are tiny — about 2,000 rUSDG of liquidity for TSLA and 900 for AMZN.
+      Keep a basket around 20 rUSDG; much larger ones move the price past the limit and are
+      refused before any money moves. Your first purchase asks your wallet for one approval,
+      then one transaction.
+    </p>
 
     <div id="allocRows" style="margin-top:20px"></div>
 
@@ -187,6 +236,7 @@
         </div>
         <button class="ghost" id="btnCopy" type="button" style="align-self:end">Copy this mix</button>
       </div>
+      <div id="copyNotice" aria-live="polite"></div>
       <div id="copyMsg" aria-live="polite"></div>
       <div class="txstate" id="copyTx" data-state="idle" hidden>
         <span class="pip"></span><span class="label"></span>
@@ -223,6 +273,16 @@
     </div>
   </section>
 
+  <!-- ================= ACTIVITY ================= -->
+  <section class="card activity" aria-labelledby="h-activity">
+    <header>
+      <h2 id="h-activity">Activity on this page</h2>
+      <p class="lede">Each transaction links to its receipt on the public explorer.</p>
+    </header>
+    <div class="log" id="log" role="log" aria-label="Activity log"></div>
+  </section>
+
+  <!-- @local-only-start -->
   <!-- ================= DEMO PANEL ================= -->
   <section class="demo" aria-labelledby="h-demo">
     <header>
@@ -242,9 +302,8 @@
       <button class="quiet" id="btnReload" type="button">Reload state</button>
     </div>
     <div id="demoMsg" aria-live="polite"></div>
-
-    <div class="log" id="log" role="log" aria-label="Activity log"></div>
   </section>
+  <!-- @local-only-end -->
 
 </main>
 
