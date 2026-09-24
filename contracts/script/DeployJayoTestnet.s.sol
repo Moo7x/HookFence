@@ -10,7 +10,7 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 
-import {MockAggregatorV3} from "../src/mocks/MockAggregatorV3.sol";
+import {DemoPriceFeed} from "../src/testnet/DemoPriceFeed.sol";
 import {StockTokenReferencePolicy} from "../src/policy/StockTokenReferencePolicy.sol";
 import {ExecutionGateway} from "../src/core/ExecutionGateway.sol";
 import {V4ExactInputAdapter} from "../src/adapters/V4ExactInputAdapter.sol";
@@ -102,6 +102,11 @@ contract DeployJayoTestnet is Script {
 
     int256 constant RUSDG_USD = 1_00000000;
 
+    /// @dev A refresh may move a feed at most 10%. Past that, the refresh is
+    ///      refused, the feed ages out after FEED_HEARTBEAT and buying stops until
+    ///      the owner looks at it. See DemoPriceFeed.
+    uint16 constant FEED_MAX_STEP_BPS = 1000;
+
     /// @dev 10 rUSDG a leg, which measures at 78 bps against a 300 bps floor.
     uint256 constant DEFAULT_FUND = 20_000000;
 
@@ -112,13 +117,13 @@ contract DeployJayoTestnet is Script {
         ExecutionGateway gateway;
         V4ExactInputAdapter adapter;
         JayoBasket basket;
-        MockAggregatorV3 tslaFeed;
-        MockAggregatorV3 amznFeed;
-        MockAggregatorV3 usdgFeed;
+        DemoPriceFeed tslaFeed;
+        DemoPriceFeed amznFeed;
+        DemoPriceFeed usdgFeed;
         address deployer;
     }
 
-    function run() external {
+    function run() external virtual {
         require(block.chainid == CHAIN_ID, "not Robinhood Chain testnet");
 
         uint256 pk = vm.envUint("PRIVATE_KEY");
@@ -127,8 +132,16 @@ contract DeployJayoTestnet is Script {
         _assertChainStateIsWhatWeSurveyed();
 
         vm.startBroadcast(pk);
+        Deployed memory d = _deployAll(deployer);
+        vm.stopBroadcast();
 
-        Deployed memory d;
+        _report(d);
+    }
+
+    /// @dev Everything the deployment broadcasts, separated from `run` so the cost
+    ///      simulation (SimulateTestnetDemo) exercises exactly the same calls
+    ///      without writing a deployment report.
+    function _deployAll(address deployer) internal returns (Deployed memory d) {
         d.deployer = deployer;
         // Read from the pools, not hardcoded. Chainlink's mainnet feeds put TSLA
         // at $380.26 and AMZN at $256.91 (2026-09-23) while these pools price them
@@ -141,9 +154,13 @@ contract DeployJayoTestnet is Script {
         console2.log("TSLA pool price, 8dp:", uint256(tslaUsd));
         console2.log("AMZN pool price, 8dp:", uint256(amznUsd));
 
-        d.tslaFeed = new MockAggregatorV3(FEED_DECIMALS, tslaUsd, "MOCK TSLA / USD (Jayo testnet)");
-        d.amznFeed = new MockAggregatorV3(FEED_DECIMALS, amznUsd, "MOCK AMZN / USD (Jayo testnet)");
-        d.usdgFeed = new MockAggregatorV3(FEED_DECIMALS, RUSDG_USD, "MOCK rUSDG / USD (Jayo testnet)");
+        // Access-controlled: only the deployer (owner and updater) can move these,
+        // and no single update may move one more than FEED_MAX_STEP_BPS. The first
+        // version of this script used an open-setter mock, which on a public
+        // chain let anyone rewrite the price a user's floor is computed from.
+        d.tslaFeed = new DemoPriceFeed(FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD (pool-derived, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
+        d.amznFeed = new DemoPriceFeed(FEED_DECIMALS, amznUsd, "DEMO AMZN / USD (pool-derived, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
+        d.usdgFeed = new DemoPriceFeed(FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD (fixed at $1, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
 
         d.policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), deployer);
         d.policy.setQuoteAsset(RUSDG, address(d.usdgFeed), FEED_HEARTBEAT, 6);
@@ -161,10 +178,6 @@ contract DeployJayoTestnet is Script {
 
         // rUSDG mints to anyone, so the demo wallet funds itself.
         IOpenMintERC20(RUSDG).mint(deployer, 10_000_000000);
-
-        vm.stopBroadcast();
-
-        _report(d);
     }
 
     function _wireRoutes(Deployed memory d) internal {
@@ -242,6 +255,9 @@ contract DeployJayoTestnet is Script {
         vm.serializeString(j, "rpcUrl", "https://rpc.testnet.chain.robinhood.com");
         vm.serializeString(j, "explorer", "https://explorer.testnet.chain.robinhood.com");
         vm.serializeUint(j, "suggestedFund", DEFAULT_FUND);
+        vm.serializeUint(j, "feedHeartbeat", FEED_HEARTBEAT);
+        vm.serializeUint(j, "maxShortfallBps", MAX_SHORTFALL_BPS);
+        vm.serializeString(j, "priceSource", "pool");
         string memory out = vm.serializeAddress(j, "basket", address(d.basket));
         vm.writeJson(out, "./reports/jayo-testnet.json");
         // Also written to a fixed path so the interface fetches exactly one

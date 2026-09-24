@@ -187,6 +187,8 @@ Estimated total gas used for script: 13,990,192
 Estimated amount required:           0.00028 ETH   (base fee 0.01 gwei)
 ```
 
+> **Superseded 2026-09-24.** The full stack, the whole journey and 30 feed refreshes cost 0.00028 ETH at 0.01 gwei including the L1 data fee, measured from receipts; budget **0.001 ETH** (see `scripts/estimate-testnet-cost.mjs`). An earlier figure here, 0.00028 ETH for deployment alone, came from a local simulation that omits the L1 data fee and misprices calls; the match between the two numbers is coincidence.
+
 That is the whole stack: three feeds, policy, gateway, adapter, basket, routes.
 Any faucet drip covers it many times over.
 
@@ -216,7 +218,7 @@ or a social login. Any one of these works; all were reachable on 2026-09-23:
 | <https://faucet.quicknode.com/robinhood/testnet> | HTTP 200 |
 | <https://faucets.chain.link/robinhood-testnet> | HTTP 200 |
 
-You need **0.0003 ETH**. Any drip is far more than enough.
+You need **at least 0.001 ETH** (derivation in `MANUAL_ACTIONS.md` §1).
 
 Verify:
 

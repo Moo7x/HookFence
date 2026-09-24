@@ -1,10 +1,11 @@
 # Manual actions — things a person must do
 
-> **Current status (2026-09-23):** one item blocks the public testnet
-> deployment, and it is item 1 below: a faucet drip of **0.0003 ETH** into a
-> dedicated throwaway wallet. Everything else on the testnet path is scripted and
-> already proven against live chain state — see `docs/TESTNET_SURVEY.md` and
-> `forge test --match-contract TestnetJourney`.
+> **Current status (2026-09-24):** one item blocks the public testnet
+> deployment: item 1 below, a faucet drip of at least **0.001 ETH** into the
+> dedicated testnet wallet. The earlier figure (0.0003 ETH) was wrong: it came from
+> a local simulation that cannot see Robinhood Chain's L1 data fee and that priced
+> calls into freshly deployed contracts as empty calls. The corrected figure is
+> derived in `scripts/estimate-testnet-cost.mjs` from real receipts.
 
 
 Only items that genuinely cannot be automated from this session appear here.
@@ -25,9 +26,19 @@ the shape; `.gitignore` already excludes `.env`.
 social login. Automated captcha solving is out of scope and not something I will
 do.
 
-**How much:** **0.0003 ETH.** Not a guess — the full deployment simulates against
-live testnet state at 13,990,192 gas, and the chain's base fee is 0.01 gwei. Any
-faucet drip is many times more than enough.
+**How much:** **at least 0.001 ETH.** Derivation, from receipts of the whole
+sequence replayed on a fork of the testnet, plus each transaction's L1 data fee
+read from the chain's NodeInterface (`scripts/estimate-testnet-cost.mjs`):
+
+| | transactions | ETH at 0.01 gwei |
+|---|---:|---:|
+| deployment | 19 | 0.0001269 |
+| one full journey (approve, create, copy, two partial exits, hand-over, close) | 7 | 0.0000227 |
+| one feed refresh | 3 | 0.0000013 |
+| plan: 1 deployment + 5 journeys + 30 refreshes | | 0.0002808 |
+| with 3x headroom for fee spikes | | **0.0008423** |
+
+0.001 ETH covers that with room to spare. Most faucets give more.
 
 **Where** — all three were reachable on 2026-09-23, use whichever works:
 

@@ -1,0 +1,9 @@
+{
+  "name": "jayo-tools",
+  "private": true,
+  "description": "Only needed for `node app/serve.mjs --testnet-signer`. Pinned to the viem version the page itself loads.",
+  "type": "module",
+  "dependencies": {
+    "viem": "2.21.55"
+  }
+}

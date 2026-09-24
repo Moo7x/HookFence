@@ -36,15 +36,15 @@ reverts the whole creation — no half-built position can exist.
 **2. Your baskets.** Read from `holdingsOf(tokenId)`, which is the contract's
 ledger, not an estimate.
 
-**3. Hand it to someone else.** *Allow a manager first*, then *Hand over basket*.
-The confirmation is the point:
+**3. Hand it to someone else.** Paste the recipient's address. It is validated
+as you type (format, checksum, zero address, your own address, Jayo's own
+contracts), then *Review hand-over* shows the full address and exactly what the
+basket holds, and nothing is signed until you tick "I have checked this address"
+and press *Give it away*. There is no pre-filled recipient.
 
-> Basket #1 now belongs to 0x7099…79C8. You can no longer withdraw from it, and
-> any manager you allowed has been removed.
-
-Behind it: ERC-721 `_update` deletes `positionManager[tokenId]` and bumps
-`positionVersion`, so a delegation cannot survive a sale. The old owner's
-*Withdraw* button is then disabled, and the contract refuses them anyway.
+Behind it: `safeTransferFrom`, so a contract that cannot hold ERC-721s makes the
+hand-over revert instead of swallowing the basket. The old owner's withdraw
+controls are then disabled, and the contract refuses them anyway.
 
 **4. Copy this mix.** Creates a new basket with the same split, bought with the
 copier's own money. The source keeps everything of theirs.
@@ -123,9 +123,11 @@ Estimated total gas used for script: 13,990,192
 Estimated amount required:           0.00028 ETH
 ```
 
+> **Superseded 2026-09-24.** The full stack, the whole journey and 30 feed refreshes cost 0.00028 ETH at 0.01 gwei including the L1 data fee, measured from receipts; budget **0.001 ETH** (see `scripts/estimate-testnet-cost.mjs`). An earlier figure here, 0.00028 ETH for deployment alone, came from a local simulation that omits the L1 data fee and misprices calls; the match between the two numbers is coincidence.
+
 ### What is pending, and why
 
-**A faucet drip of 0.0003 ETH into a dedicated throwaway wallet.** Every faucet
+**A faucet drip of at least 0.001 ETH into a dedicated throwaway wallet.** Every faucet
 is behind a browser flow with a captcha or a social login, which a person has to
 complete. That is the only blocker; see `MANUAL_ACTIONS.md` §1 for the three
 faucets that were reachable on 2026-09-23.

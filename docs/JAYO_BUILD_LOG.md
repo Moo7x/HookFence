@@ -28,7 +28,7 @@ against live Robinhood Chain testnet state; partial withdrawal is built.
 ### Next up, in order
 
 1. **Broadcast the testnet deployment.** Blocked on ONE human action: a faucet
-   drip of **0.0003 ETH** into a throwaway wallet. See `MANUAL_ACTIONS.md` §1
+   drip of **at least 0.001 ETH** into a throwaway wallet (re-estimated 2026-09-24 from receipts plus L1 data fee). See `MANUAL_ACTIONS.md` §1
    (three faucets confirmed reachable 2026-09-23). Everything after that is
    scripted: `forge script script/DeployJayoTestnet.s.sol --broadcast`.
    Then paste the transaction hashes into `docs/WALKTHROUGH.md` §2.
