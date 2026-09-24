@@ -2,7 +2,7 @@
 
 **Status (2026-09-25):** built and verified locally, including under Cloudflare's
 own Pages runtime. **Not yet published** — publishing needs the owner's Cloudflare
-login (see the checklist at the end).
+login (see "Publishing checklist" at the end).
 
 ## What the site is
 
@@ -120,3 +120,22 @@ checking (`0x4ce0a9be…2500`).
   users trade them; each purchase moves the price for the next buyer.
 - Test assets have no value. rUSDG is a public test token anyone can mint; it is
   not Paxos USDG and not Jayo's.
+
+## Publishing checklist (owner only)
+
+Direct upload from this machine: nothing needs pushing, and Cloudflare gets no
+access to the GitHub repository. (Per Cloudflare's docs, a direct-upload project
+cannot later be switched to Git integration; that would be a new project.)
+
+```bash
+cd tools
+npx wrangler login                                                   # browser sign-in; the token stays in your user profile, not the repo
+npx wrangler pages project create jayo-testnet --production-branch master   # once
+cd .. && node scripts/build-site.mjs && cd tools
+npx wrangler pages deploy --branch master                            # reads ../wrangler.toml: project jayo-testnet, folder site/dist
+```
+
+`--branch master` makes it the production deployment at
+`https://jayo-testnet.pages.dev`. Without it, wrangler uses the current git
+branch and publishes a preview URL instead. To redeploy after a change, repeat
+the last two commands.
