@@ -81,7 +81,8 @@ contract PartialRedeemTest is JayoFixture {
         basket.redeemAsset(id, address(stock2));
     }
 
-    /// @notice A manager may act for a position but must never be able to empty it.
+    /// @notice A recorded delegate grants no action at all today; above all it
+    ///         must never be able to take assets out.
     function test_AManagerStillCannotTakeALegOut() public {
         address manager = makeAddr("manager");
         vm.prank(alice);

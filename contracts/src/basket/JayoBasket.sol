@@ -169,7 +169,13 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     /// @notice Increments on every transfer. Anything authorised against an older
     ///         version is no longer valid.
     mapping(uint256 tokenId => uint64) public positionVersion;
-    /// @notice Optional delegate allowed to act for a position. Cleared on transfer.
+    /// @notice A recorded delegate address for a position. Cleared on transfer.
+    /// @dev GRANTS NOTHING TODAY. No function in this contract accepts it as
+    ///      authority: create, copy, transfer and every withdrawal check the owner
+    ///      alone. It is kept, and kept revoked on transfer, so that a future
+    ///      delegated action cannot inherit a stale delegate from a previous owner.
+    ///      The interface does not offer it, because offering a permission that
+    ///      permits nothing would mislead.
     mapping(uint256 tokenId => address) public positionManager;
 
     constructor(ExecutionGateway gateway_, IERC20 usdg_, address owner_)
@@ -577,7 +583,8 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     // Management delegation
     // -----------------------------------------------------------------------
 
-    /// @notice Appoint a delegate for a position. Cleared automatically on transfer.
+    /// @notice Record a delegate for a position. Cleared automatically on transfer.
+    /// @dev See `positionManager`: recording one currently authorises no action.
     function setManager(uint256 tokenId, address manager) external {
         address owner_ = _requireOwned(tokenId);
         if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
@@ -586,6 +593,7 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice True only for the current owner or their current delegate.
+    /// @dev A view for off-chain readers. Nothing in this contract calls it.
     function isAuthorised(uint256 tokenId, address who) public view returns (bool) {
         address owner_ = _ownerOf(tokenId);
         if (owner_ == address(0)) return false;

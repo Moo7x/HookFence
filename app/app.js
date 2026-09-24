@@ -12,7 +12,7 @@
 // Everything here runs against a LOCAL chain with MOCK assets.
 // =============================================================================
 
-import { createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits }
+import { createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits, isAddress, getAddress }
   from 'https://esm.sh/viem@2.21.55';
 import { privateKeyToAccount } from 'https://esm.sh/viem@2.21.55/accounts';
 import { foundry } from 'https://esm.sh/viem@2.21.55/chains';
@@ -28,7 +28,6 @@ const LOCAL_ACCOUNTS = [
   { label: 'Wallet A', key: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80' },
   { label: 'Wallet B', key: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d' },
 ];
-const THIRD_PARTY = '0x90F79bf6EB2c4f870365E785982E1f101E93b906';
 
 let ACCOUNTS = LOCAL_ACCOUNTS;
 let acctIndex = 0;
@@ -38,6 +37,7 @@ let injected = null; // viem wallet client backed by window.ethereum
 
 const account = () => (isLocal ? privateKeyToAccount(ACCOUNTS[acctIndex].key) : { address: injectedAddress });
 let injectedAddress = null;
+let signerLabel = 'browser wallet';
 
 let pub = createPublicClient({ chain: foundry, transport: http('http://127.0.0.1:8545') });
 const wallet = () => (isLocal
@@ -61,8 +61,7 @@ const BASKET_ABI = [
     outputs:[{type:'tuple[]',components:[{name:'asset',type:'address'},{name:'weightBps',type:'uint16'}]}] },
   { type:'function', name:'ownerOf', stateMutability:'view', inputs:[{type:'uint256'}], outputs:[{type:'address'}] },
   { type:'function', name:'transferFrom', stateMutability:'nonpayable', inputs:[{type:'address'},{type:'address'},{type:'uint256'}], outputs:[] },
-  { type:'function', name:'setManager', stateMutability:'nonpayable', inputs:[{type:'uint256'},{type:'address'}], outputs:[] },
-  { type:'function', name:'positionManager', stateMutability:'view', inputs:[{type:'uint256'}], outputs:[{type:'address'}] },
+  { type:'function', name:'safeTransferFrom', stateMutability:'nonpayable', inputs:[{type:'address'},{type:'address'},{type:'uint256'}], outputs:[] },
   { type:'function', name:'positionVersion', stateMutability:'view', inputs:[{type:'uint256'}], outputs:[{type:'uint64'}] },
   { type:'function', name:'redeem', stateMutability:'nonpayable', inputs:[{type:'uint256'}], outputs:[] },
   { type:'function', name:'redeemAsset', stateMutability:'nonpayable', inputs:[{type:'uint256'},{type:'address'}], outputs:[] },
@@ -90,6 +89,8 @@ const BASKET_ABI = [
   { type:'error', name:'CorporateActionPending', inputs:[{type:'address'},{type:'uint256'},{type:'uint256'}] },
   { type:'error', name:'TokenNotSupported', inputs:[{type:'address'}] },
   { type:'error', name:'ERC721InsufficientApproval', inputs:[{type:'address'},{type:'uint256'}] },
+  { type:'error', name:'ERC721InvalidReceiver', inputs:[{type:'address'}] },
+  { type:'error', name:'ERC721IncorrectOwner', inputs:[{type:'address'},{type:'uint256'},{type:'address'}] },
 ];
 
 const ERC20_ABI = [
@@ -104,8 +105,23 @@ const ERC20_ABI = [
 
 const FEED_ABI = [
   { type:'function', name:'setAnswer', stateMutability:'nonpayable', inputs:[{type:'int256'}], outputs:[] },
+  { type:'error', name:'NotUpdater', inputs:[{type:'address'}] },
+  { type:'error', name:'StepTooLarge', inputs:[{type:'int256'},{type:'int256'},{type:'uint16'}] },
   { type:'function', name:'latestRoundData', stateMutability:'view', inputs:[],
     outputs:[{type:'uint80'},{type:'int256'},{type:'uint256'},{type:'uint256'},{type:'uint80'}] },
+];
+
+// The policy is the source of truth for which feed prices which asset and how
+// old it may be. Reading it here, rather than trusting the manifest, means the
+// freshness panel shows exactly what a purchase will be checked against.
+const POLICY_ABI = [
+  { type:'function', name:'stockTokenConfig', stateMutability:'view', inputs:[{type:'address'}],
+    outputs:[{type:'tuple', components:[
+      {name:'feed',type:'address'},{name:'maxStaleness',type:'uint32'},{name:'maxShortfallBps',type:'uint16'},
+      {name:'tokenDecimals',type:'uint8'},{name:'hasOraclePaused',type:'bool'},{name:'hasCorporateActionData',type:'bool'}]}] },
+  { type:'function', name:'quoteAssetConfig', stateMutability:'view', inputs:[{type:'address'}],
+    outputs:[{type:'tuple', components:[
+      {name:'feed',type:'address'},{name:'maxStaleness',type:'uint32'},{name:'tokenDecimals',type:'uint8'}]}] },
 ];
 
 // ------------------------------------------------------------ plain words ---
@@ -113,6 +129,27 @@ const FEED_ABI = [
 // Each entry turns a contract error into something a person can act on.
 // `a` is the decoded argument list.
 const PLAIN = {
+  NotUpdater: a => ({
+    title: `${short(a[0])} is not allowed to change prices.`,
+    fix: 'Only the feed\'s owner and its named updater can. This is deliberate: an open price feed lets anyone move the price your purchase is checked against.',
+  }),
+  StepTooLarge: a => ({
+    title: 'That price change is too large to accept in one step.',
+    fix: `The feed refuses moves over ${Number(a[2]) / 100}% at once. Buying stays paused until someone checks why the price moved.`,
+  }),
+  // Also reached on create/copy: baskets are minted with _safeMint, so a wallet
+  // that is really a smart account without an ERC-721 receiver (for example an
+  // EIP-7702-delegated address, which the cost simulation ran into on testnet)
+  // is refused rather than handed a position it could never move.
+  ERC721InvalidReceiver: a => (String(a[0]).toLowerCase() === account().address.toLowerCase()
+    ? { title: 'Your wallet cannot hold baskets.',
+        fix: 'It is a smart-contract account that does not accept this kind of token (ERC-721), so the basket was not created and nothing was spent. Use an ordinary wallet address.' }
+    : { title: `${short(a[0])} is a contract that cannot hold baskets.`,
+        fix: "Nothing was sent. Hand it to a person's wallet address instead." }),
+  ERC721IncorrectOwner: () => ({
+    title: 'You no longer own this basket.',
+    fix: 'It may already have been handed over. Reload to see its current owner.',
+  }),
   AssetNotHeld: a => ({
     title: `This basket no longer holds any ${symOf(a[1])}.`,
     fix: 'You have already taken that one out. Pick another, or withdraw everything to close the basket.',
@@ -275,9 +312,10 @@ function busy(btn, on, label) {
 
 // ------------------------------------------------------------------ boot ----
 
-/// Whichever deploy script ran last writes this file, so the same page serves the
-/// local chain and the testnet without a rebuild and without probing for a 404.
-const REPORT = '/contracts/reports/jayo-deployment.json';
+/// Whichever deploy script ran last writes contracts/reports/jayo-deployment.json.
+/// The server never exposes that path; it serves a copy reduced to an allowlist
+/// of address, number and URL fields at this route (see app/serve.mjs).
+const REPORT = '/deployment.json';
 
 async function loadDeployment() {
   try {
@@ -301,6 +339,31 @@ async function connect() {
   pub = createPublicClient({ chain, transport: http(isLocal ? 'http://127.0.0.1:8545' : D.rpcUrl) });
 
   if (isLocal) return true;
+
+  // A browser wallet always wins. Failing that, the local server may offer a
+  // test signer (node app/serve.mjs --testnet-signer). It holds the testnet key
+  // in its own process and hands the page nothing but signatures; it answers
+  // only this origin, and only with the per-run token embedded in this page.
+  const token = document.querySelector('meta[name="jayo-signer-token"]')?.content;
+  if (!window.ethereum && D.localSigner && token) {
+    let id = 0;
+    const provider = {
+      async request({ method, params }) {
+        const r = await fetch('/signer', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-jayo-signer-token': token },
+          body: JSON.stringify({ jsonrpc: '2.0', id: ++id, method, params: params || [] }),
+        });
+        const out = await r.json();
+        if (out.error) throw Object.assign(new Error(out.error.message), { code: out.error.code });
+        return out.result;
+      },
+    };
+    injectedAddress = D.localSigner;
+    injected = createWalletClient({ account: D.localSigner, chain, transport: custom(provider) });
+    signerLabel = 'local test signer';
+    return true;
+  }
 
   if (!window.ethereum) {
     $('netmeta').textContent = `${D.network} — no browser wallet found`;
@@ -374,9 +437,14 @@ async function boot() {
     $('copyFund').value = formatUnits(BigInt(D.suggestedFund) / 2n, 6);
   }
 
-  $('toAddr').value = isLocal ? privateKeyToAccount(ACCOUNTS[1].key).address : THIRD_PARTY;
+  $('toAddr').value = '';
+  validateRecipient();
 
   $('led').classList.add('on');
+  describePriceSource();
+  await renderPrices();
+  clearInterval(freshTimer);
+  freshTimer = setInterval(() => renderPrices().catch(() => {}), 30_000);
   await refreshStatus();
   await loadPositions();
   log(isLocal
@@ -384,12 +452,80 @@ async function boot() {
     : `connected to ${D.network} — real tokens and pools, mock price feeds`, 'ok');
 }
 
+// ------------------------------------------------------------- freshness ---
+
+const ago = s => s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`;
+let freshTimer = null;
+
+async function renderPrices() {
+  const assets = [...ASSETS, D.usdg];
+  const [blk, cfgs] = await Promise.all([
+    pub.getBlock(),
+    Promise.all(assets.map((a, i) => pub.readContract({
+      address: D.policy, abi: POLICY_ABI,
+      functionName: i < ASSETS.length ? 'stockTokenConfig' : 'quoteAssetConfig', args: [a],
+    }))),
+  ]);
+  const rounds = await Promise.all(cfgs.map(c =>
+    pub.readContract({ address: c.feed, abi: FEED_ABI, functionName: 'latestRoundData' })));
+  const now = Number(blk.timestamp);
+
+  let anyStale = false;
+  $('priceRows').innerHTML = assets.map((a, i) => {
+    const [, answer, , updatedAt] = rounds[i];
+    const age = Math.max(0, now - Number(updatedAt));
+    const left = Number(cfgs[i].maxStaleness) - age;
+    const state = left < 0 ? 'stale' : left < 600 ? 'soon' : 'ok';
+    if (state === 'stale') anyStale = true;
+    const when = state === 'stale'
+      ? `expired ${ago(-left)} ago — buying paused`
+      : `updated ${ago(age)} ago · good for ${ago(left)}`;
+    const px = Number(formatUnits(answer, 8)).toLocaleString(NUM, { style: 'currency', currency: 'USD' });
+    return `<li data-state="${state}"><span class="dot" aria-hidden="true"></span>
+      <span class="sym">${esc(symOf(a))}</span><span class="px">${px}</span>
+      <span class="age">${esc(when)}</span></li>`;
+  }).join('');
+
+  $('priceRows').setAttribute('aria-label', anyStale ? 'At least one price has expired. Buying is paused.' : 'All prices current.');
+}
+
+function describePriceSource() {
+  const floorPct = D.maxShortfallBps ? `${D.maxShortfallBps / 100}%` : 'the allowed margin';
+  const life = D.feedHeartbeat ? ago(D.feedHeartbeat) : 'its limit';
+  if (D.priceSource === 'pool') {
+    $('priceSourceTag').textContent = 'read from the pool · demo feed';
+    $('aboutPrices').innerHTML = `
+      <p>Chainlink publishes no prices on this test network, so Jayo's demo feeds copy the price of the
+      same Uniswap pools it buys in. Only the project's keeper can write them, no single update may move
+      a price more than 10%, and each one expires after ${esc(life)} — after that, buying pauses until
+      the keeper republishes.</p>
+      <p><strong>What this protects.</strong> Each slice you buy must arrive within ${esc(floorPct)} of
+      the price shown here. The pool's fee and your own purchase pushing the price up are both measured
+      against it, and a purchase that would cost more than that is refused before any money moves.</p>
+      <p><strong>What it cannot protect.</strong> This price comes from the pool itself, so it cannot
+      tell you whether the pool is fairly priced against the real market. If the pool is off, this
+      price is off by exactly the same amount and your purchase will still go through. For example, on
+      23 September Chainlink's mainnet feed put TSLA at $380.26 while this pool priced it near $256.
+      Only a price from outside the pool, such as Chainlink's on mainnet, can catch that.</p>
+      <p>Withdrawals never use these prices, so they work even when every price has expired.</p>`;
+  } else {
+    $('priceSourceTag').textContent = 'demo prices · local chain';
+    $('aboutPrices').innerHTML = `
+      <p>These are demo prices set by the local demo deployer; only that address can change them.
+      Each expires after ${esc(life)}, and buying is refused once any has expired.</p>
+      <p><strong>What this protects.</strong> Each slice you buy must arrive within ${esc(floorPct)} of
+      these prices, so a pool fee or price impact larger than that stops the purchase.</p>
+      <p>Withdrawals never use these prices, so they work even when every price has expired — try
+      "Skip forward 48 hours" in the demo controls.</p>`;
+  }
+}
+
 async function refreshStatus() {
   const [bn, bal] = await Promise.all([
     pub.getBlockNumber(),
     pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [account().address] }),
   ]);
-  const who = isLocal ? `${ACCOUNTS[acctIndex].label} ${short(account().address)}` : short(account().address);
+  const who = isLocal ? `${ACCOUNTS[acctIndex].label} ${short(account().address)}` : `${short(account().address)} (${signerLabel})`;
   const unit = META[D.usdg.toLowerCase()]?.symbol || 'USDG';
   $('netmeta').textContent =
     `${isLocal ? 'local chain' : D.network} ${D.chainId} · block ${bn} · ${who} · ${usdg(bal)} ${unit}`;
@@ -572,10 +708,7 @@ async function loadPositions() {
 async function selectPosition(id, quiet = false) {
   selectedId = id;
   const [assets, amounts] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(id)] });
-  const [owner, manager] = await Promise.all([
-    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [BigInt(id)] }),
-    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'positionManager', args: [BigInt(id)] }),
-  ]);
+  const owner = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [BigInt(id)] });
   const alloc = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'allocationOf', args: [BigInt(id)] });
 
   $('detailCard').hidden = false;
@@ -593,11 +726,6 @@ async function selectPosition(id, quiet = false) {
   }).join('') || `<tr><td colspan="3" style="color:var(--fog)">This basket has been emptied.</td></tr>`;
 
   let notes = '';
-  if (manager !== '0x0000000000000000000000000000000000000000') {
-    notes += `<div class="msg info"><span class="icon">i</span><div class="body">
-       <strong>${esc(short(manager))} can manage this basket.</strong><br>
-       They cannot take the tokens out — only the owner can. Handing the basket over removes them automatically.</div></div>`;
-  }
   // After a partial withdrawal the recipe and the holdings say different things,
   // and both are true. Say which is which rather than letting the table imply
   // the basket still holds a leg it no longer has.
@@ -610,7 +738,10 @@ async function selectPosition(id, quiet = false) {
   }
   $('detailNotes').innerHTML = notes;
 
-  ['btnTransfer', 'btnRedeem', 'btnManager', 'btnRedeemPart'].forEach(b => { $(b).disabled = !mine; });
+  ['btnRedeem', 'btnRedeemPart'].forEach(b => { $(b).disabled = !mine; });
+  $('toAddr').disabled = !mine;
+  hideTransferConfirm();
+  validateRecipient();
   $('redeemPart').disabled = !mine;
 
   // Offer each leg by name alongside the proportional options, so "give me my
@@ -633,38 +764,101 @@ async function selectPosition(id, quiet = false) {
   }
 }
 
-// ------------------------------------------------------- transfer / manager -
+// --------------------------------------------------------------- transfer ---
+//
+// There is no default recipient. An earlier version pre-filled a fixed address,
+// which on a public deployment meant one mis-click handed a real position to a
+// stranger. The address is typed or pasted, validated as it is entered, and
+// nothing is signed until a separate confirmation names the full address and the
+// holdings being given away.
 
-$('btnManager').addEventListener('click', async () => {
-  clearMsg('transferMsg');
-  const btn = $('btnManager'); busy(btn, true, 'Allowing…');
-  try {
-    tx('transferTx', 'signing', 'Allowing a manager…');
-    const hash = await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'setManager', args: [BigInt(selectedId), THIRD_PARTY] });
-    tx('transferTx', 'pending', 'Waiting for confirmation…');
-    await pub.waitForTransactionReceipt({ hash });
-    tx('transferTx', 'confirmed', 'Done');
-    showOk('transferMsg', `${short(THIRD_PARTY)} can now manage this basket.`, 'Hand the basket over and watch this permission disappear.');
-    await selectPosition(selectedId, true);
-  } catch (e) { tx('transferTx', 'failed', 'Cancelled'); showError('transferMsg', e); }
-  finally { busy(btn, false); }
-});
+let recipient = null; // checksummed; set only while the input is valid
+
+function hintRecipient(text, bad) {
+  const h = $('toAddrHint');
+  h.textContent = text;
+  h.style.color = bad ? 'var(--danger)' : '';
+  $('toAddr').setAttribute('aria-invalid', bad ? 'true' : 'false');
+}
+
+function validateRecipient() {
+  recipient = null;
+  const raw = $('toAddr').value.trim();
+  const mine = selectedId !== null && !$('toAddr').disabled;
+  $('btnTransfer').disabled = true;
+
+  if (!raw) return hintRecipient('Paste the address of the person receiving it.', false);
+  if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) {
+    return hintRecipient('That is not a wallet address. It should be 0x followed by 40 letters and numbers.', true);
+  }
+  // A mixed-case address carries a checksum; one wrong character breaks it.
+  const body = raw.slice(2);
+  const mixed = body !== body.toLowerCase() && body !== body.toUpperCase();
+  if (mixed && !isAddress(raw, { strict: true })) {
+    return hintRecipient('This address has a typo: its capital letters do not match its checksum. Copy it again.', true);
+  }
+  const addr = getAddress(raw);
+  if (/^0x0{40}$/i.test(addr)) return hintRecipient('That is the zero address. Anything sent there is gone for good.', true);
+  if (addr.toLowerCase() === account().address.toLowerCase()) return hintRecipient('That is your own address.', true);
+  const known = [D.basket, D.usdg, D.gateway, D.policy, D.adapter, D.poolManager, ...(D.stocks || [])]
+    .filter(Boolean).map(a => a.toLowerCase());
+  if (known.includes(addr.toLowerCase())) {
+    return hintRecipient("That is one of Jayo's own contracts, not a person. It could never give the basket back.", true);
+  }
+  recipient = addr;
+  hintRecipient('Looks like a valid address. You will be asked to confirm before anything is sent.', false);
+  $('btnTransfer').disabled = !mine;
+}
+
+function hideTransferConfirm() {
+  $('transferConfirm').hidden = true;
+  $('tcAck').checked = false;
+  $('btnTransferConfirm').disabled = true;
+}
+
+$('toAddr').addEventListener('input', () => { hideTransferConfirm(); clearMsg('transferMsg'); validateRecipient(); });
 
 $('btnTransfer').addEventListener('click', async () => {
+  validateRecipient();
+  if (!recipient) return;
+  const [assets, amounts] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(selectedId)] });
+  const code = await pub.getCode({ address: recipient });
+
+  $('tcId').textContent = `#${selectedId}`;
+  $('tcHoldings').textContent = assets.length
+    ? assets.map((a, i) => `${tok(amounts[i])} ${symOf(a)}`).join(' and ')
+    : 'nothing (it is empty)';
+  $('tcAddr').textContent = recipient;
+  $('tcWarn').textContent = code && code !== '0x'
+    ? 'This address is a contract, not a personal wallet. If it cannot hold baskets the hand-over will be refused and nothing will move.'
+    : '';
+  $('transferConfirm').hidden = false;
+  $('tcAck').focus();
+});
+
+$('tcAck').addEventListener('change', () => { $('btnTransferConfirm').disabled = !$('tcAck').checked; });
+$('btnTransferCancel').addEventListener('click', () => { hideTransferConfirm(); $('btnTransfer').focus(); });
+
+$('btnTransferConfirm').addEventListener('click', async () => {
+  if (!recipient || !$('tcAck').checked) return;
   clearMsg('transferMsg');
-  const btn = $('btnTransfer'); busy(btn, true, 'Handing over…');
+  const to = recipient;
+  const btn = $('btnTransferConfirm'); busy(btn, true, 'Handing over…');
   try {
-    const to = $('toAddr').value.trim();
     tx('transferTx', 'signing', 'Handing over the basket…');
-    const hash = await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'transferFrom', args: [account().address, to, BigInt(selectedId)] });
+    // safeTransferFrom, not transferFrom: a contract that cannot hold ERC-721s
+    // makes the hand-over revert instead of swallowing the basket.
+    const hash = await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'safeTransferFrom', args: [account().address, to, BigInt(selectedId)] });
     tx('transferTx', 'pending', 'Waiting for confirmation…');
     await pub.waitForTransactionReceipt({ hash });
     tx('transferTx', 'confirmed', 'Done');
-    showOk('transferMsg', `Basket #${selectedId} now belongs to ${short(to)}.`,
-      'You can no longer withdraw from it, and any manager you allowed has been removed.');
-    log(`basket #${selectedId} handed to ${short(to)}`, 'ok');
+    showOk('transferMsg', `Basket #${selectedId} now belongs to ${to}.`,
+      'You can no longer withdraw from it or hand it on.');
+    log(`basket #${selectedId} handed to ${short(to)} · tx ${short(hash)}`, 'ok');
+    hideTransferConfirm();
+    $('toAddr').value = '';
     await loadPositions();
-  } catch (e) { tx('transferTx', 'failed', 'Cancelled'); showError('transferMsg', e); }
+  } catch (e) { tx('transferTx', 'failed', 'Cancelled — nothing moved'); showError('transferMsg', e); }
   finally { busy(btn, false); }
 });
 
@@ -760,9 +954,15 @@ $('btnRedeemPart').addEventListener('click', async () => {
 
 // ------------------------------------------------------------ demo panel ----
 
+// Local chain only: the demo panel is hidden on any public network.
+$('btnFillOther').addEventListener('click', () => {
+  $('toAddr').value = privateKeyToAccount(ACCOUNTS[(acctIndex + 1) % ACCOUNTS.length].key).address;
+  $('toAddr').dispatchEvent(new Event('input'));
+  $('toAddr').focus();
+});
+
 $('btnAcct').addEventListener('click', async () => {
   acctIndex = (acctIndex + 1) % ACCOUNTS.length;
-  $('toAddr').value = privateKeyToAccount(ACCOUNTS[(acctIndex + 1) % ACCOUNTS.length].key).address;
   await refreshStatus(); await loadPositions();
   $('demoMsg').innerHTML = `<div class="msg info"><span class="icon">i</span><div class="body">
     Now acting as <strong>${esc(ACCOUNTS[acctIndex].label)}</strong> (${esc(short(account().address))}).</div></div>`;
@@ -780,6 +980,7 @@ $('btnTime').addEventListener('click', async () => {
     This is what a weekend looks like: stock prices stop updating. Try creating a
     basket — it will refuse. Then withdraw from one you own — it still works.</div></div>`;
   await refreshStatus();
+  await renderPrices();
   log(`time advanced; feeds ${hrs}h old`);
 });
 
@@ -800,7 +1001,9 @@ $('btnRefresh').addEventListener('click', async () => {
   // FeedStale naming a feed that is about to be fine.
   const btn = $('btnRefresh'); busy(btn, true, 'Refreshing…');
   try {
-    const w = wallet();
+    // The feeds only accept their owner (the local deployer, Wallet A), so this
+    // signs as Wallet A whichever wallet the page is currently acting as.
+    const w = createWalletClient({ account: privateKeyToAccount(LOCAL_ACCOUNTS[0].key), chain, transport: http('http://127.0.0.1:8545') });
     for (const [feed, price] of [[D.aaplFeed, 255_00000000n], [D.nvdaFeed, 150_00000000n], [D.usdgFeed, 1_00000000n]]) {
       const h = await w.writeContract({ address: feed, abi: FEED_ABI, functionName: 'setAnswer', args: [price] });
       await pub.waitForTransactionReceipt({ hash: h });
@@ -808,6 +1011,7 @@ $('btnRefresh').addEventListener('click', async () => {
     $('demoMsg').innerHTML = `<div class="msg success"><span class="icon">✓</span><div class="body">
       <strong>Prices are current again.</strong> Buying works.</div></div>`;
     log('feeds refreshed', 'ok');
+    await renderPrices();
   } catch (e) { showError('demoMsg', e); }
   finally { busy(btn, false); }
 });
