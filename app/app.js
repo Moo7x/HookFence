@@ -170,8 +170,8 @@ const PLAIN = {
     fix: 'They need to total exactly 100%. Adjust one of the slices.',
   }),
   LegBelowMinimum: a => ({
-    title: `The ${symOf(a[0])} slice is only ${usdg(a[1])} USDG.`,
-    fix: `Each slice needs at least ${usdg(a[2])} USDG. Put in more money, or give that token a bigger share.`,
+    title: `The ${symOf(a[0])} slice is only ${usdg(a[1])} ${stableSym()}.`,
+    fix: `Each slice needs at least ${usdg(a[2])} ${stableSym()}. Put in more money, or give that token a bigger share.`,
   }),
   LegWouldAcquireNothing: a => ({
     title: `The ${symOf(a[0])} slice is too small to buy anything.`,
@@ -196,8 +196,11 @@ const PLAIN = {
     fix: 'Only the current owner can do that. If you handed it over, control went with it.',
   }),
   OutputBelowFloor: a => ({
-    title: 'The price moved against you, so we stopped the purchase.',
-    fix: `You would have received ${tok(a[0])}, but the fair price means you should get at least ${tok(a[1])}. Nothing was spent — your money is still in your wallet. Try a smaller amount, which moves the price less.`,
+    title: 'The pool would have given you too little, so the purchase was stopped.',
+    fix: `One slice would have received ${tok(a[0])}; the reference price requires at least ${tok(a[1])}. Nothing was spent. ` +
+      (D?.priceSource === 'pool'
+        ? 'On this test network the pools are tiny: earlier purchases may have pushed the price above the last published reference. It is republished from the pool before and during demo sessions. A smaller amount also moves the price less.'
+        : 'Try a smaller amount, which moves the price less.'),
   }),
   InputOverspent: a => ({
     title: 'The purchase tried to spend more than you authorised.',
@@ -245,6 +248,7 @@ const short = a => a ? a.slice(0, 6) + '…' + a.slice(-4) : '—';
 // locale would render "10 000,00 USDG" beside "at least 23,411765" - two
 // different separator conventions in the same sentence, in a financial UI.
 const NUM = 'en-US';
+const stableSym = () => (D && META[D.usdg?.toLowerCase()]?.symbol) || 'USDG';
 const usdg = v => Number(formatUnits(BigInt(v), 6)).toLocaleString(NUM, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const tok  = v => Number(formatUnits(BigInt(v), 18)).toLocaleString(NUM, { minimumFractionDigits: 4, maximumFractionDigits: 6 });
 const symOf = a => (META[String(a).toLowerCase()]?.symbol) || short(a);
@@ -631,7 +635,7 @@ $('btnQuote').addEventListener('click', async () => {
 
     const lines = rows.map((r, i) => {
       const m = META[r.asset.toLowerCase()];
-      return `<dt>${esc(m.symbol)} — you pay ${usdg(ins[i])} USDG</dt>
+      return `<dt>${esc(m.symbol)} — you pay ${usdg(ins[i])} ${esc(stableSym())}</dt>
               <dd>about ${tok(refs[i])}<br>
                   <span style="color:var(--fog);font-size:12px">at least ${tok(floors[i])}</span></dd>`;
     }).join('');
@@ -639,15 +643,17 @@ $('btnQuote').addEventListener('click', async () => {
     $('quote').innerHTML = `
       <div class="summary">
         <dl>
-          <dt>You pay</dt><dd class="big">${usdg(amount)} USDG</dd>
+          <dt>You pay</dt><dd class="big">${usdg(amount)} ${esc(stableSym())}</dd>
           <div class="sep"></div>
           ${lines}
           <div class="sep"></div>
-          <dt>Left over, returned to you</dt><dd>${usdg(unspent)} USDG</dd>
+          <dt>Left over, returned to you</dt><dd>${usdg(unspent)} ${esc(stableSym())}</dd>
           <p class="note">
-            “About” is today’s fair price. “At least” is the minimum we will accept —
+            “About” is what the reference price says you should get. “At least” is the minimum we will accept —
             if the market gives less than that, the whole purchase is cancelled and
-            you keep your money. The small gap between them is the trading fee.
+            you keep your money. The gap between them is the most the price may slip,
+            ${D.maxShortfallBps ? (D.maxShortfallBps / 100) + '%' : 'a fixed margin'} here — it has to cover the pool's
+            fee and the price movement your own purchase causes.
           </p>
         </dl>
       </div>`;
@@ -673,14 +679,14 @@ $('btnCreate').addEventListener('click', async () => {
       args: [account().address, D.basket],
     });
     if (allowance < amount) {
-      tx('createTx', 'signing', 'Allowing Jayo to use your USDG…');
+      tx('createTx', 'signing', `Allowing Jayo to use your ${stableSym()}…`);
       const ah = await w.writeContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
       tx('createTx', 'pending', 'Waiting for confirmation…');
       await pub.waitForTransactionReceipt({ hash: ah });
     }
 
     tx('createTx', 'signing', 'Buying your tokens…');
-    const hash = await w.writeContract({
+    const hash = await send({
       address: D.basket, abi: BASKET_ABI, functionName: 'create',
       args: [allocArg(), amount, await deadline()],
     });
@@ -791,6 +797,21 @@ async function selectPosition(id, quiet = false) {
   }
 }
 
+// ------------------------------------------------------------------ writes ---
+//
+// Every contract write goes through here. It SIMULATES first, with eth_call from
+// the sending account: a revert then comes back with its data, and decode()
+// turns it into plain words. Sending straight away left that to gas estimation,
+// and the public testnet RPC answers a reverting estimate with "execution
+// reverted for an unknown reason" - so a refused purchase showed only "That did
+// not go through". The simulated request is what gets sent, so nothing about
+// the call can change between the check and the signature.
+async function send(params) {
+  const { request } = await pub.simulateContract({ ...params, account: account().address });
+  const { account: _ignored, ...rest } = request;
+  return wallet().writeContract({ ...rest, account: wallet().account });
+}
+
 // --------------------------------------------------------------- transfer ---
 //
 // There is no default recipient. An earlier version pre-filled a fixed address,
@@ -875,7 +896,7 @@ $('btnTransferConfirm').addEventListener('click', async () => {
     tx('transferTx', 'signing', 'Handing over the basket…');
     // safeTransferFrom, not transferFrom: a contract that cannot hold ERC-721s
     // makes the hand-over revert instead of swallowing the basket.
-    const hash = await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'safeTransferFrom', args: [account().address, to, BigInt(selectedId)] });
+    const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'safeTransferFrom', args: [account().address, to, BigInt(selectedId)] });
     tx('transferTx', 'pending', 'Waiting for confirmation…');
     await pub.waitForTransactionReceipt({ hash });
     tx('transferTx', 'confirmed', 'Done');
@@ -899,12 +920,12 @@ $('btnCopy').addEventListener('click', async () => {
     const w = wallet();
     const allowance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, D.basket] });
     if (allowance < amount) {
-      tx('copyTx', 'signing', 'Allowing Jayo to use your USDG…');
+      tx('copyTx', 'signing', `Allowing Jayo to use your ${stableSym()}…`);
       const ah = await w.writeContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
       await pub.waitForTransactionReceipt({ hash: ah });
     }
     tx('copyTx', 'signing', 'Buying the same mix for you…');
-    const hash = await w.writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [BigInt(selectedId), amount, await deadline()] });
+    const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [BigInt(selectedId), amount, await deadline()] });
     tx('copyTx', 'pending', 'Waiting for confirmation…');
     await pub.waitForTransactionReceipt({ hash });
     tx('copyTx', 'confirmed', 'Done');
@@ -924,7 +945,7 @@ $('btnRedeem').addEventListener('click', async () => {
   try {
     const [assets, amounts] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'holdingsOf', args: [BigInt(selectedId)] });
     tx('redeemTx', 'signing', 'Sending your tokens…');
-    const hash = await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'redeem', args: [BigInt(selectedId)] });
+    const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeem', args: [BigInt(selectedId)] });
     tx('redeemTx', 'pending', 'Waiting for confirmation…');
     await pub.waitForTransactionReceipt({ hash });
     tx('redeemTx', 'confirmed', 'Done');
@@ -954,8 +975,8 @@ $('btnRedeemPart').addEventListener('click', async () => {
 
     tx('redeemTx', 'signing', 'Sending your tokens…');
     const hash = kind === 'asset'
-      ? await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemAsset', args: [BigInt(selectedId), value] })
-      : await wallet().writeContract({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemFraction', args: [BigInt(selectedId), Number(value)] });
+      ? await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemAsset', args: [BigInt(selectedId), value] })
+      : await send({ address: D.basket, abi: BASKET_ABI, functionName: 'redeemFraction', args: [BigInt(selectedId), Number(value)] });
     tx('redeemTx', 'pending', 'Waiting for confirmation…');
     await pub.waitForTransactionReceipt({ hash });
     tx('redeemTx', 'confirmed', 'Done');

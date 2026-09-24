@@ -135,8 +135,38 @@ State read from the chain afterwards:
 | Bob's wallet | — | AMZN 0.041339, delivered in kind |
 | Basket contract | — | owes exactly what it holds, for both tokens |
 
-Whole journey including funding the two wallets: 10 transactions, about
-0.000022 ETH. Everything since the faucet: **0.000145 ETH**; 0.00958 ETH remains.
+Everything since the faucet, 35 transactions including the interface run and one
+feed refresh: **0.000156 ETH**.
+
+### The same journey through the interface
+
+Then the page itself (`node app/serve.mjs --testnet-signer`, which holds only
+Alice's and Bob's keys and signs only the decoded user journey — see
+`app/signer-policy.mjs`), against the same live deployment:
+
+| # | Who | What, in the page | Receipt |
+|---|---|---|---|
+| 7 | Alice | **Create basket #3**, 20 rUSDG, 60/40 | [`0xa828d572…b7aa`](https://explorer.testnet.chain.robinhood.com/tx/0xa828d572700e458f1d816d4b3df77627e00fb38c411a210adae53fb0e31eb7aa) · success |
+| 8 | Alice | **Hand #3 to Bob** — address typed, review screen showed the full address and the exact holdings, box ticked, confirmed | [`0xb6b5af35…bf61`](https://explorer.testnet.chain.robinhood.com/tx/0xb6b5af353a635164367c25607a00c8ab9e9101729211695028a808fa626dbf61) · success |
+| 9 | Bob | switched the page to test wallet B; **"All of my AMZN, and nothing else"** on #3 | [`0x23fe59b9…29f9`](https://explorer.testnet.chain.robinhood.com/tx/0x23fe59b9fa408b644fd3a689b006473a7f0dd65103b9adcee595ddc1ca0429f9) · success |
+
+Afterwards the page, as Bob, shows #3 holding TSLA 0.045614 only, with a note that
+the recipe still lists AMZN because it is the split the basket was built from.
+
+**What running it through the page found.** The first attempt to create #3 was
+refused: the CLI journey's own purchases had pushed these tiny pools up (TSLA
++1.7%, AMZN +2.4%), the feeds still held the deployment-time price, and the AMZN
+leg would have filled below its floor — `OutputBelowFloor(0.040365, 0.040565)`.
+Jayo was right to refuse. The page was not: it said only "That did not go through",
+because gas estimation on the public RPC returns no revert data and the signer's
+error code sent viem into a fallback that hid what was left. The page now
+simulates every write first (eth_call does return the data) and shows *"The pool
+would have given you too little, so the purchase was stopped"* with both amounts.
+After the keeper republished the feeds from the pools, the purchase went through.
+
+This is also the testnet's standing limitation made concrete: with no one
+arbitraging these pools, every purchase moves the price for the next buyer, and a
+refresh copies the moved price into the reference.
 
 ### What is still mocked
 

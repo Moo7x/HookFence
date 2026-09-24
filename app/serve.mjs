@@ -207,6 +207,7 @@ async function handleSigner(body) {
     });
     return await r.json();
   }
+  console.log(`UNSUPPORTED method ${String(method).slice(0, 60)}`);
   return fail(4200, `method ${method} is not supported by the test signer`);
 }
 
@@ -255,8 +256,14 @@ export function createJayoServer() {
         const out = await handleSigner(JSON.parse(raw));
         return send(res, 200, "application/json", JSON.stringify(out));
       } catch (e) {
+        // Logged because a silent failure here sent viem to its wallet_sendTransaction
+        // fallback, and the page then showed only "method not supported".
+        const message = String(e.shortMessage || e.message || e);
+        console.log(`ERROR   ${message.split("\n")[0].slice(0, 200)}`);
         return send(res, 200, "application/json",
-          JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32000, message: String(e.shortMessage || e.message || e) } }));
+          // -32603 (internal), not -32000: viem reads -32000 as "invalid input" and
+          // retries as wallet_sendTransaction, which buried the real error.
+          JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32603, message } }));
       }
     }
 

@@ -37,7 +37,7 @@
     "usdgFeed": "0xC51552296278d1cEfd998964cD5066e9fB02cE00",
     "warning": "PoolManager, TSLA, AMZN, rUSDG and both pools are real chain state we did not deploy. The three price feeds ARE mocks: Chainlink publishes no feed directory for this testnet."
   },
-  "totalFeesWei": "144681290000000",
+  "totalFeesWei": "156010740000000",
   "transactions": [
     {
       "phase": "deploy",
@@ -339,7 +339,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x0307e9e29766b5ded2a02c8bba34245ed092c1de25e1ea4229f68cf5ec8b5edf"
     },
     {
-      "phase": "1. Alice builds basket A and hands it to Bob",
+      "phase": "1. CLI: Alice builds basket A and hands it to Bob",
       "what": "approve",
       "hash": "0xb8e8ab4e3ea14a8c4772511bc2400976fc47d06a1f7d9ce8e1dceb721a8f6725",
       "created": "0x7c902600cb5bf24225df1a77b333d84e03c1f210",
@@ -352,7 +352,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xb8e8ab4e3ea14a8c4772511bc2400976fc47d06a1f7d9ce8e1dceb721a8f6725"
     },
     {
-      "phase": "1. Alice builds basket A and hands it to Bob",
+      "phase": "1. CLI: Alice builds basket A and hands it to Bob",
       "what": "create",
       "hash": "0x61d4fd057af452d469d9df08a94150d7d3fabd0b575dcda124961cbb0f6496ce",
       "created": "0xff5c76eac645cb07317c95215b382909b9a00218",
@@ -365,7 +365,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x61d4fd057af452d469d9df08a94150d7d3fabd0b575dcda124961cbb0f6496ce"
     },
     {
-      "phase": "1. Alice builds basket A and hands it to Bob",
+      "phase": "1. CLI: Alice builds basket A and hands it to Bob",
       "what": "safeTransferFrom",
       "hash": "0x68f074eebaab5d4fa03aef228c18b2ef1a024b29f5d304dfacd0772ab00c1bd4",
       "created": "0xff5c76eac645cb07317c95215b382909b9a00218",
@@ -378,7 +378,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x68f074eebaab5d4fa03aef228c18b2ef1a024b29f5d304dfacd0772ab00c1bd4"
     },
     {
-      "phase": "2. Alice tries to withdraw basket A after the hand-over (must revert)",
+      "phase": "2. CLI: Alice tries to withdraw basket A after the hand-over (must revert)",
       "hash": "0x20e87996d1f2f13b2219a7a084beb58ec0e14702ceaaf1e9c3782bfdfb7e7b10",
       "status": "reverted",
       "block": 123656802,
@@ -389,7 +389,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x20e87996d1f2f13b2219a7a084beb58ec0e14702ceaaf1e9c3782bfdfb7e7b10"
     },
     {
-      "phase": "3. Alice copies A's recipe; Bob takes only AMZN out of A",
+      "phase": "3. CLI: Alice copies A's recipe; Bob takes only AMZN out of A",
       "what": "copyAllocation",
       "hash": "0x168157471d8858706d21213f2dccef975f2ac4f7313279bce8660826e4314623",
       "created": "0xff5c76eac645cb07317c95215b382909b9a00218",
@@ -402,7 +402,7 @@
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x168157471d8858706d21213f2dccef975f2ac4f7313279bce8660826e4314623"
     },
     {
-      "phase": "3. Alice copies A's recipe; Bob takes only AMZN out of A",
+      "phase": "3. CLI: Alice copies A's recipe; Bob takes only AMZN out of A",
       "what": "redeemAsset",
       "hash": "0x086eccf03d2e057ef4e4ff1722c133652d037ec193ef1d985eb388f0dfd6bde5",
       "created": "0xff5c76eac645cb07317c95215b382909b9a00218",
@@ -413,6 +413,78 @@
       "gasUsed": 111099,
       "feeWei": "1110990000000",
       "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x086eccf03d2e057ef4e4ff1722c133652d037ec193ef1d985eb388f0dfd6bde5"
+    },
+    {
+      "phase": "keeper: republish feeds from the pools",
+      "what": "setAnswer",
+      "hash": "0xeaa85a140ac79d7e1078c881e62ddc9c7720d35f3e53f6f15ea1eacd2d32e0d2",
+      "created": "0x0e7fc99af7183c4e4e3230cb6f43f059ca134f8c",
+      "status": "success",
+      "block": 123660065,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 45457,
+      "feeWei": "454570000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xeaa85a140ac79d7e1078c881e62ddc9c7720d35f3e53f6f15ea1eacd2d32e0d2"
+    },
+    {
+      "phase": "keeper: republish feeds from the pools",
+      "what": "setAnswer",
+      "hash": "0xf28654fc93c57398e367383ec6dd74407ccd48a6a0d8c739d458492d509432f5",
+      "created": "0x06dfc263d15999501a82899ac862c16fdec430d8",
+      "status": "success",
+      "block": 123660087,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 45457,
+      "feeWei": "454570000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xf28654fc93c57398e367383ec6dd74407ccd48a6a0d8c739d458492d509432f5"
+    },
+    {
+      "phase": "keeper: republish feeds from the pools",
+      "what": "setAnswer",
+      "hash": "0x54bc63df2a8ab5c50b7af4cda534d9a93ec09cd8691f9f403dcab240b7f0c6a4",
+      "created": "0xc51552296278d1cefd998964cd5066e9fb02ce00",
+      "status": "success",
+      "block": 123660096,
+      "from": "0x42fea32cfe3a7eff9c2144ccc6eb0172d19b82b7",
+      "sender": "deployer",
+      "gasUsed": 42646,
+      "feeWei": "426460000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x54bc63df2a8ab5c50b7af4cda534d9a93ec09cd8691f9f403dcab240b7f0c6a4"
+    },
+    {
+      "phase": "4. INTERFACE (Alice): create basket #3",
+      "hash": "0xa828d572700e458f1d816d4b3df77627e00fb38c411a210adae53fb0e31eb7aa",
+      "status": "success",
+      "block": 123660234,
+      "from": "0x238625a72e5fe0ec560eb449a8b62817c84fcc4f",
+      "sender": "Alice",
+      "gasUsed": 827207,
+      "feeWei": "8272070000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xa828d572700e458f1d816d4b3df77627e00fb38c411a210adae53fb0e31eb7aa"
+    },
+    {
+      "phase": "5. INTERFACE (Alice): hand basket #3 to Bob, address typed and confirmed",
+      "hash": "0xb6b5af353a635164367c25607a00c8ab9e9101729211695028a808fa626dbf61",
+      "status": "success",
+      "block": 123660444,
+      "from": "0x238625a72e5fe0ec560eb449a8b62817c84fcc4f",
+      "sender": "Alice",
+      "gasUsed": 78464,
+      "feeWei": "784640000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0xb6b5af353a635164367c25607a00c8ab9e9101729211695028a808fa626dbf61"
+    },
+    {
+      "phase": "6. INTERFACE (Bob): take only the AMZN out of basket #3",
+      "hash": "0x23fe59b9fa408b644fd3a689b006473a7f0dd65103b9adcee595ddc1ca0429f9",
+      "status": "success",
+      "block": 123660624,
+      "from": "0xe3c1dd3e6f3cb0760516aede0ecf28bc538b8953",
+      "sender": "Bob",
+      "gasUsed": 93714,
+      "feeWei": "937140000000",
+      "explorer": "https://explorer.testnet.chain.robinhood.com/tx/0x23fe59b9fa408b644fd3a689b006473a7f0dd65103b9adcee595ddc1ca0429f9"
     }
   ]
 }
