@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
 # Create a DEDICATED throwaway testnet wallet and store its key in contracts/.env.
 #
-#   ./scripts/new-testnet-wallet.sh
+#   ./scripts/new-testnet-wallet.sh                 the deployer (admin, feed keeper)
+#   ./scripts/new-testnet-wallet.sh --role alice    demo user A
+#   ./scripts/new-testnet-wallet.sh --role bob      demo user B
+#
+# Three separate keys on purpose. The deployer owns the contracts and writes the
+# price feeds; it is never loaded by the interface's test signer. Alice and Bob
+# are ordinary users: two independent wallets, so the public proof can show a
+# basket handed from one to the other and the recipient withdrawing it.
 #
 # The key is written to contracts/.env only (git-ignored) and is never printed,
 # never held in a shell variable, and never passed on a command line. Never paste
 # it into a chat window, an issue, or a commit.
 #
-# REFUSES TO OVERWRITE. If contracts/.env already holds a PRIVATE_KEY, this exits
-# without touching anything, because replacing a key that has been funded, or that
-# owns a deployment, strands both. To start again deliberately, move the old file
-# aside yourself first.
+# REFUSES TO OVERWRITE. If contracts/.env already holds a key for that role, this
+# exits without touching anything, because replacing a key that has been funded,
+# or that owns a deployment, strands both.
 #
 # An earlier version parsed `cast wallet new`'s human-readable output. That output
 # is split across stdout and stderr, so the capture missed half of it: the key was
@@ -21,15 +27,25 @@ export PATH="$PATH:$HOME/.foundry/bin"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ENV_FILE="$ROOT/contracts/.env"
 
-if [ -f "$ENV_FILE" ] && grep -qE '^PRIVATE_KEY=.+' "$ENV_FILE"; then
-  echo "contracts/.env already holds a PRIVATE_KEY. Nothing was changed."
-  ADDR_LINE="$(grep -E '^DEPLOYER_ADDRESS=' "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
+ROLE="deployer"
+if [ "${1:-}" = "--role" ]; then ROLE="${2:-}"; fi
+case "$ROLE" in
+  deployer) KEY_VAR=PRIVATE_KEY;       ADDR_VAR=DEPLOYER_ADDRESS ;;
+  alice)    KEY_VAR=ALICE_PRIVATE_KEY; ADDR_VAR=ALICE_ADDRESS ;;
+  bob)      KEY_VAR=BOB_PRIVATE_KEY;   ADDR_VAR=BOB_ADDRESS ;;
+  *) echo "unknown role '$ROLE' (use deployer, alice or bob)"; exit 2 ;;
+esac
+
+if [ -f "$ENV_FILE" ] && grep -qE "^${KEY_VAR}=.+" "$ENV_FILE"; then
+  echo "contracts/.env already holds $KEY_VAR. Nothing was changed."
+  ADDR_LINE="$(grep -E "^${ADDR_VAR}=" "$ENV_FILE" | head -1 | cut -d= -f2- || true)"
   [ -n "$ADDR_LINE" ] && echo "  It controls: $ADDR_LINE"
-  echo "To replace it on purpose:  mv contracts/.env contracts/.env.old  and run this again."
+  echo "To replace it on purpose, remove that line from contracts/.env yourself first."
   exit 1
 fi
 
-cast wallet new --json 2>&1 | ENV_FILE="$ENV_FILE" EXAMPLE="$ROOT/.env.example" python -c '
+cast wallet new --json 2>&1 | ENV_FILE="$ENV_FILE" EXAMPLE="$ROOT/.env.example" \
+  KEY_VAR="$KEY_VAR" ADDR_VAR="$ADDR_VAR" ROLE="$ROLE" python -c '
 import json, os, sys, tempfile
 
 raw = sys.stdin.read()
@@ -42,9 +58,10 @@ if not (key.startswith("0x") and len(key) == 66 and addr.startswith("0x") and le
     sys.exit("cast returned an unexpected key shape (output withheld on purpose)")
 
 env_file, example = os.environ["ENV_FILE"], os.environ["EXAMPLE"]
+kv, av = os.environ["KEY_VAR"], os.environ["ADDR_VAR"]
 base = open(env_file).read() if os.path.exists(env_file) else (open(example).read() if os.path.exists(example) else "")
-lines = [l for l in base.splitlines() if not l.startswith(("PRIVATE_KEY=", "DEPLOYER_ADDRESS="))]
-lines += ["PRIVATE_KEY=" + key, "DEPLOYER_ADDRESS=" + addr]
+lines = [l for l in base.splitlines() if not l.startswith((kv + "=", av + "="))]
+lines += [kv + "=" + key, av + "=" + addr]
 
 fd, tmp = tempfile.mkstemp(dir=os.path.dirname(env_file), prefix=".env.")
 with os.fdopen(fd, "w") as f:
@@ -55,10 +72,7 @@ except OSError:
     pass
 os.replace(tmp, env_file)
 
-print("Dedicated testnet wallet created.")
+print("Dedicated testnet wallet created (" + os.environ["ROLE"] + ").")
 print("  Address : " + addr)
-print("  Key     : in contracts/.env (git-ignored). Not printed; do not paste it anywhere.")
-print()
-print("Check its balance with:")
-print("  cast balance " + addr + " --rpc-url https://rpc.testnet.chain.robinhood.com --ether")
+print("  Key     : in contracts/.env as " + kv + " (git-ignored). Not printed; do not paste it anywhere.")
 '
