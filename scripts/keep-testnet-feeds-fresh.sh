@@ -9,20 +9,41 @@
 # contracts/.env (the only address the feeds accept). When you stop this, the
 # feeds age out after an hour and buying is refused - the safe resting state.
 # Withdrawals need no price and keep working.
-set -euo pipefail
+#
+# FAILURES ARE LOUD. An earlier version ended its pipeline in `grep ... || true`,
+# so a failed refresh printed nothing and exited 0 while the feeds went stale.
+# Now forge's own exit status decides: a failed run prints FAILED with the tail
+# of the log, `--once` exits non-zero, and the loop keeps a count of consecutive
+# failures and says how long the feeds have left.
+set -uo pipefail
 export PATH="$PATH:$HOME/.foundry/bin"
 cd "$(dirname "$0")/../contracts"
 
 [ -f .env ] || { echo "contracts/.env missing - run ./scripts/new-testnet-wallet.sh first"; exit 1; }
 [ -f reports/jayo-testnet.json ] || { echo "no testnet deployment recorded in contracts/reports/jayo-testnet.json"; exit 1; }
 
+LOG="$(mktemp)"
+trap 'rm -f "$LOG"' EXIT
+FAILS=0
+
 refresh() {
   echo "[$(date -u +%H:%M:%SZ)] refreshing testnet feeds"
-  forge script script/RefreshTestnetFeeds.s.sol \
-    --rpc-url https://rpc.testnet.chain.robinhood.com --broadcast --slow 2>&1 \
-    | grep -E "refreshed|SKIPPED|previous|pool now|age before|stale|ONCHAIN|Error" || true
+  if forge script script/RefreshTestnetFeeds.s.sol \
+       --rpc-url https://rpc.testnet.chain.robinhood.com --broadcast --slow >"$LOG" 2>&1; then
+    grep -E "refreshed|SKIPPED|previous|pool now|age before|stale" "$LOG" || true
+    if grep -q "SKIPPED" "$LOG"; then
+      echo "  WARNING: at least one feed was not refreshed (step bound). It will expire; buying for that asset will stop."
+    fi
+    FAILS=0
+    return 0
+  fi
+  FAILS=$((FAILS + 1))
+  echo "  FAILED (consecutive failures: $FAILS). Last lines of the forge log:"
+  tail -n 15 "$LOG" | sed 's/^/    /'
+  echo "  The feeds keep their last update; buying stops when it is an hour old."
+  return 1
 }
 
-refresh
-[ "${1:-}" = "--once" ] && exit 0
-while sleep 2400; do refresh; done
+if [ "${1:-}" = "--once" ]; then refresh; exit $?; fi
+refresh || true
+while sleep 2400; do refresh || true; done

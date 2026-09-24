@@ -13,35 +13,40 @@ import {JayoBasket} from "../src/basket/JayoBasket.sol";
 ///         wallet that would really send it, so every receipt can be checked by
 ///         anyone on the public RPC or explorer.
 ///
-///         PHASE 1  Alice builds a basket (60% TSLA / 40% AMZN) with her rUSDG.
-///                  Bob copies its recipe with HIS OWN rUSDG into a separate basket.
-///                  Alice takes her AMZN out in kind and keeps the basket.
-///                  Alice hands the basket to Bob.
+///         PHASE 1  Alice builds basket A (60% TSLA / 40% AMZN) with her rUSDG,
+///                  then hands basket A to Bob.
 ///
-///         between the phases, run as Alice with `cast call` (no gas, no state):
-///                  redeem(aliceBasket)  ->  reverts NotPositionOwner
+///         between the phases, as Alice, with `cast call` (no gas, no state):
+///                  redeem(A)  ->  reverts NotPositionOwner(A, Alice)
 ///
-///         PHASE 2  Bob, now the owner, withdraws everything left in it.
-///                  Bob takes half of every token out of his own copy.
+///         PHASE 2  Alice copies A's RECIPE with her own money into a new basket C
+///                  - same weights, different exact holdings, hers alone.
+///                  Bob, now A's owner, takes out only its AMZN and keeps its TSLA.
 ///
-///      Two phases so the refusal is shown against the chain as it really is
-///      after the hand-over and before Bob withdraws (after that the basket no
-///      longer exists and the error would say so instead).
+///      This is the sequence that shows what an individually owned position means:
+///      the old owner loses all authority over A; A's recorded holdings go with it;
+///      the recipe stays public and copyable without touching A; the new owner
+///      chooses which asset to take out. A shared-vault design cannot do the last
+///      step - a single-asset exit would shift every other holder's ratio.
 ///
 ///        JOURNEY_PHASE=1 forge script script/PublicJourney.s.sol --rpc-url <testnet> --broadcast --slow
 ///        JOURNEY_PHASE=2 forge script script/PublicJourney.s.sol --rpc-url <testnet> --broadcast --slow
 contract PublicJourney is Script {
-    uint256 constant FUND_ALICE = 20_000000; // 20 rUSDG: 10 per leg, measured at 78 bps
-    uint256 constant FUND_BOB_COPY = 8_000000;
+    uint256 constant FUND_ALICE = 20_000000; // 20 rUSDG: 10 per leg, measured at 78 bps on testnet
+    uint256 constant FUND_COPY = 8_000000;   // smaller: it trades right after, further along thin curves
     string constant STATE = "./reports/journey-testnet.json";
+
+    JayoBasket basket;
+    address tsla;
+    address amzn;
 
     function run() external {
         require(block.chainid == 46630, "not Robinhood Chain testnet");
         string memory json = vm.readFile("./reports/jayo-testnet.json");
-        JayoBasket basket = JayoBasket(vm.parseJsonAddress(json, ".basket"));
+        basket = JayoBasket(vm.parseJsonAddress(json, ".basket"));
         address rusdg = vm.parseJsonAddress(json, ".usdg");
-        address tsla = vm.parseJsonAddress(json, ".tsla");
-        address amzn = vm.parseJsonAddress(json, ".amzn");
+        tsla = vm.parseJsonAddress(json, ".tsla");
+        amzn = vm.parseJsonAddress(json, ".amzn");
 
         uint256 aliceKey = vm.envUint("ALICE_PRIVATE_KEY");
         uint256 bobKey = vm.envUint("BOB_PRIVATE_KEY");
@@ -58,43 +63,52 @@ contract PublicJourney is Script {
 
             vm.startBroadcast(aliceKey);
             IERC20(rusdg).approve(address(basket), type(uint256).max);
-            uint256 aliceBasket = basket.create(a, FUND_ALICE, block.timestamp + 1 hours);
+            uint256 basketA = basket.create(a, FUND_ALICE, block.timestamp + 1 hours);
+            basket.safeTransferFrom(alice, bob, basketA);
             vm.stopBroadcast();
 
-            vm.startBroadcast(bobKey);
-            IERC20(rusdg).approve(address(basket), type(uint256).max);
-            uint256 bobBasket = basket.copyAllocation(aliceBasket, FUND_BOB_COPY, block.timestamp + 1 hours);
-            vm.stopBroadcast();
-
-            vm.startBroadcast(aliceKey);
-            basket.redeemAsset(aliceBasket, amzn);
-            basket.safeTransferFrom(alice, bob, aliceBasket);
-            vm.stopBroadcast();
-
-            require(basket.ownerOf(aliceBasket) == bob, "hand-over did not land");
-            require(basket.ownerOf(bobBasket) == bob, "copy belongs to Bob");
+            require(basket.ownerOf(basketA) == bob, "hand-over did not land");
 
             string memory j = "journey";
-            vm.serializeUint(j, "aliceBasket", aliceBasket);
-            string memory out = vm.serializeUint(j, "bobBasket", bobBasket);
+            string memory out = vm.serializeUint(j, "basketA", basketA);
             vm.writeJson(out, STATE);
-            console2.log("Alice's basket (now Bob's):", aliceBasket);
-            console2.log("Bob's copy:                ", bobBasket);
+            console2.log("basket A, built by Alice, now owned by Bob:", basketA);
+            _show("basket A", basketA);
         } else if (phase == 2) {
-            string memory st = vm.readFile(STATE);
-            uint256 aliceBasket = vm.parseJsonUint(st, ".aliceBasket");
-            uint256 bobBasket = vm.parseJsonUint(st, ".bobBasket");
-            require(basket.ownerOf(aliceBasket) == bob, "Bob does not own the handed-over basket");
+            uint256 basketA = vm.parseJsonUint(vm.readFile(STATE), ".basketA");
+            require(basket.ownerOf(basketA) == bob, "Bob does not own basket A");
 
-            vm.startBroadcast(bobKey);
-            basket.redeem(aliceBasket);
-            basket.redeemFraction(bobBasket, 5000);
+            vm.startBroadcast(aliceKey);
+            uint256 basketC = basket.copyAllocation(basketA, FUND_COPY, block.timestamp + 1 hours);
             vm.stopBroadcast();
 
-            console2.log("Bob withdrew basket", aliceBasket);
-            console2.log("Bob took half of his copy", bobBasket);
+            uint256 amznBefore = IERC20(amzn).balanceOf(bob);
+            vm.startBroadcast(bobKey);
+            basket.redeemAsset(basketA, amzn);
+            vm.stopBroadcast();
+
+            require(basket.ownerOf(basketC) == alice, "the copy is Alice's");
+            require(basket.ownerOf(basketA) == bob, "A is still Bob's after a partial exit");
+
+            string memory j = "journey2";
+            vm.serializeUint(j, "basketA", basketA);
+            string memory out = vm.serializeUint(j, "basketC", basketC);
+            vm.writeJson(out, STATE);
+
+            console2.log("basket C, Alice's copy of A's recipe:", basketC);
+            _show("basket A (Bob's, after taking AMZN out)", basketA);
+            _show("basket C (Alice's copy)", basketC);
+            console2.log("AMZN Bob received in kind (1e18):", IERC20(amzn).balanceOf(bob) - amznBefore);
         } else {
             revert("JOURNEY_PHASE must be 1 or 2");
+        }
+    }
+
+    function _show(string memory label, uint256 id) internal view {
+        (address[] memory assets, uint256[] memory amounts) = basket.holdingsOf(id);
+        console2.log(label);
+        for (uint256 i; i < assets.length; ++i) {
+            console2.log(assets[i] == tsla ? "   TSLA (1e18):" : "   AMZN (1e18):", amounts[i]);
         }
     }
 }
