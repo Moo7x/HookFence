@@ -93,7 +93,7 @@ this chain also charges is **not** included here (on testnet it added 4–12%, s
 | Approve USDG | 1 tx · ~$0.008 | 1 tx · ~$0.008 |
 | Buy both legs | **1 tx · 1,257,221 gas · ~$0.140** | 2 tx · 518,238 gas · ~$0.058 |
 | Tokens received | identical | identical |
-| Price check against an independent reference | yes, per leg; refused when the pool is off | none |
+| Price check against an independent reference | yes, by default, per leg; refused when the pool is off | only if you compute a Chainlink-based minimum and pass it yourself |
 | Hand the whole thing to someone | **1 tx (one NFT) · 117,281 gas · ~$0.013** | 2 tx (two tokens) · 205,592 gas · ~$0.023 |
 | Recipient takes the tokens | 1 tx · 235,254 gas · ~$0.026 (in kind, no price) | already in their wallet |
 
