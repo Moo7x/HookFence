@@ -18,6 +18,11 @@
 <div class="statusbar" role="status">
   <span class="mockflag">Demo · mock assets</span>
   <span class="meta" id="netmeta">connecting…</span>
+  <!-- Only with the local test signer, which holds two independent user wallets. -->
+  <label class="signer-pick" id="signerPick" hidden>
+    <span>Signing as</span>
+    <select id="signerSel" aria-label="Which test wallet signs"></select>
+  </label>
   <span class="spacer"></span>
   <span class="live"><span class="led" id="led"></span><span id="livetext">offline</span></span>
 </div>

@@ -2,13 +2,15 @@
 //
 //   node app/serve.mjs                    local demo  -> http://127.0.0.1:5173
 //   node app/serve.mjs --testnet-signer   also signs testnet transactions for the
-//                                         page, with the key in contracts/.env
+//                                         page, as the two demo USER wallets in
+//                                         contracts/.env (never the deployer)
 //
 // WHAT THIS SERVES, AND NOTHING ELSE
 //
 //   GET /                   app/index.html
 //   GET /app/app.js         app/app.js
 //   GET /app/styles.css     app/styles.css
+//   GET /app/vendor/viem.js app/vendor/viem.js (pinned, reproducible bundle)
 //   GET /deployment.json    a SANITISED copy of contracts/reports/jayo-deployment.json
 //
 // An earlier version served the repository root, so /.git/config, /.env.example,
@@ -31,13 +33,17 @@ const HOST = "127.0.0.1"; // deliberately not configurable
 const PORT = Number(process.env.JAYO_PORT || 5173);
 const APP_DIR = fileURLToPath(new URL(".", import.meta.url));
 const REPO = fileURLToPath(new URL("..", import.meta.url));
-const MANIFEST_SRC = join(REPO, "contracts", "reports", "jayo-deployment.json");
+// Overridable only so app/signer.test.mjs can point a signer-on server at a
+// throwaway manifest and a fake RPC. Nothing here is reachable over HTTP.
+const MANIFEST_SRC = process.env.JAYO_MANIFEST_SRC || join(REPO, "contracts", "reports", "jayo-deployment.json");
+const ENV_SRC = process.env.JAYO_SIGNER_ENV || join(REPO, "contracts", ".env");
 
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
   "/index.html": ["index.html", "text/html; charset=utf-8"],
   "/app/app.js": ["app.js", "text/javascript; charset=utf-8"],
   "/app/styles.css": ["styles.css", "text/css; charset=utf-8"],
+  "/app/vendor/viem.js": ["vendor/viem.js", "text/javascript; charset=utf-8"],
 };
 
 const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
@@ -80,41 +86,64 @@ export function sanitiseManifest(raw) {
 async function manifest() {
   const raw = JSON.parse(await readFile(MANIFEST_SRC, "utf8"));
   const m = sanitiseManifest(raw);
-  if (SIGNER_ON && signer) m.localSigner = signer.address;
+  if (SIGNER_ON && signer) m.localSigners = signer.accounts;
   return m;
 }
 
 // ------------------------------------------------------------------ signer ---
 //
-// Present only with --testnet-signer. It exists because the page has to be
-// driven end to end on the public testnet, and the browser it is driven from has
-// no wallet extension. The key never leaves this process: it is read from
-// contracts/.env (git-ignored), never written into a response, and never logged.
+// Present only with --testnet-signer. It exists so the page can be driven end to
+// end on the public testnet from a browser that has no wallet extension. A
+// browser wallet, or the scripted CLI journey (script/PublicJourney.s.sol), is
+// the preferred way to send public-testnet transactions; this is the fallback.
 //
-// What it will sign is narrow on purpose:
-//   - chainId 46630 only
-//   - `to` must be the deployment's basket or its stablecoin (the only two
-//     contracts a user journey calls: approve, create, copy, transfer, withdraw)
-//   - zero value, and never a contract creation
-// and it answers only a same-origin page that presents the per-run token that
-// was embedded in the HTML this server served. A hostile page elsewhere in the
-// same browser can neither read that token nor pass the Host/Origin checks.
+// What makes it tolerable:
+//
+//   - It holds only the two demo USER keys (ALICE_PRIVATE_KEY, BOB_PRIVATE_KEY).
+//     It refuses to start if either equals the deployer's key, so no owner-only
+//     function on any Jayo contract can be signed through it, whatever the page
+//     asks for.
+//   - Every eth_sendTransaction is DECODED and checked by app/signer-policy.mjs:
+//     approve only to the basket; create/copy under a spend cap; the three
+//     withdrawals; safeTransferFrom only from the sender and never to a zero or
+//     Jayo address. Everything else, and any non-canonical calldata, is refused.
+//   - The page contains no third-party code (viem is vendored, CSP script-src
+//     'self'), so nothing but our own scripts can read the per-run token.
+//   - Only a same-origin request, with the right Host, Origin and token, reaches
+//     it. Keys never leave this process and are never logged.
 
 let signer = null;
 
+function envValue(env, name) {
+  const line = env.split(/\r?\n/).find(l => l.startsWith(name + "="));
+  return line ? line.slice(name.length + 1).trim() : "";
+}
+
 async function startSigner() {
-  const env = await readFile(join(REPO, "contracts", ".env"), "utf8").catch(() => "");
-  const line = env.split(/\r?\n/).find(l => l.startsWith("PRIVATE_KEY="));
-  const key = line ? line.slice("PRIVATE_KEY=".length).trim() : "";
-  if (!/^0x[0-9a-fA-F]{64}$/.test(key)) {
-    console.error("--testnet-signer: no PRIVATE_KEY in contracts/.env. Run ./scripts/new-testnet-wallet.sh first.");
+  const env = await readFile(ENV_SRC, "utf8").catch(() => "");
+  const keys = [["Alice", envValue(env, "ALICE_PRIVATE_KEY")], ["Bob", envValue(env, "BOB_PRIVATE_KEY")]];
+  const deployerKey = envValue(env, "PRIVATE_KEY");
+  for (const [who, k] of keys) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(k)) {
+      console.error(`--testnet-signer: no ${who.toUpperCase()}_PRIVATE_KEY in contracts/.env. Run ./scripts/new-testnet-wallet.sh --role ${who.toLowerCase()}.`);
+      process.exit(1);
+    }
+    if (deployerKey && k.toLowerCase() === deployerKey.toLowerCase()) {
+      console.error(`--testnet-signer: ${who}'s key is the deployer's key. The signer never holds an admin key. Refusing.`);
+      process.exit(1);
+    }
+  }
+  if (keys[0][1].toLowerCase() === keys[1][1].toLowerCase()) {
+    console.error("--testnet-signer: Alice and Bob must be two different wallets. Refusing.");
     process.exit(1);
   }
+
   // viem is installed only for this mode (tools/package.json, pinned to the
   // version the page itself loads), so the plain local demo needs no npm install.
   const viemDir = join(REPO, "tools", "node_modules", "viem", "_esm");
   const viem = await import(pathToFileURL(join(viemDir, "index.js")).href);
   const { privateKeyToAccount } = await import(pathToFileURL(join(viemDir, "accounts", "index.js")).href);
+  const { vetTransaction } = await import(pathToFileURL(join(APP_DIR, "signer-policy.mjs")).href);
 
   const m = sanitiseManifest(JSON.parse(await readFile(MANIFEST_SRC, "utf8")));
   if (m.chainId !== 46630) {
@@ -126,14 +155,20 @@ async function startSigner() {
     nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: [m.rpcUrl] } },
   };
-  const account = privateKeyToAccount(key);
-  const pub = viem.createPublicClient({ chain, transport: viem.http(m.rpcUrl) });
-  const wallet = viem.createWalletClient({ account, chain, transport: viem.http(m.rpcUrl) });
-  const allowedTo = new Set([m.basket, m.usdg].map(a => a.toLowerCase()));
+  const wallets = new Map();
+  for (const [, k] of keys) {
+    const account = privateKeyToAccount(k);
+    wallets.set(account.address.toLowerCase(), viem.createWalletClient({ account, chain, transport: viem.http(m.rpcUrl) }));
+  }
+  const accounts = keys.map(([, k]) => privateKeyToAccount(k).address);
+  const ctx = {
+    chainId: 46630, basket: m.basket, usdg: m.usdg, accounts,
+    protected: [m.gateway, m.policy, m.adapter, m.poolManager, ...(m.stocks || [])].filter(Boolean),
+  };
 
-  signer = { address: account.address, pub, wallet, allowedTo, rpcUrl: m.rpcUrl };
-  console.log(`test signer active for ${account.address} on chain 46630`);
-  console.log(`  will only sign calls to basket ${m.basket} and stablecoin ${m.usdg}`);
+  signer = { accounts, wallets, ctx, vetTransaction, rpcUrl: m.rpcUrl };
+  console.log(`test signer active on chain 46630 for Alice ${accounts[0]} and Bob ${accounts[1]}`);
+  console.log("  it decodes every call and signs only the user journey; see app/signer-policy.mjs");
 }
 
 const READ_METHODS = new Set([
@@ -147,18 +182,21 @@ async function handleSigner(body) {
   const ok = result => ({ jsonrpc: "2.0", id, result });
   const fail = (code, message) => ({ jsonrpc: "2.0", id, error: { code, message } });
 
-  if (method === "eth_accounts" || method === "eth_requestAccounts") return ok([signer.address]);
+  if (method === "eth_accounts" || method === "eth_requestAccounts") return ok(signer.accounts);
   if (method === "eth_chainId") return ok("0xb626");
 
   if (method === "eth_sendTransaction") {
     const tx = params[0] || {};
-    if (!tx.to) return fail(4100, "contract creation is not signed here");
-    if (!signer.allowedTo.has(String(tx.to).toLowerCase())) return fail(4100, `will not sign a call to ${tx.to}`);
-    if (tx.from && tx.from.toLowerCase() !== signer.address.toLowerCase()) return fail(4100, "unknown sender");
-    if (tx.value && BigInt(tx.value) !== 0n) return fail(4100, "will not send value");
-    if (tx.chainId && Number(tx.chainId) !== 46630) return fail(4901, "wrong chain");
-    const hash = await signer.wallet.sendTransaction({ to: tx.to, data: tx.data, gas: tx.gas ? BigInt(tx.gas) : undefined });
-    console.log(`signed  to=${tx.to}  selector=${String(tx.data).slice(0, 10)}  tx=${hash}`);
+    const verdict = signer.vetTransaction(tx, signer.ctx);
+    if (!verdict.ok) {
+      console.log(`REFUSED ${verdict.reason}`);
+      return fail(4100, `test signer refused: ${verdict.reason}`);
+    }
+    // Only `to`, `data` and a bounded `gas` are taken from the page. Nonce and
+    // fees are filled from the chain; anything else the page sent is ignored.
+    const wallet = signer.wallets.get(verdict.account.toLowerCase());
+    const hash = await wallet.sendTransaction({ to: tx.to, data: tx.data, gas: tx.gas ? BigInt(tx.gas) : undefined });
+    console.log(`signed  ${verdict.what}  from=${verdict.account}  tx=${hash}`);
     return ok(hash);
   }
 
@@ -181,11 +219,13 @@ const SECURITY_HEADERS = {
   "cache-control": "no-store",
   "content-security-policy": [
     "default-src 'self'",
-    "script-src 'self' https://esm.sh",
+    // No third-party script origin at all: viem is vendored (app/vendor/viem.js),
+    // so nothing loaded into the page can come from anyone else's server.
+    "script-src 'self'",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
     "img-src 'self' data:",
-    "connect-src 'self' https://esm.sh http://127.0.0.1:8545 https://rpc.testnet.chain.robinhood.com",
+    "connect-src 'self' http://127.0.0.1:8545 https://rpc.testnet.chain.robinhood.com",
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "form-action 'none'",

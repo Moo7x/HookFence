@@ -5,5 +5,8 @@
   "type": "module",
   "dependencies": {
     "viem": "2.21.55"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
   }
 }

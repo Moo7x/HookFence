@@ -12,10 +12,13 @@
 // Everything here runs against a LOCAL chain with MOCK assets.
 // =============================================================================
 
-import { createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits, isAddress, getAddress }
-  from 'https://esm.sh/viem@2.21.55';
-import { privateKeyToAccount } from 'https://esm.sh/viem@2.21.55/accounts';
-import { foundry } from 'https://esm.sh/viem@2.21.55/chains';
+// viem 2.21.55, bundled locally by tools/build-vendor.mjs. The page used to load
+// it from esm.sh at runtime, which put third-party code in the same page as the
+// test signer's token. It now loads nothing from any other origin.
+import {
+  createPublicClient, createWalletClient, http, custom, parseUnits, formatUnits,
+  isAddress, getAddress, privateKeyToAccount, foundry,
+} from '/app/vendor/viem.js';
 
 // Anvil's deterministic accounts. These keys are published in Foundry's own
 // documentation and hold nothing on any real network. A local demo that required
@@ -345,7 +348,7 @@ async function connect() {
   // in its own process and hands the page nothing but signatures; it answers
   // only this origin, and only with the per-run token embedded in this page.
   const token = document.querySelector('meta[name="jayo-signer-token"]')?.content;
-  if (!window.ethereum && D.localSigner && token) {
+  if (!window.ethereum && Array.isArray(D.localSigners) && D.localSigners.length && token) {
     let id = 0;
     const provider = {
       async request({ method, params }) {
@@ -359,9 +362,27 @@ async function connect() {
         return out.result;
       },
     };
-    injectedAddress = D.localSigner;
-    injected = createWalletClient({ account: D.localSigner, chain, transport: custom(provider) });
+    // Two independent user wallets, so a hand-over can be followed by the
+    // recipient withdrawing. The signer refuses anything outside the journey.
+    const labels = ['Test wallet A', 'Test wallet B'];
+    const useSigner = addr => {
+      injectedAddress = addr;
+      injected = createWalletClient({ account: addr, chain, transport: custom(provider) });
+    };
+    useSigner(D.localSigners[0]);
     signerLabel = 'local test signer';
+    $('signerSel').innerHTML = D.localSigners
+      .map((a, i) => `<option value="${a}">${labels[i] || 'Wallet ' + (i + 1)} ${short(a)}</option>`).join('');
+    $('signerPick').hidden = false;
+    $('signerSel').addEventListener('change', async () => {
+      useSigner($('signerSel').value);
+      hideTransferConfirm();
+      $('toAddr').value = '';
+      validateRecipient();
+      await refreshStatus();
+      await loadPositions();
+      log(`now signing as ${short(injectedAddress)}`);
+    });
     return true;
   }
 
@@ -583,6 +604,12 @@ const allocArg = () => rows.map(r => ({ asset: r.asset, weightBps: Math.round(r.
 // control, and on a real network a user's clock can simply be wrong. Using
 // Date.now() produced an immediate IntentExpired with no obvious cause.
 async function deadline() {
+  // On anvil the latest block can be hours old if nothing has been mined, and the
+  // next block's timestamp then jumps past any deadline derived from it - create
+  // failed with IntentExpired after the demo chain sat idle. Mining an empty block
+  // first makes "latest" mean now. Public chains produce blocks continuously, so
+  // this is local only.
+  if (isLocal) await pub.request({ method: 'evm_mine', params: [] });
   const blk = await pub.getBlock();
   return blk.timestamp + 3600n;
 }

@@ -114,6 +114,24 @@ test("serves the page, with a restrictive content security policy", async () => 
   assert.equal(r.headers["x-content-type-options"], "nosniff");
 });
 
+test("the page runs no code from any other origin", async () => {
+  const page = await get("/");
+  const csp = page.headers["content-security-policy"];
+  const scriptSrc = csp.split(";").map(s => s.trim()).find(s => s.startsWith("script-src"));
+  assert.equal(scriptSrc, "script-src 'self'", "script-src must allow our own origin only");
+  assert.ok(!/<script[^>]+src="https?:/i.test(page.body), "no external <script src>");
+
+  const js = await get("/app/app.js");
+  assert.equal(js.status, 200);
+  const imports = [...js.body.matchAll(/^\s*import[\s\S]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
+  assert.ok(imports.length > 0);
+  for (const spec of imports) assert.ok(spec.startsWith("/"), `app.js imports ${spec} from another origin`);
+
+  const vendor = await get("/app/vendor/viem.js");
+  assert.equal(vendor.status, 200);
+  assert.ok(!/\bimport\s*\(?\s*['"]https?:/.test(vendor.body), "the bundle does not fetch code at runtime");
+});
+
 test("only GET and HEAD reach static routes", async () => {
   assert.equal((await get("/", { method: "POST" })).status, 405);
   assert.equal((await get("/deployment.json", { method: "PUT" })).status, 405);
@@ -150,6 +168,6 @@ test("the live manifest route returns only schema keys", async () => {
   const allowed = new Set(["poolManager", "usdg", "basket", "gateway", "policy", "adapter", "deployer",
     "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "stocks",
     "chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps", "demoControls", "network", "warning",
-    "priceSource", "rpcUrl", "explorer", "localSigner"]);
+    "priceSource", "rpcUrl", "explorer", "localSigners"]);
   for (const k of keys) assert.ok(allowed.has(k), `unexpected key ${k}`);
 });

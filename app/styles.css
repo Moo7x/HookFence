@@ -439,6 +439,9 @@ details.tech pre {
 .log .ok { color: #9fded1; }
 .log .err { color: #f6c3b2; }
 
+.signer-pick { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--fog); }
+.signer-pick select { width: auto; padding: 4px 8px; font-size: 12px; font-family: var(--mono); }
+
 /* ===================== price freshness ================================= */
 
 .prices {
