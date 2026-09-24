@@ -125,7 +125,7 @@ Where each wins, on these facts:
 - **Manual swaps** are the cheapest way to buy — about 2.4× less gas than Jayo —
   and need no contract at all. They give no independent price check, and handing
   the result over is one transfer per asset.
-- **HoodETF** is the only one that exits to USDG in one step and whose position
+- **HoodETF** is, of these three, the one that exits to USDG in one step and whose position
   is a fungible, composable token. It charges creator-set fees and cannot give
   back a single chosen asset.
 - **Jayo** costs more gas to buy with, charges nothing else, delivers exactly the
