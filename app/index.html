@@ -44,6 +44,20 @@
       </p>
     </header>
 
+    <!-- What every purchase is checked against, and how old it is. Buying is
+         refused once any of these is past its limit; withdrawing never reads them. -->
+    <section class="prices" aria-labelledby="h-prices">
+      <div class="prices-head">
+        <h3 id="h-prices">Prices your purchase is checked against</h3>
+        <span class="tag" id="priceSourceTag"></span>
+      </div>
+      <ul class="price-rows" id="priceRows" aria-live="polite"></ul>
+      <details class="about-prices">
+        <summary>Where these prices come from, and what they can and cannot protect</summary>
+        <div id="aboutPrices"></div>
+      </details>
+    </section>
+
     <div class="field" style="max-width:260px">
       <label for="fund">How much do you want to put in?</label>
       <input id="fund" type="text" inputmode="decimal" value="10000"
@@ -115,17 +129,38 @@
       <h3 style="font-size:16px;margin-bottom:8px">Hand this basket to someone else</h3>
       <p style="color:var(--fog);font-size:13px;margin:0 0 14px">
         They get <strong>full control</strong>: they can take the tokens out, and you no
-        longer can. Anyone you allowed to manage it is removed automatically.
-        This cannot be undone from your side.
+        longer can. This cannot be undone from your side, so check the address carefully.
       </p>
-      <div class="field" style="margin-bottom:12px">
-        <label for="toAddr">Send to wallet address</label>
-        <input id="toAddr" type="text" spellcheck="false" placeholder="0x…" />
+      <div class="field" style="margin-bottom:6px">
+        <label for="toAddr">Their wallet address</label>
+        <input id="toAddr" type="text" spellcheck="false" autocomplete="off"
+               placeholder="0x followed by 40 characters" aria-describedby="toAddrHint" />
+        <span class="unit" id="toAddrHint" style="font-size:12px" aria-live="polite">
+          Paste the address of the person receiving it.</span>
       </div>
-      <div class="actions">
-        <button class="ghost" id="btnManager" type="button">Allow a manager first</button>
-        <button class="ghost" id="btnTransfer" type="button">Hand over basket</button>
+      <div class="actions" style="margin-top:10px">
+        <button class="ghost" id="btnTransfer" type="button" disabled>Review hand-over</button>
       </div>
+
+      <!-- Explicit confirmation. Nothing is signed until this is answered. -->
+      <div class="confirm" id="transferConfirm" role="alertdialog" aria-labelledby="tcTitle" aria-describedby="tcBody" hidden>
+        <p id="tcTitle" style="margin:0 0 6px;font-weight:600">Give basket <span id="tcId"></span> away?</p>
+        <div id="tcBody" style="font-size:13px;color:var(--fog)">
+          <p style="margin:0 0 6px">It currently holds <span id="tcHoldings"></span>.</p>
+          <p style="margin:0 0 4px">It will belong to:</p>
+          <p class="addr-full" id="tcAddr"></p>
+          <p id="tcWarn" style="margin:6px 0 0"></p>
+        </div>
+        <label class="check" style="margin-top:10px">
+          <input type="checkbox" id="tcAck" />
+          <span>I have checked this address. I understand I cannot take the basket back.</span>
+        </label>
+        <div class="actions" style="margin-top:12px">
+          <button class="primary" id="btnTransferConfirm" type="button" disabled>Give it away</button>
+          <button class="quiet" id="btnTransferCancel" type="button">Cancel</button>
+        </div>
+      </div>
+
       <div id="transferMsg" aria-live="polite"></div>
       <div class="txstate" id="transferTx" data-state="idle" hidden>
         <span class="pip"></span><span class="label"></span>
@@ -195,6 +230,7 @@
 
     <div class="actions" style="margin-top:14px">
       <button class="quiet" id="btnAcct" type="button">Switch wallet</button>
+      <button class="quiet" id="btnFillOther" type="button">Fill in the other demo wallet's address</button>
       <button class="quiet" id="btnTime" type="button">Skip forward 48 hours</button>
       <button class="quiet" id="btnPause" type="button">Pause the price oracle</button>
       <button class="quiet" id="btnRefresh" type="button">Refresh prices</button>

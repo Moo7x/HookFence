@@ -15,7 +15,7 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 import {MockStockToken} from "../src/mocks/MockStockToken.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
-import {MockAggregatorV3} from "../src/mocks/MockAggregatorV3.sol";
+import {DemoPriceFeed} from "../src/testnet/DemoPriceFeed.sol";
 import {LiquiditySeeder} from "../src/mocks/LiquiditySeeder.sol";
 import {StockTokenReferencePolicy} from "../src/policy/StockTokenReferencePolicy.sol";
 import {ExecutionGateway} from "../src/core/ExecutionGateway.sol";
@@ -51,6 +51,7 @@ contract DeployJayoLocal is Script {
     uint8 constant FEED_DECIMALS = 8;
     uint32 constant FEED_HEARTBEAT = 86_400;
     uint16 constant MAX_SHORTFALL_BPS = 50;
+    uint16 constant FEED_MAX_STEP_BPS = 1000;
 
     int256 constant AAPL_USD = 255_00000000;
     int256 constant NVDA_USD = 150_00000000;
@@ -61,9 +62,9 @@ contract DeployJayoLocal is Script {
         MockUSDG usdg;
         MockStockToken aapl;
         MockStockToken nvda;
-        MockAggregatorV3 aaplFeed;
-        MockAggregatorV3 nvdaFeed;
-        MockAggregatorV3 usdgFeed;
+        DemoPriceFeed aaplFeed;
+        DemoPriceFeed nvdaFeed;
+        DemoPriceFeed usdgFeed;
         StockTokenReferencePolicy policy;
         ExecutionGateway gateway;
         V4ExactInputAdapter adapter;
@@ -102,9 +103,12 @@ contract DeployJayoLocal is Script {
         d.aapl = new MockStockToken("Apple  Robinhood Token [MOCK]", "AAPL");
         d.nvda = new MockStockToken("Nvidia  Robinhood Token [MOCK]", "NVDA");
 
-        d.aaplFeed = new MockAggregatorV3(FEED_DECIMALS, AAPL_USD, "MOCK AAPL / USD");
-        d.nvdaFeed = new MockAggregatorV3(FEED_DECIMALS, NVDA_USD, "MOCK NVDA / USD");
-        d.usdgFeed = new MockAggregatorV3(FEED_DECIMALS, USDG_USD, "MOCK USDG / USD");
+        // Same access-controlled feed the testnet uses, so the demo panel's
+        // "Refresh prices" exercises the real permission model rather than an
+        // open setter. The deployer is owner and updater.
+        d.aaplFeed = new DemoPriceFeed(FEED_DECIMALS, AAPL_USD, "MOCK AAPL / USD", deployer, FEED_MAX_STEP_BPS);
+        d.nvdaFeed = new DemoPriceFeed(FEED_DECIMALS, NVDA_USD, "MOCK NVDA / USD", deployer, FEED_MAX_STEP_BPS);
+        d.usdgFeed = new DemoPriceFeed(FEED_DECIMALS, USDG_USD, "MOCK USDG / USD", deployer, FEED_MAX_STEP_BPS);
 
         d.policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), deployer);
         d.policy.setQuoteAsset(address(d.usdg), address(d.usdgFeed), FEED_HEARTBEAT, 6);
@@ -121,7 +125,7 @@ contract DeployJayoLocal is Script {
     function _setUpMarket(
         Deployed memory d,
         MockStockToken stock,
-        MockAggregatorV3 feed,
+        DemoPriceFeed feed,
         int256 priceUsd,
         address deployer
     ) internal returns (PoolKey memory key) {
@@ -213,6 +217,9 @@ contract DeployJayoLocal is Script {
         stocks[1] = address(d.nvda);
         vm.serializeAddress(j, "stocks", stocks);
         vm.serializeBool(j, "demoControls", true);
+        vm.serializeUint(j, "feedHeartbeat", FEED_HEARTBEAT);
+        vm.serializeUint(j, "maxShortfallBps", MAX_SHORTFALL_BPS);
+        vm.serializeString(j, "priceSource", "demo");
         string memory out = vm.serializeAddress(j, "basket", address(d.basket));
 
         vm.writeJson(out, "./reports/jayo-local.json");

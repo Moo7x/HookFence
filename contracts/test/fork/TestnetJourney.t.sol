@@ -10,7 +10,7 @@ import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 
-import {MockAggregatorV3} from "../../src/mocks/MockAggregatorV3.sol";
+import {DemoPriceFeed} from "../../src/testnet/DemoPriceFeed.sol";
 import {StockTokenReferencePolicy} from "../../src/policy/StockTokenReferencePolicy.sol";
 import {ExecutionGateway} from "../../src/core/ExecutionGateway.sol";
 import {V4ExactInputAdapter} from "../../src/adapters/V4ExactInputAdapter.sol";
@@ -63,9 +63,9 @@ contract TestnetJourneyTest is Test {
     ExecutionGateway gateway;
     V4ExactInputAdapter adapter;
     JayoBasket basket;
-    MockAggregatorV3 tslaFeed;
-    MockAggregatorV3 amznFeed;
-    MockAggregatorV3 usdgFeed;
+    DemoPriceFeed tslaFeed;
+    DemoPriceFeed amznFeed;
+    DemoPriceFeed usdgFeed;
 
     address admin = address(this);
     address user = makeAddr("testnetUser");
@@ -93,9 +93,9 @@ contract TestnetJourneyTest is Test {
         console2.log("TSLA pool price, 8dp:", uint256(tslaUsd));
         console2.log("AMZN pool price, 8dp:", uint256(amznUsd));
 
-        tslaFeed = new MockAggregatorV3(FEED_DECIMALS, tslaUsd, "MOCK TSLA / USD");
-        amznFeed = new MockAggregatorV3(FEED_DECIMALS, amznUsd, "MOCK AMZN / USD");
-        usdgFeed = new MockAggregatorV3(FEED_DECIMALS, RUSDG_USD, "MOCK rUSDG / USD");
+        tslaFeed = new DemoPriceFeed(FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD", admin, 1000);
+        amznFeed = new DemoPriceFeed(FEED_DECIMALS, amznUsd, "DEMO AMZN / USD", admin, 1000);
+        usdgFeed = new DemoPriceFeed(FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD", admin, 1000);
 
         policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), admin);
         policy.setQuoteAsset(RUSDG, address(usdgFeed), FEED_HEARTBEAT, 6);

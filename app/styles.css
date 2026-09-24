@@ -439,6 +439,53 @@ details.tech pre {
 .log .ok { color: #9fded1; }
 .log .err { color: #f6c3b2; }
 
+/* ===================== price freshness ================================= */
+
+.prices {
+  margin: 4px 0 22px; padding: 14px 16px;
+  border-radius: var(--r-card); box-shadow: var(--ring);
+  background: rgba(199, 211, 234, 0.03);
+}
+.prices-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.prices-head h3 { font-size: 14px; margin: 0; font-weight: 600; }
+.tag {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: var(--r-pill); box-shadow: var(--ring); color: var(--fog);
+}
+.price-rows { list-style: none; margin: 0; padding: 0; }
+.price-rows li {
+  display: grid; grid-template-columns: 12px 64px 1fr auto; gap: 10px; align-items: baseline;
+  padding: 6px 0; border-top: 1px solid var(--hairline); font-size: 13px;
+}
+.price-rows li:first-child { border-top: 0; }
+.price-rows .dot { width: 8px; height: 8px; border-radius: 50%; align-self: center; background: var(--success); }
+.price-rows li[data-state="soon"] .dot  { background: var(--warning); }
+.price-rows li[data-state="stale"] .dot { background: var(--danger); }
+.price-rows .sym { font-family: var(--mono); font-weight: 500; }
+.price-rows .px  { font-family: var(--mono); }
+.price-rows .age { color: var(--fog); text-align: right; }
+.price-rows li[data-state="stale"] .age { color: var(--danger); }
+.price-rows li[data-state="soon"] .age  { color: var(--warning); }
+.about-prices { margin-top: 10px; font-size: 13px; color: var(--fog); }
+.about-prices summary { cursor: pointer; color: var(--frost); }
+.about-prices p { margin: 8px 0 0; }
+.about-prices strong { color: var(--frost); }
+
+/* ===================== hand-over confirmation ========================== */
+
+.confirm {
+  margin-top: 14px; padding: 14px 16px; border-radius: var(--r-card);
+  box-shadow: inset 0 0 0 1px rgba(228, 177, 76, 0.45);
+  background: rgba(228, 177, 76, 0.06);
+}
+.addr-full {
+  font-family: var(--mono); font-size: 13px; color: var(--frost);
+  word-break: break-all; margin: 0; padding: 6px 8px; border-radius: 6px;
+  background: rgba(199, 211, 234, 0.06);
+}
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; cursor: pointer; }
+.check input { margin-top: 3px; width: 16px; height: 16px; flex: none; }
+
 /* ===================== responsive ====================================== */
 
 @media (max-width: 860px) {
@@ -468,5 +515,8 @@ details.tech pre {
   /* Touch targets. WCAG 2.5.8 asks for 24px, Apple/Google for 44px; the
      desktop padding lands at 37px, which is under both vendor guidelines. */
   button, select { min-height: 44px; }
+  .price-rows li { grid-template-columns: 12px 52px 1fr; }
+  .price-rows .age { grid-column: 2 / -1; text-align: left; }
+  .check input { width: 22px; height: 22px; }
   .demo .actions button { min-height: 40px; }
 }
