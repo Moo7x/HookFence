@@ -1,8 +1,8 @@
 # Jayo's public testnet site — build, checks, deploy, operate
 
-**Status (2026-09-25):** built and verified locally, including under Cloudflare's
+**Status (2026-09-26):** built and verified locally, including under Cloudflare's
 own Pages runtime. **Not yet published** — publishing needs the owner's Cloudflare
-login (see "Publishing checklist" at the end).
+login (see "Publishing" at the end).
 
 ## What the site is
 
@@ -121,21 +121,21 @@ checking (`0x4ce0a9be…2500`).
 - Test assets have no value. rUSDG is a public test token anyone can mint; it is
   not Paxos USDG and not Jayo's.
 
-## Publishing checklist (owner only)
+## Publishing: Cloudflare Pages Git integration
 
-Direct upload from this machine: nothing needs pushing, and Cloudflare gets no
-access to the GitHub repository. (Per Cloudflare's docs, a direct-upload project
-cannot later be switched to Git integration; that would be a new project.)
+Cloudflare builds the site from GitHub on every push. `master` is the production
+branch and deploys to `https://jayo-testnet.pages.dev`. Other branches get
+preview URLs.
 
-```bash
-cd tools
-npx wrangler login                                                   # browser sign-in; the token stays in your user profile, not the repo
-npx wrangler pages project create jayo-testnet --production-branch master   # once
-cd .. && node scripts/build-site.mjs && cd tools
-npx wrangler pages deploy --branch master                            # reads ../wrangler.toml: project jayo-testnet, folder site/dist
-```
+| Setting | Value |
+|---|---|
+| Production branch | `master` |
+| Framework preset | None |
+| Build command | `node scripts/build-site.mjs` |
+| Build output directory | `site/dist` (also set in `wrangler.toml`) |
+| Node version | from `.node-version` (22) |
+| Environment variables | none; the build needs no secrets |
 
-`--branch master` makes it the production deployment at
-`https://jayo-testnet.pages.dev`. Without it, wrangler uses the current git
-branch and publishes a preview URL instead. To redeploy after a change, repeat
-the last two commands.
+The build uses only Node's built-in modules and needs no `npm install`. It was
+checked from a clean clone with no `contracts/.env` and no `tools/node_modules`:
+the output matched the verified local build apart from line endings.
