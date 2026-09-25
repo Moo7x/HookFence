@@ -678,6 +678,15 @@ async function refreshStatus() {
     $('usdBal').textContent = `You have ${usdg(bal)} ${stableSym()}.`;
     $('stepUsd').dataset.done = String(bal >= 20_000000n);
   }
+  // Show any standing permission for the basket contract to take this wallet's
+  // stablecoin, and offer to remove it. Purchases approve exactly what they
+  // spend, but an older version of this page approved a very large amount.
+  const allowance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [me, D.basket] });
+  $('stepAllow').hidden = allowance === 0n;
+  if (allowance > 0n) {
+    $('allowText').textContent = `The basket contract may still take ${allowance >= 2n ** 128n ? 'an unlimited amount of' : `up to ${usdg(allowance)}`} ${stableSym()} from this wallet `
+      + `when you buy. It can only take funds in a purchase you sign, but you can remove this permission at any time.`;
+  }
 }
 
 // ------------------------------------------------------- allocation rows ----
@@ -1166,6 +1175,23 @@ $('btnMint').addEventListener('click', async () => {
     log(`minted 100 test ${stableSym()}`, 'ok', hash);
     await refreshStatus();
   } catch (e) { tx('mintTx', 'failed', 'Nothing was minted'); showError('onboardMsg', e); }
+  finally { busy(btn, false); }
+});
+
+$('btnRevoke').addEventListener('click', async () => {
+  clearMsg('onboardMsg');
+  if (needWallet('onboardMsg')) return;
+  const btn = $('btnRevoke'); busy(btn, true, 'Removing…');
+  try {
+    tx('mintTx', 'signing', 'Confirm in your wallet: this sets the permission to zero…');
+    const hash = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, 0n] });
+    tx('mintTx', 'pending', 'Waiting for confirmation…', hash);
+    await pub.waitForTransactionReceipt({ hash });
+    const left = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, D.basket] });
+    tx('mintTx', left === 0n ? 'confirmed' : 'failed', left === 0n ? 'Permission removed: the basket contract can take 0 from this wallet' : `Still allowed: ${usdg(left)}`, hash);
+    log(`removed Jayo's spending permission (now ${usdg(left)})`, left === 0n ? 'ok' : 'err', hash);
+    await refreshStatus();
+  } catch (e) { tx('mintTx', 'failed', 'The permission was not changed'); showError('onboardMsg', e); }
   finally { busy(btn, false); }
 });
 
