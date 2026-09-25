@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jayo — baskets of stock tokens you own, give and grow</title>
-<meta name="description" content="Put a mix of stock tokens into one basket you own. Anyone can add to it by your plan. Hand it on whole, or take out one stock at a time. Robinhood Chain testnet." />
+<title>Jayo — baskets of Stock Tokens you own, give and grow</title>
+<meta name="description" content="Put a mix of Stock Tokens into one basket you own. Anyone can add to it by your plan. Hand it on whole, or take out one Stock Token at a time. Testnet: nothing here has value." />
 <!-- Inline so the browser does not request /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230B5563'/%3E%3Crect x='7' y='12' width='11' height='8' rx='3' fill='%23EE6A4C'/%3E%3Crect x='18' y='12' width='7' height='8' rx='3' fill='%23E6B23A'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -72,10 +72,10 @@
 
   <section class="hero">
     <div class="hero-copy">
-      <h1>Baskets of stocks you own, give, and grow.</h1>
-      <p class="lede">Put a mix of stock tokens into one basket with one payment. Anyone can add
+      <h1>Baskets of Stock Tokens you own, give, and grow.</h1>
+      <p class="lede">Put a mix of Stock Tokens into one basket with one payment. Anyone can add
         money to your basket, and it is bought the way you planned it. Hand the basket on whole,
-        or take out one stock at a time.</p>
+        or take out one Stock Token at a time.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="#start">Start a basket</a>
         <a class="btn btn-ghost" href="#browse">See everyone's baskets</a>
@@ -137,8 +137,8 @@
     <div class="how-grid">
       <div>
         <h3>It is yours, token by token</h3>
-        <p>The basket is a single token in your wallet. The contract records exactly how much of each stock
-          it holds, and nobody else's money is mixed in.</p>
+        <p>The basket is a single token in your wallet. The contract records exactly how much of each Stock Token
+          it holds, and nobody else's holdings are mixed in.</p>
       </div>
       <div>
         <h3>Anyone can add to it</h3>
@@ -147,7 +147,7 @@
       </div>
       <div>
         <h3>Take out what you want, when you want</h3>
-        <p>Withdraw one stock, a share of everything, or all of it. Withdrawing needs no price, so it works
+        <p>Withdraw one Stock Token, a share of everything, or all of it. Withdrawing needs no price, so it works
           even when buying is paused. Taking out the last holding closes the basket.</p>
       </div>
     </div>
@@ -159,9 +159,11 @@
     <details class="about">
       <summary>What is real here, and what is a test</summary>
       <div>
-        <p>This runs on <strong>Robinhood Chain testnet</strong>. The TSLA and AMZN tokens are Robinhood's test stock
-          tokens, and the Uniswap v4 pools are real testnet pools. None of it has value, and none of it can be exchanged
-          for real stock or real dollars. rUSDG is a public test stablecoin that anyone can mint. It is not Paxos USDG.</p>
+        <p>This runs on <strong>Robinhood Chain testnet</strong>. The TSLA and AMZN tokens are test versions of Stock Tokens,
+          and the Uniswap v4 pools are real testnet pools. None of it has value, and none of it can be exchanged for
+          anything real. rUSDG is a public test stablecoin that anyone can mint. It is not Paxos USDG.</p>
+        <p>On mainnet, Stock Tokens give economic exposure to a company's shares; they are not the shares, and they
+          carry no shareholder rights. They are not offered to US persons. Jayo holds Stock Tokens; it does not hold shares.</p>
         <p>Jayo's own contracts are not audited. The code, tests and every transaction behind this page are public:
           <a href="https://github.com/Moo7x/HookFence" target="_blank" rel="noopener noreferrer">source on GitHub</a>.</p>
       </div>
@@ -196,7 +198,7 @@
         </div>
         <div class="ribbon ribbon-lg" id="bvRibbon"></div>
         <table class="holdings">
-          <thead><tr><th scope="col">Stock</th><th scope="col" class="num">Amount</th><th scope="col" class="num">At reference price</th></tr></thead>
+          <thead><tr><th scope="col">Stock Token</th><th scope="col" class="num">Amount</th><th scope="col" class="num">At reference price</th></tr></thead>
           <tbody id="bvRows"></tbody>
         </table>
       </section>

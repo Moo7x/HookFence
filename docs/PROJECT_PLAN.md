@@ -12,7 +12,7 @@
 **Your investment portfolio becomes a single NFT that holds real assets, and that
 you can sell as one object.**
 
-- Deposit USDG, choose an allocation across tokenized equities (NVDA, SPY, AAPL…),
+- Deposit USDG, choose an allocation across Stock Tokens (NVDA, SPY, AAPL…),
   ETH, and memecoins.
 - The contract executes the real buys through Uniswap v4. The NFT **holds** the
   resulting basket — not a receipt, not paper trading.
@@ -25,7 +25,7 @@ you can sell as one object.**
 
 The one-line pitch:
 
-> **The only chain where you can hold tokenized NVDA and a dog coin in the same
+> **The only chain where you can hold an NVDA Stock Token and a dog coin in the same
 > basket — so we made the basket ownable, tradeable and competitive.**
 
 ---
@@ -62,7 +62,7 @@ concept is his, from his message. I did not generate it. My contributions are
 7. Decoded the actual fee charged on 10,946 live swaps.
 
 **The insight that made it click:** step 6 showed people are already trading
-`ELIZA/NVDA`, `NVDA/SI`, `musebook/META`, `CHONK/LLY` — tokenized equities paired
+`ELIZA/NVDA`, `NVDA/SI`, `musebook/META`, `CHONK/LLY` — Stock Tokens paired
 directly against memecoins, with sustained volume. **Users are already building
 mixed equity/meme portfolios by hand.** Your teammate's instinct pointed at a
 behaviour that is measurably happening.
@@ -79,7 +79,7 @@ Every one reproducible. Scripts in `scripts/`, raw output in `contracts/reports/
 | # | Fact | Evidence |
 |---|---|---|
 | 1 | Uniswap v4 is live and very active on Robinhood Chain | ~1,000 swaps/min; 8,121 swaps sampled across 4 windows / 11h; 837k pools created |
-| 2 | **Tokenized equities really trade on-chain** | `ELIZA/NVDA` 88 swaps, `NVDA/SI` 84 (4/4 windows), `musebook/META` 70 (4/4), `CHONK/LLY` 60, `SPY/USDG` 58 |
+| 2 | **Stock Tokens really trade on-chain** | `ELIZA/NVDA` 88 swaps, `NVDA/SI` 84 (4/4 windows), `musebook/META` 70 (4/4), `CHONK/LLY` 60, `SPY/USDG` 58 |
 | 3 | Equities are already being paired **against memecoins** | see #2 — this is the behaviour the product formalises |
 | 4 | USDG is a real quote asset | `ETH/USDG` in 4/4 windows, `ROBIN/USDG` 4/4, `CASHCAT/USDG`, `UIU/USDG` |
 | 5 | **Hooks are widely deployed** | 19 of top 28 pools carry a hook |
@@ -99,7 +99,7 @@ already built genuinely relevant rather than theoretical.
 Mapped to the four published criteria.
 
 **Innovation and Creativity.** The product is new even though the parts are not:
-a per-user, individually-tradeable portfolio NFT mixing tokenized equities with
+a per-user, individually-tradeable portfolio NFT mixing Stock Tokens with
 memecoins, on the only chain where both exist in one AMM. The gallery has index
 funds, risk scanners and AI agents — nothing that makes a portfolio itself an
 ownable, transferable object with a competitive layer.
@@ -121,7 +121,7 @@ Very few hackathon submissions will have a documented adversarial review.
 NAV, P&L and the leaderboard.
 
 **Robinhood Chain.** Structural. The product is impossible elsewhere: no other
-chain has tokenized equities and memecoins in the same AMM.
+chain has Stock Tokens and memecoins in the same AMM.
 
 ---
 
@@ -196,7 +196,7 @@ We will put this in the README ourselves rather than let a judge find it.
 | Enzyme Finance | On-chain funds with managers. Vault shares, not NFTs. |
 | **Charged Particles** | **NFTs that hold assets. Closest mechanism.** We are not claiming to invent NFT-held value. |
 | Uniswap v3/v4 LP positions | NFTs representing value. Same lineage. |
-| RWA.Index (this hackathon) | ERC-4626 AI-managed index of tokenized stocks. Closest competitor — but a single shared fund with an AI manager, not per-user competing portfolios. |
+| RWA.Index (this hackathon) | ERC-4626 AI-managed index of Stock Tokens. Closest competitor — but a single shared fund with an AI manager, not per-user competing portfolios. |
 
 **Our claim is product-level, not primitive-level:** the combination of per-user
 portfolio NFTs, equities + memecoins in one basket, a competitive leaderboard,

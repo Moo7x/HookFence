@@ -18,7 +18,7 @@
   "policy": "0xf32DfbF47Ce18bFCC56f0C4B8a914E278385044f",
   "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   "priceSource": "pool",
-  "renderer": "0x8Bca8B14F3F84684e281143BDFaa022384F1fa98",
+  "renderer": "0x7dE9F523d3B931A689ebd4d48C17d3Fe9158E1C6",
   "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
   "stocks": [
     "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",

@@ -155,10 +155,10 @@ in `docs/FINDINGS_LOG.md`.
 |---|---|---|
 | M1 | Uniswap v4 on 4663 is very active: ~1,000 swaps/min, **837,000 pools created**, block time ~0.1s | `scan-pool-activity.mjs` |
 | M2 | The chain is dominated by **memecoins** — top pools are ROBOCLAW, GARDEN, MERIDIAN, CASHCAT, HOODCATS | `scan-pool-activity.mjs` |
-| M3 | Tokenized equities trade **against memecoins** with volume sustained across 5–6 of 6 windows over 28h: NVDA/SI 849 swaps, musebook/META, CHONK/LLY, SCHIFFY/GLD, SPCX/URANUS | `scan-pool-activity.mjs` |
+| M3 | Stock Tokens trade **against memecoins** with volume sustained across 5–6 of 6 windows over 28h: NVDA/SI 849 swaps, musebook/META, CHONK/LLY, SCHIFFY/GLD, SPCX/URANUS | `scan-pool-activity.mjs` |
 | M4 | Verified sustained USDG liquidity: ETH, GOOGL, NVDA + ROBIN, CASHCAT, AI. **SPY, AAPL, MSTR have none** | `scan-pool-activity.mjs` |
 | M5 | Dynamic fees are live: 4 of 1,462 pools charged **different fees between swaps** (0.000%→0.300%, 0.328%→0.528%); observed range 0%–3% | `scan-dynamic-fees.mjs` |
-| M6 | **20,925 tokenized-equity pools exist; 19,744 (94%) already carry a v4 hook, across 750 distinct hook contracts.** NVDA alone has 14,436 pools | `census-equity-pool-hooks.mjs` |
+| M6 | **20,925 Stock Token pools exist; 19,744 (94%) already carry a v4 hook, across 750 distinct hook contracts.** NVDA alone has 14,436 pools | `census-equity-pool-hooks.mjs` |
 | M7 | **Corporate-action mispricing is smaller than daily price noise.** Measured via Chainlink historical rounds: SPY multiplier +0.17% vs feed −0.17%; NVDA +0.08% vs −0.50%; MSFT +0.04% vs +0.57%. Equity feeds publish ~daily, so the multiplier step and the price move land in the **same round** — no pool ever observes a clean multiplier jump | `measure-corporate-action-impact.mjs` |
 | M8 | Full corporate-action history: 36 events / 29 tokens / 86 days, accelerating. CRWD 4:1 split. **WEEK: 2:1 split applied then reverted 15 minutes later** | `scan-corporate-actions.mjs` |
 
@@ -238,7 +238,7 @@ the numbers can be re-derived rather than trusted.
 
 ### 6.3 Still unmeasured
 
-- **Holder overlap.** Whether real EOAs actually *hold* both a tokenized equity
+- **Holder overlap.** Whether real EOAs actually *hold* both a Stock Token
   and a memecoin, or whether the mixed pools in M3 are router hops. Pool activity
   is not portfolio intent. Blocked on public-RPC rate limits; needs an Alchemy
   key. `scan-holder-overlap.mjs` exists but does not complete.

@@ -68,7 +68,7 @@ Grounded in the measured chain facts in `docs/FINDINGS_LOG.md`.
 
 **Build:** 10 days. Hardest part: half the budget goes to the front end, because the track IS the product. Keep the contract to four small pieces.
 
-**Honest weak spot:** CoinRace already runs an 8-coin, 3-minute, price-driven race with pooled payouts. Name it first, on stage: "CoinRace is a casino with house chips on centralized feeds. We settle from real Arbitrum liquidity, pay real USDG with no custodian, and our field puts tokenized equities in the same race as memecoins — which nothing else does." Prior art you name yourself becomes validation.
+**Honest weak spot:** CoinRace already runs an 8-coin, 3-minute, price-driven race with pooled payouts. Name it first, on stage: "CoinRace is a casino with house chips on centralized feeds. We settle from real Arbitrum liquidity, pay real USDG with no custodian, and our field puts Stock Tokens in the same race as memecoins — which nothing else does." Prior art you name yourself becomes validation.
 
 **Closest existing thing:** CoinRace (live, off-chain feeds, play chips). Zed Run (simulated horses, random seed). HackMoney 2021's "Horse Race." OpenTote (real parimutuel, real horses).
 
@@ -117,7 +117,7 @@ Grounded in the measured chain facts in `docs/FINDINGS_LOG.md`.
 ---
 
 ### 6. FRACTURE
-**The pitch:** The router that can actually price the 94% of tokenized-equity pools everyone else's router silently skips — because it simulates the hook, on-chain, with the search loop in Rust.
+**The pitch:** The router that can actually price the 94% of Stock Token pools everyone else's router silently skips — because it simulates the hook, on-chain, with the search loop in Rust.
 
 **What you build:**
 - `quoteTrue(pair, amount)` as a free staticcall: pre-filter candidate pools from state, then run v4 Quoter-style revert-simulations on 3-5 of them to get the TRUE post-hook output including whatever dynamic fee, snipe tax or revert the hook applies. Returns a split plan. This is the primary artifact and every other dApp on the chain can call it for nothing.

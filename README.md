@@ -1,8 +1,8 @@
 # Jayo
 
-**Baskets of stock tokens you own, give and grow.**
+**Baskets of Stock Tokens you own, give and grow.**
 
-A Jayo basket is one NFT that holds a mix of stock tokens on Robinhood Chain,
+A Jayo basket is one NFT that holds a mix of Stock Tokens on Robinhood Chain,
 bought through Uniswap v4. Its owner can withdraw everything, a fraction, or a
 single stock, in kind, with no price needed, and can hand the whole basket on.
 

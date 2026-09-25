@@ -8,13 +8,13 @@ reproducible from `scripts/`. Kept so we never re-litigate a dead idea.
 | # | Finding | Script |
 |---|---|---|
 | 1 | Uniswap v4 very active: ~1,000 swaps/min, 837,000 pools created | `scan-pool-activity.mjs` |
-| 2 | Tokenized equities trade against memecoins with sustained volume: NVDA/SI 849 swaps, musebook/META, CHONK/LLY, SCHIFFY/GLD | `scan-pool-activity.mjs` |
+| 2 | Stock Tokens trade against memecoins with sustained volume: NVDA/SI 849 swaps, musebook/META, CHONK/LLY, SCHIFFY/GLD | `scan-pool-activity.mjs` |
 | 3 | USDG is a real quote asset; ETH/USDG, ROBIN/USDG, CASHCAT/USDG, AI/USDG all traded in 6/6 windows | `scan-pool-activity.mjs` |
 | 4 | Verified launch-asset liquidity: ETH, GOOGL, NVDA + ROBIN, CASHCAT, AI. **SPY, AAPL, MSTR have NO sustained USDG liquidity** | `scan-pool-activity.mjs` |
 | 5 | Dynamic fees are live: 4 of 1,462 pools charged different fees between swaps (0.000%→0.300%, 0.328%→0.528%). Range 0%–3% | `scan-dynamic-fees.mjs` |
 | 6 | 36 corporate actions / 29 tokens / 86 days, accelerating. CRWD 4:1 split. **WEEK: split applied then REVERTED 15 min later** | `scan-corporate-actions.mjs` |
 | 7 | Equity feeds update 24/5; all 5 sampled were 36–45h stale on a Sunday vs 24h heartbeat. Crypto feeds fresh | `observe-live-feeds.sh` |
-| 8 | **20,925 tokenized-equity pools, 19,744 (94%) carry a hook, 750 distinct hook contracts.** NVDA alone has 14,436 pools | `census-equity-pool-hooks.mjs` |
+| 8 | **20,925 Stock Token pools, 19,744 (94%) carry a hook, 750 distinct hook contracts.** NVDA alone has 14,436 pools | `census-equity-pool-hooks.mjs` |
 | 9 | **Corporate-action mispricing is smaller than daily noise.** SPY: multiplier +0.17%, feed moved −0.17%. NVDA: +0.08% vs −0.50%. MSFT: +0.04% vs +0.57% | `measure-corporate-action-impact.mjs` |
 
 ## Ideas killed, and by what
@@ -29,7 +29,7 @@ reproducible from `scripts/`. Kept so we never re-litigate a dead idea.
 ## Unresolved / not yet measured
 
 - **Holder overlap (the decisive PMF question).** Do real EOAs actually *hold* both a
-  tokenized equity and a memecoin, or do the mixed pools just reflect router hops?
+  Stock Token and a memecoin, or do the mixed pools just reflect router hops?
   Pool activity ≠ portfolio intent. Blocked on public-RPC rate limits; needs an
   Alchemy key or a narrower approach. `scan-holder-overlap.mjs`
 - **Is there an NFT marketplace on chainId 4663?** Never checked.

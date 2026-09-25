@@ -115,7 +115,9 @@ contract DeployJayoTestnet is Script {
 
     /// @dev What the renderer links each position to, and says about its value.
     string constant SITE_URL = "https://jayo-testnet.pages.dev";
-    string constant NETWORK_NOTE = "Robinhood Chain testnet: test assets with no value.";
+    // No network or issuer marks here: Robinhood Chain terms 5.7(h) bar them from
+    // NFT artwork and metadata.
+    string constant NETWORK_NOTE = "Testnet: test assets with no value.";
 
     /// @dev 10 rUSDG a leg, which measures at 78 bps against a 300 bps floor.
     uint256 constant DEFAULT_FUND = 20_000000;

@@ -236,9 +236,9 @@ The earlier claim that competing gallery projects are "all scanners" was
 | **Mandate** | ERC-8226; "five enforcement layers checked atomically by the smart contract before value moves"; named custom errors; "the contract reverts. Not the backend code. The EVM." |
 
 **Direct implication for HookFence:** RWA.Index already enforces oracle
-staleness and a pause flag on Robinhood Chain tokenized stocks, inside a vault.
+staleness and a pause flag on Robinhood Chain Stock Tokens, inside a vault.
 That is a subset of `StockTokenReferencePolicy`. On-chain policy enforcement for
-tokenized equities is a **contested space with at least three entrants**, and our
+Stock Tokens is a **contested space with at least three entrants**, and our
 innovation claim cannot rest on the mechanism.
 
 What remains, as far as verified, unaddressed by all three:

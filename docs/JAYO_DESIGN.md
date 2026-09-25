@@ -21,7 +21,7 @@ Verified on mainnet (`scripts/observe-live-feeds.sh`, Sunday 2026-09-20 09:09 UT
 So for roughly 65% of every week, an equity pool is quoting a price that nothing is
 standing behind, while remaining fully open for business. Whoever knows something
 the pool doesn't — a weekend news event, a Monday gap — takes the LP's money at
-Friday's price. Liquidity providers in tokenized-equity pools are writing a free
+Friday's price. Liquidity providers in Stock Token pools are writing a free
 option every weekend and being paid the same 0.3% they get at noon on Tuesday.
 
 **No other chain has this problem, because no other chain has assets whose oracle
@@ -57,7 +57,7 @@ of the plan listed them; that was based on a 5-minute sample and was wrong.
 
 ### A2. The Market-Hours Hook
 
-A Uniswap v4 hook for tokenized-equity pools. Pool created with
+A Uniswap v4 hook for Stock Token pools. Pool created with
 `DYNAMIC_FEE_FLAG (0x800000)`. In `beforeSwap`:
 
 ```

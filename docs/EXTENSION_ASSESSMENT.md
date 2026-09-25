@@ -151,7 +151,7 @@ Reasoning:
    rather than adding a feature on top of a working thing.
 3. It moves the claim off contested ground (on-chain enforcement — three
    competitors) onto ground that appears unoccupied (market-hours-aware
-   settlement for tokenized equities).
+   settlement for Stock Tokens).
 4. It reuses ~70% of existing, tested work.
 
 The conditions matter:

@@ -90,17 +90,23 @@ Confusing or wrong in the interface:
 
 ### Off-chain behaviour that matches the direction
 
-- **M1 Finance "pies".** A user-defined mix with target weights. "Every deposit
-  … will be allocated to your holdings according to these percentages"; a pie
-  can be shared as a link and copied
+- **M1 Finance "pies".** A user-defined mix with target weights that can be
+  shared as a link and copied
   ([M1 help](https://help.m1.com/en/articles/9331991-share-a-custom-pie-on-m1)).
+  **Correction (2026-09-25, after Codex's review):** an earlier version of this
+  page said M1 splits every deposit by the target weights. It does not: "New
+  money is first invested in the most underweight Slices"
+  ([M1](https://help.m1.com/en/articles/9331916-how-your-funds-are-invested-on-m1)),
+  which is dynamic rebalancing. Jayo splits each payment by its plan, which is
+  simpler and different: a basket that has drifted stays drifted until the
+  owner changes the plan.
 - **Robinhood custodial accounts** (launched 2026-03-05). They "support recurring
   investments and allow family and friends to contribute through a new gifting
   experience"
   ([report](https://finviz.com/news/330759/robinhood-stock-rises-after-platinum-card-custodial-accounts-launch)).
 
-Adding money to someone's own portfolio, split by *their* plan, is a behaviour
-people already use in brokerages. On-chain there is no equivalent for an
+Adding money to someone's own portfolio, invested according to *their* mix, is a
+behaviour people already use in brokerages. On-chain there is no equivalent for an
 individually owned multi-asset position.
 
 ## 2. The person and the task

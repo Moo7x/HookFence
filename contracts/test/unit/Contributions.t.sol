@@ -319,4 +319,27 @@ contract ContributionsTest is JayoFixture {
         for (uint256 i; i < n; ++i) out[i] = b[i];
         return string(out);
     }
+
+    // =======================================================================
+    // Reproduction: a contribution signed while Alice owns the basket, mined
+    // after she has handed it to Bob (Codex review, 2026-09-25)
+    // =======================================================================
+
+    function test_Race_AContributionMinedAfterAHandOverGoesToTheNewOwner() public {
+        // Carol looks at the basket: Alice owns it, plan version 1. She signs.
+        assertEq(basket.ownerOf(id), alice);
+        uint64 seenVersion = basket.allocationVersion(id);
+
+        // Before Carol's transaction is mined, Alice hands the basket to Bob.
+        vm.prank(alice);
+        basket.transferFrom(alice, bob, id);
+
+        // Carol's transaction lands. Nothing in it names Alice, so it succeeds.
+        uint256 before = basket.holdings(id, address(stock));
+        vm.prank(carol);
+        basket.contribute(id, GIFT, seenVersion, block.timestamp + 1 hours);
+
+        assertGt(basket.holdings(id, address(stock)), before, "Carol's money was bought into the basket");
+        assertEq(basket.ownerOf(id), bob, "...which Bob, not Alice, now owns");
+    }
 }

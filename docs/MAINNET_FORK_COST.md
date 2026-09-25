@@ -142,3 +142,39 @@ leave the rest.
 - HoodETF's gas or pool routing: nothing published, nothing measured. Its fees
   are documented (entry ≤3%, management ≤3%/yr, exit ≤1%) and are compared in
   `docs/COMPETITIVE_READ.md`.
+
+---
+
+## Re-measured on version 2 (2026-09-25, L2 block 72,046,674)
+
+Run with `forge test --match-contract MainnetForkCost -vv` at the latest block,
+against JayoBasket version 2. The public RPC is not an archive node, so earlier
+pinned blocks cannot be replayed; these figures replace the version-1 ones above
+wherever cost is quoted.
+
+**Prices at that block:** Chainlink TSLA $380.25, AMZN $250.11, ETH $2,677.24.
+The base fee was 0.0385 gwei. Dollar figures cover L2 execution gas only; the
+L1 data fee is not included.
+
+| Path | Jayo v2 | By hand | Ratio |
+|---|---|---|---|
+| Buy a 60/40 basket, hand it over, recipient withdraws at once (20 USDG) | 1,750,776 gas, 4 tx (≈ $0.18) | 806,236 gas, 5 tx (≈ $0.08) | 2.17× |
+| **Add 100 USDG to someone else's basket, split 60/40** | **1,055,251 gas, 2 tx (≈ $0.11)** | 797,680 gas, 5 tx: approve, 2 swaps, 2 transfers (≈ $0.08) | **1.32×** |
+
+The two paths deliver exactly the same TSLA and AMZN to the recipient, and
+the test asserts it (0.157146 TSLA and 0.159204 AMZN for the contribution).
+Jayo takes no fee.
+
+**Refusals moved with the market.** At this block every basket of 1,000 USDG
+or more is refused by the 50 bps floor. At 1,000 USDG, a direct swap would get
+0.41% less TSLA and 0.50% less AMZN than Chainlink's price implies, because the
+pools trade slightly above Chainlink. On the earlier fork, 1,000 and 2,500 USDG
+were accepted. The floor is doing its job, but the practical mainnet size
+depends on the day's pool-to-feed gap.
+
+**What this means for the product.** A one-off basket that is bought, handed on
+and emptied straight away costs about twice doing it by hand, and should not be
+sold as cheaper. Adding to an existing basket costs 1.3× the manual route, and
+replaces five transactions and knowledge of the mix with one. The overhead is
+smallest exactly where the product's case rests: repeated funding of a basket
+that persists.

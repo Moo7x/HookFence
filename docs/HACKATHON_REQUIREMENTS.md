@@ -90,7 +90,7 @@ the *earlier* of the two readings (15:59 UTC) as the working deadline.
 ## 6. Competitive context (Project Gallery, same access date)
 
 Read from the public gallery. Listed so our novelty claims stay honest — several
-entries are in the tokenized-equity risk space:
+entries are in the Stock Token risk space:
 
 | Project | Self-description (truncated as shown in the gallery) |
 |---|---|
@@ -117,9 +117,9 @@ Project pages were then fetched and read in full on 2026-09-20:
 | **RWA.Index** | ERC-4626 vault: "Each trade is checked against on-chain guardrails: per-trade size cap, slippage floor (2%), drift-improvement requirement, cash floor, **oracle staleness, pause flag**. Any failure reverts." |
 | **Mandate** | ERC-8226: "five enforcement layers checked atomically by the smart contract before value moves"; "the contract reverts. Not the backend code. The EVM." |
 
-On-chain policy enforcement for tokenized equities is a **contested space with
+On-chain policy enforcement for Stock Tokens is a **contested space with
 at least three entrants**. RWA.Index in particular already enforces oracle
-staleness and a pause flag on Robinhood Chain tokenized stocks — a subset of
+staleness and a pause flag on Robinhood Chain Stock Tokens — a subset of
 `StockTokenReferencePolicy`.
 
 We therefore make **no claim to novelty of mechanism**. See

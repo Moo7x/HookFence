@@ -223,19 +223,19 @@ const PLAIN = {
   FractionOutOfRange: () => ({ title: 'That is not a share you can take out.', fix: 'Choose one of the options shown.' }),
   FractionWouldDeliverNothing: () => ({ title: 'That share is too small to move anything.', fix: 'Take out a bigger share, or everything.' }),
   WeightsMustSumToBps: a => ({ title: `The mix adds up to ${(Number(a[0]) / 100).toFixed(0)}%.`, fix: 'It needs to total exactly 100%.' }),
-  LegBelowMinimum: a => ({ title: `The ${symOf(a[0])} part is only ${usdg(a[1])} ${stableSym()}.`, fix: `Each stock needs at least ${usdg(a[2])} ${stableSym()}. Put in more, or give it a bigger share.` }),
+  LegBelowMinimum: a => ({ title: `The ${symOf(a[0])} part is only ${usdg(a[1])} ${stableSym()}.`, fix: `Each Stock Token needs at least ${usdg(a[2])} ${stableSym()}. Put in more, or give it a bigger share.` }),
   LegWouldAcquireNothing: a => ({ title: `The ${symOf(a[0])} part is too small to buy anything.`, fix: 'It would spend money for zero tokens, so it was stopped. Increase the amount or that share.' }),
   LegAcquiredNothing: a => ({ title: `The ${symOf(a[0])} purchase came back empty.`, fix: 'Nothing was spent. The pool may not have enough liquidity right now.' }),
-  DuplicateAsset: a => ({ title: `${symOf(a[0])} appears twice.`, fix: 'Give each stock one share.' }),
-  AssetNotSupported: a => ({ title: `${symOf(a[0])} cannot be bought here.`, fix: 'Only stocks with a reviewed trading route can be. Pick another.' }),
-  NoLegs: () => ({ title: 'The mix is empty.', fix: 'Give at least one stock a share.' }),
-  TooManyLegs: a => ({ title: `${a[0]} stocks is too many.`, fix: `A basket can hold at most ${a[1]}.` }),
+  DuplicateAsset: a => ({ title: `${symOf(a[0])} appears twice.`, fix: 'Give each Stock Token one share.' }),
+  AssetNotSupported: a => ({ title: `${symOf(a[0])} cannot be bought here.`, fix: 'Only Stock Tokens with a reviewed trading route can be. Pick another.' }),
+  NoLegs: () => ({ title: 'The mix is empty.', fix: 'Give at least one Stock Token a share.' }),
+  TooManyLegs: a => ({ title: `${a[0]} Stock Tokens is too many.`, fix: `A basket can hold at most ${a[1]}.` }),
   NotPositionOwner: () => ({ title: 'Only the owner can do that.', fix: 'If this basket was handed on, control went with it.' }),
   AllocationChangedSinceQuote: () => ({ title: "The owner changed this basket's plan a moment ago.", fix: 'Nothing was spent. The page now shows the new plan: check it, then try again.' }),
   PositionDoesNotExist: a => ({ title: `Basket #${a[0]} does not exist any more.`, fix: 'Nothing was spent.' }),
   OutputBelowFloor: a => ({
     title: 'The pool would have given too little, so the purchase was stopped.',
-    fix: `One stock would have come to ${tok(a[0])}; the reference price requires at least ${tok(a[1])}. Nothing was spent. ` +
+    fix: `One Stock Token would have come to ${tok(a[0])}; the reference price requires at least ${tok(a[1])}. Nothing was spent. ` +
       (D?.priceSource === 'pool'
         ? 'The test pools are small: recent purchases may have moved the price since it was last published, or this amount is too large for them. A smaller amount moves the price less.'
         : 'Try a smaller amount, which moves the price less.'),
@@ -605,7 +605,7 @@ function describePrices() {
       ${D.updater ? `(<a href="${esc(D.explorer)}/address/${esc(D.updater)}" target="_blank" rel="noopener noreferrer">${esc(short(D.updater))}</a>)` : ''}
       that can do nothing except publish within the feeds' own limits: at most one update every ${D.feedMinInterval ? ago(D.feedMinInterval) : '15 min'},
       no single move over 10%, and no more than 25% in a day. Each price expires after ${esc(life)}; after that, buying pauses.</p>
-    <p><strong>What they protect.</strong> Each stock you buy must arrive within ${esc(floorPct)} of its reference price. The pool's
+    <p><strong>What they protect.</strong> Each Stock Token you buy must arrive within ${esc(floorPct)} of its reference price. The pool's
       fee and the price movement your own purchase causes both count against that, and a purchase that would fall short is refused
       before any money moves.</p>
     <p><strong>What they cannot protect.</strong> Because the reference comes from the pool itself, it cannot tell you whether the pool
@@ -614,7 +614,7 @@ function describePrices() {
       Chainlink's independent mainnet feeds, and refuses the ones that fall short.</p>
     <p>Taking tokens out and handing baskets on never use these prices, so they work even when every price has expired.</p>`
     : `<p>These are demo prices on the local chain; only the local deployer can change them. Each expires after ${esc(life)}, and buying is
-      refused once any has. Each stock you buy must arrive within ${esc(floorPct)} of them. Taking tokens out never needs a price.</p>`;
+      refused once any has. Each Stock Token you buy must arrive within ${esc(floorPct)} of them. Taking tokens out never needs a price.</p>`;
 }
 
 // ------------------------------------------------------------------ wallet ---
@@ -884,7 +884,7 @@ $('btnCreate').addEventListener('click', async () => {
   try {
     const amount = parseAmount('fund');
     await ensureAllowance(amount, 'createTx');
-    tx('createTx', 'signing', 'Buying your stocks: confirm in your wallet…');
+    tx('createTx', 'signing', 'Buying your Stock Tokens: confirm in your wallet…');
     const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'create', args: [createMix.allocation(), amount, await deadline()] });
     tx('createTx', 'pending', 'Waiting for confirmation…', hash);
     const receipt = await pub.waitForTransactionReceipt({ hash });

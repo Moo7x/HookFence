@@ -304,7 +304,7 @@ contract TestnetJourneyTest is Test {
     ///         against the real pools, and its on-chain metadata says so.
     function test_ASecondWalletAddsToSomeoneElsesBasket() public {
         if (!forked) return;
-        basket.setRenderer(new JayoRenderer("https://jayo-testnet.pages.dev", "Robinhood Chain testnet: test assets with no value."));
+        basket.setRenderer(new JayoRenderer("https://jayo-testnet.pages.dev", "Testnet: test assets with no value."));
 
         vm.startPrank(user);
         IERC20(RUSDG).approve(address(basket), type(uint256).max);

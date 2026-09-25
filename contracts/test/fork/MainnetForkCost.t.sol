@@ -138,8 +138,13 @@ contract MainnetForkCostTest is Test {
     }
 
     function _manualSwap(PoolKey memory key, address stock, uint256 usdgIn) internal returns (uint256 out) {
+        return _manualSwapFor(alice, key, stock, usdgIn);
+    }
+
+    /// @dev `who` is whoever is pranking; the router pays out to the caller.
+    function _manualSwapFor(address who, PoolKey memory key, address stock, uint256 usdgIn) internal returns (uint256 out) {
         bool zeroForOne = USDG < stock;
-        uint256 before = IERC20(stock).balanceOf(alice);
+        uint256 before = IERC20(stock).balanceOf(who);
         router.swap(
             key,
             IPoolManager.SwapParams({
@@ -150,7 +155,7 @@ contract MainnetForkCostTest is Test {
             PoolSwapTest.TestSettings({takeClaims: false, settleUsingBurn: false}),
             ""
         );
-        out = IERC20(stock).balanceOf(alice) - before;
+        out = IERC20(stock).balanceOf(who) - before;
     }
 
     struct Result {
@@ -339,4 +344,63 @@ contract MainnetForkCostTest is Test {
         console2.log("base fee on the fork, wei:", block.basefee);
     }
 
+
+    /// @notice Version 2's added behaviour, costed: Carol puts 100 USDG into
+    ///         Alice's existing basket, split 60/40 by its plan. The manual
+    ///         equivalent is Carol buying both Stock Tokens herself and sending
+    ///         each to Alice (approve, 2 swaps, 2 transfers). Jayo: approve and
+    ///         one contribution. Same pools, same block.
+    function test_V2ContributionCost() public {
+        if (!ready) return;
+        _context();
+        uint256 size = 100e6;
+        address carol = makeAddr("carol");
+        _fund(alice, size);
+        _fund(carol, size * 2);
+
+        vm.startPrank(alice);
+        IERC20(USDG).approve(address(basket), size);
+        uint256 id = basket.create(_alloc(), size, block.timestamp + 1 hours);
+        vm.stopPrank();
+        uint256 snap = vm.snapshotState();
+
+        vm.startPrank(carol);
+        uint256 g = gasleft();
+        IERC20(USDG).approve(address(basket), size);
+        uint256 approveGas = g - gasleft();
+        (, uint256[] memory before) = basket.holdingsOf(id);
+        g = gasleft();
+        basket.contribute(id, size, basket.allocationVersion(id), block.timestamp + 1 hours);
+        uint256 contributeGas = g - gasleft();
+        vm.stopPrank();
+        (, uint256[] memory afterwards) = basket.holdingsOf(id);
+        uint256 jt = afterwards[0] - before[0];
+        uint256 ja = afterwards[1] - before[1];
+        vm.revertToState(snap);
+
+        vm.startPrank(carol);
+        g = gasleft();
+        IERC20(USDG).approve(address(router), size);
+        uint256 manApprove = g - gasleft();
+        uint256 legT = size * 6000 / 10_000;
+        g = gasleft();
+        uint256 mt = _manualSwapFor(carol, tslaKey, TSLA, legT);
+        uint256 ma = _manualSwapFor(carol, amznKey, AMZN, size - legT);
+        uint256 swapGas = g - gasleft();
+        g = gasleft();
+        IERC20(TSLA).transfer(alice, mt);
+        IERC20(AMZN).transfer(alice, ma);
+        uint256 sendGas = g - gasleft();
+        vm.stopPrank();
+
+        assertEq(jt, mt, "TSLA: the contribution got exactly what a direct swap gets");
+        assertEq(ja, ma, "AMZN: the contribution got exactly what a direct swap gets");
+        console2.log("=====================================================");
+        console2.log("V2 CONTRIBUTION, 100 USDG into someone else's basket");
+        console2.log("  Jayo  approve + contribute (2 tx), gas incl. 21k/tx:", approveGas + contributeGas + 2 * INTRINSIC);
+        console2.log("     of which contribute:", contributeGas);
+        console2.log("  manual approve + 2 swaps + 2 transfers (5 tx), gas: ", manApprove + swapGas + sendGas + 5 * INTRINSIC);
+        console2.log("  TSLA delivered, Jayo = manual (1e18):", jt);
+        console2.log("  AMZN delivered, Jayo = manual (1e18):", ja);
+    }
 }

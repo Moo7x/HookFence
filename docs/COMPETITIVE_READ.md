@@ -31,8 +31,10 @@ alone, and the basket's page and metadata record who added what.
 | ERC-6551 token-bound accounts | can receive tokens, but do not buy by a plan, protect the price, or show who added what |
 | **Jayo v2** | `contribute(id, amount, planVersion, deadline)`; demonstrated on testnet with a second wallet (`0x9bd8b3e7…d6e0`) |
 
-**Where the same behaviour exists off-chain.** M1 Finance pies split every
-deposit by the pie's target weights, and a pie can be shared as a link.
+**Where the same behaviour exists off-chain.** M1 Finance pies invest new money
+toward a pie's target weights (the most underweight slices first), and a pie can
+be shared as a link. That is dynamic rebalancing, which Jayo does not do: Jayo
+splits each payment by its plan.
 Robinhood's custodial accounts (March 2026) "allow family and friends to
 contribute through a new gifting experience". Jayo is that behaviour for an
 individually owned, self-custodied, transferable basket.
