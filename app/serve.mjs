@@ -60,9 +60,11 @@ const SIGNER_TOKEN = randomBytes(24).toString("hex");
 const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const MANIFEST_SCHEMA = {
   address: ["poolManager", "usdg", "basket", "gateway", "policy", "adapter", "deployer",
-            "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "multicall3"],
+            "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "multicall3",
+    "legacyBasket", "renderer", "updater"],
   addressList: ["stocks"],
-  uint: ["chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps"],
+  uint: ["chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps", "feedMinInterval", "firstTokenId",
+    "deployBlock", "legacyDeployBlock"],
   bool: ["demoControls"],
   text: ["network", "warning", "priceSource"],
   url: ["rpcUrl", "explorer"],

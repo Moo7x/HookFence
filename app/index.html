@@ -3,314 +3,331 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jayo — own a basket of tokens as one position</title>
-<!-- Inline so the browser stops asking for /favicon.ico and logging a 404
-     into a console that should be clean during a recorded walkthrough. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236b3df5'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='18' font-weight='600' fill='white' text-anchor='middle'%3EJ%3C/text%3E%3C/svg%3E">
+<title>Jayo — baskets of stock tokens you own, give and grow</title>
+<meta name="description" content="Put a mix of stock tokens into one basket you own. Anyone can add to it by your plan. Hand it on whole, or take out one stock at a time. Robinhood Chain testnet." />
+<!-- Inline so the browser does not request /favicon.ico. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230B5563'/%3E%3Crect x='7' y='12' width='11' height='8' rx='3' fill='%23EE6A4C'/%3E%3Crect x='18' y='12' width='7' height='8' rx='3' fill='%23E6B23A'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app/styles.css">
 </head>
 <body>
 
-<!-- Network + mock status, always visible, never dismissable. -->
-<div class="statusbar" role="status">
-  <span class="mockflag">Demo · mock assets</span>
-  <span class="meta" id="netmeta">connecting…</span>
-  <!-- @local-only-start -->
-  <!-- Only with the local test signer, which holds two independent user wallets. -->
-  <label class="signer-pick" id="signerPick" hidden>
-    <span>Signing as</span>
-    <select id="signerSel" aria-label="Which test wallet signs"></select>
-  </label>
-  <!-- @local-only-end -->
-  <button class="primary connect" id="btnConnect" type="button" hidden>Connect wallet</button>
-  <span class="spacer"></span>
-  <span class="live"><span class="led" id="led"></span><span id="livetext">offline</span></span>
-</div>
+<a class="skip" href="#content">Skip to content</a>
 
-<main class="shell">
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="./" aria-label="Jayo, all baskets">Jayo</a>
+    <span class="net-pill" id="netPill" title="Nothing here has real value">Testnet · no real value</span>
+    <span class="grow"></span>
+    <button class="price-chip" id="priceChip" type="button" data-state="loading" aria-controls="aboutPrices">
+      <span class="dot" aria-hidden="true"></span><span id="priceChipText">Checking prices…</span>
+    </button>
+    <!-- @local-only-start -->
+    <label class="signer-pick" id="signerPick" hidden>
+      <span>Signing as</span>
+      <select id="signerSel" aria-label="Which test wallet signs"></select>
+    </label>
+    <!-- @local-only-end -->
+    <button class="btn btn-primary btn-sm" id="btnConnect" type="button" hidden>Connect wallet</button>
+    <button class="wallet-chip" id="walletChip" type="button" hidden aria-expanded="false" aria-controls="walletPanel"></button>
+  </div>
+</header>
 
-  <header class="hero">
-    <p class="eyebrow">Tokenised baskets</p>
-    <h1 class="wordmark">Jayo</h1>
-    <p class="promise">
-      Build a basket of tokens with one payment, own it as a single position you can
-      hand to someone else, copy anyone's mix with your own money, and take the
-      actual tokens out whenever you want.
-    </p>
-    <p class="testnet-note" id="testnetNote" hidden>
-      <strong>Everything here is a test.</strong> This runs on Robinhood Chain
-      <em>testnet</em>. The tokens have no value and cannot be redeemed for anything —
-      not real stock, not real dollars. Nothing you do here can gain or lose money.
-    </p>
+<!-- Setup lives here, out of the product's way. It opens by itself only when
+     something a purchase needs is missing. -->
+<section class="wallet-panel" id="walletPanel" hidden aria-label="Your wallet on this testnet">
+  <div class="wallet-panel-inner">
+    <ul class="checklist">
+      <li id="ckGas" data-done="false">
+        <span class="tick" aria-hidden="true"></span>
+        <div><strong>Test ETH for fees</strong> <span id="gasBal" class="muted"></span>
+          <span class="sub">Each action costs well under 0.0001 test ETH. Free from the
+          <a href="https://faucets.chain.link/robinhood-testnet" target="_blank" rel="noopener noreferrer">Chainlink faucet</a> or the
+          <a href="https://faucet.quicknode.com/robinhood/testnet" target="_blank" rel="noopener noreferrer">QuickNode faucet</a>.</span></div>
+      </li>
+      <li id="ckUsd" data-done="false">
+        <span class="tick" aria-hidden="true"></span>
+        <div><strong>Test rUSDG to buy with</strong> <span id="usdBal" class="muted"></span>
+          <span class="sub">A public test stablecoin anyone can mint. It is not Paxos USDG and not Jayo's.</span></div>
+        <button class="btn btn-quiet btn-sm" id="btnMint" type="button">Get 100 test rUSDG</button>
+      </li>
+      <li id="ckAllow" data-done="true" hidden>
+        <span class="tick" aria-hidden="true"></span>
+        <div><strong>Leftover spending permission</strong>
+          <span class="sub" id="allowText"></span></div>
+        <button class="btn btn-quiet btn-sm" id="btnRevoke" type="button">Remove permission</button>
+      </li>
+    </ul>
+    <div class="txstate" id="walletTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+    <div id="walletMsg" aria-live="polite"></div>
+  </div>
+</section>
+
+<div id="content">
+
+<!-- ======================================================= HOME ========= -->
+<main id="home">
+
+  <section class="hero">
+    <div class="hero-copy">
+      <h1>Baskets of stocks you own, give, and grow.</h1>
+      <p class="lede">Put a mix of stock tokens into one basket with one payment. Anyone can add
+        money to your basket, and it is bought the way you planned it. Hand the basket on whole,
+        or take out one stock at a time.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#start">Start a basket</a>
+        <a class="btn btn-ghost" href="#browse">See everyone's baskets</a>
+      </div>
+      <p class="hero-note">On Robinhood Chain <strong>testnet</strong>. Every token here is a test asset with no value.</p>
+    </div>
+    <div class="hero-card" id="heroCard" aria-live="polite">
+      <div class="skeleton">Reading baskets from the chain…</div>
+    </div>
+  </section>
+
+  <section class="shelf" id="mine" hidden aria-labelledby="h-mine">
+    <div class="shelf-head">
+      <h2 id="h-mine">Your baskets</h2>
+      <p class="muted" id="mineCount"></p>
+    </div>
+    <div class="cards" id="myCards"></div>
+  </section>
+
+  <section class="start" id="start" aria-labelledby="h-start">
+    <div class="shelf-head">
+      <h2 id="h-start">Start a basket</h2>
+      <p class="muted">Choose the mix, then pay once. Every token is bought and held in one basket that belongs to you.</p>
+    </div>
+    <div class="start-grid">
+      <div class="panel">
+        <label class="field-label" for="fund">How much to put in</label>
+        <div class="money-input"><input id="fund" inputmode="decimal" value="20" autocomplete="off" /><span class="unit" id="fundUnit">rUSDG</span></div>
+        <p class="hint" id="sizeGuide">The test pools are small, so around 20 rUSDG buys cleanly. Much larger amounts move the price past the limit and are refused before any money moves.</p>
+
+        <p class="field-label" id="mixLabel">The mix</p>
+        <div class="mix" id="createMix" role="group" aria-labelledby="mixLabel"></div>
+        <div class="ribbon-preview" id="createRibbon" aria-hidden="true"></div>
+      </div>
+
+      <aside class="panel summary" aria-live="polite">
+        <div id="createBuyState"></div>
+        <div id="createQuote" class="quote"><p class="muted">Check what you would get before you buy.</p></div>
+        <div class="stack">
+          <button class="btn btn-ghost" id="btnQuote" type="button">Check what I'd get</button>
+          <button class="btn btn-primary" id="btnCreate" type="button">Create basket</button>
+        </div>
+        <div class="txstate" id="createTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <div id="createMsg"></div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="shelf" id="browse" aria-labelledby="h-browse">
+    <div class="shelf-head">
+      <h2 id="h-browse">Everyone's baskets</h2>
+      <p class="muted">Open any basket to see what it holds, add to it, or start your own with its plan.</p>
+    </div>
+    <div class="cards" id="allCards"><div class="skeleton">Reading baskets…</div></div>
+  </section>
+
+  <section class="how" aria-labelledby="h-how">
+    <h2 id="h-how">How a Jayo basket works</h2>
+    <div class="how-grid">
+      <div>
+        <h3>It is yours, token by token</h3>
+        <p>The basket is a single token in your wallet. The contract records exactly how much of each stock
+          it holds, and nobody else's money is mixed in.</p>
+      </div>
+      <div>
+        <h3>Anyone can add to it</h3>
+        <p>Send a basket's link to someone. Whatever they add is split by that basket's plan and bought into it.
+          It all belongs to the basket's owner, and the giver gets nothing back.</p>
+      </div>
+      <div>
+        <h3>Take out what you want, when you want</h3>
+        <p>Withdraw one stock, a share of everything, or all of it. Withdrawing needs no price, so it works
+          even when buying is paused. Taking out the last holding closes the basket.</p>
+      </div>
+    </div>
+
+    <details class="about" id="aboutPrices">
+      <summary>Where the prices come from, and what they protect</summary>
+      <div id="aboutPricesBody"></div>
+    </details>
+    <details class="about">
+      <summary>What is real here, and what is a test</summary>
+      <div>
+        <p>This runs on <strong>Robinhood Chain testnet</strong>. The TSLA and AMZN tokens are Robinhood's test stock
+          tokens, and the Uniswap v4 pools are real testnet pools. None of it has value, and none of it can be exchanged
+          for real stock or real dollars. rUSDG is a public test stablecoin that anyone can mint. It is not Paxos USDG.</p>
+        <p>Jayo's own contracts are not audited. The code, tests and every transaction behind this page are public:
+          <a href="https://github.com/Moo7x/HookFence" target="_blank" rel="noopener noreferrer">source on GitHub</a>.</p>
+      </div>
+    </details>
+  </section>
+</main>
+
+<!-- ================================================ ONE BASKET ========= -->
+<main id="basketView" hidden>
+  <a class="back" href="./" id="backLink">← All baskets</a>
+
+  <header class="bv-head">
+    <div>
+      <p class="eyebrow" id="bvEyebrow">Basket</p>
+      <h1 id="bvTitle">Basket</h1>
+      <p class="owner-line" id="bvOwner"></p>
+    </div>
+    <div class="bv-head-actions">
+      <button class="btn btn-quiet btn-sm" id="btnShare" type="button">Copy link</button>
+      <a class="btn btn-quiet btn-sm" id="bvExplorer" target="_blank" rel="noopener noreferrer">View on explorer</a>
+    </div>
   </header>
 
-  <!-- ================= 0. GET STARTED (public networks only) ================= -->
-  <section class="card onboard" aria-labelledby="h-start" id="onboard" hidden>
-    <header>
-      <h2 id="h-start"><span class="step-n">0</span> Get set up</h2>
-      <p class="lede">Three things before your first basket. All of them are free test assets.</p>
-    </header>
-    <ol class="steps">
-      <li id="stepWallet" data-done="false">
-        <div><strong>Connect a browser wallet.</strong>
-          <span class="sub">It will ask to add or switch to Robinhood Chain testnet (chain 46630).
-          Every transaction is signed in your wallet; this site never sees a key.</span></div>
-        <button class="ghost" id="btnConnect2" type="button">Connect wallet</button>
-      </li>
-      <li id="stepGas" data-done="false">
-        <div><strong>Get test ETH for fees.</strong>
-          <span class="sub">Each action here costs well under 0.0001 test ETH. Free from a faucet:
-          <a href="https://faucets.chain.link/robinhood-testnet" target="_blank" rel="noopener noreferrer">Chainlink faucet</a> ·
-          <a href="https://faucet.quicknode.com/robinhood/testnet" target="_blank" rel="noopener noreferrer">QuickNode faucet</a>.
-          <span id="gasBal"></span></span></div>
-      </li>
-      <li id="stepUsd" data-done="false">
-        <div><strong>Get test rUSDG to buy with.</strong>
-          <span class="sub">rUSDG is a public test stablecoin on this network (not Paxos USDG, and not
-          Jayo's) that anyone can mint for free. <span id="usdBal"></span></span></div>
-        <button class="ghost" id="btnMint" type="button">Get 100 test rUSDG</button>
-      </li>
-      <li id="stepAllow" data-done="true" hidden>
-        <div><strong>Jayo's spending permission.</strong>
-          <span class="sub" id="allowText"></span></div>
-        <button class="ghost" id="btnRevoke" type="button">Remove permission</button>
-      </li>
-    </ol>
-    <div id="onboardMsg" aria-live="polite"></div>
-    <div class="txstate" id="mintTx" data-state="idle" hidden>
-      <span class="pip"></span><span class="label"></span>
-    </div>
-  </section>
+  <div id="bvNotice" aria-live="polite"></div>
 
-  <!-- ================= 1. BUILD ================= -->
-  <section class="card" aria-labelledby="h-build">
-    <header>
-      <h2 id="h-build"><span class="step-n">1</span> Build your basket</h2>
-      <p class="lede">
-        Choose how to split your money. We buy each token for you and put them all
-        into one position that you own.
-      </p>
-    </header>
-
-    <!-- What every purchase is checked against, and how old it is. Buying is
-         refused once any of these is past its limit; withdrawing never reads them. -->
-    <section class="prices" aria-labelledby="h-prices">
-      <div class="prices-head">
-        <h3 id="h-prices">Prices your purchase is checked against</h3>
-        <span class="tag" id="priceSourceTag"></span>
-      </div>
-      <p class="price-origin" id="priceOrigin" hidden></p>
-      <ul class="price-rows" id="priceRows" aria-live="polite"></ul>
-      <div id="sessionNote" aria-live="polite"></div>
-      <details class="about-prices">
-        <summary>Where these prices come from, and what they can and cannot protect</summary>
-        <div id="aboutPrices"></div>
-      </details>
-    </section>
-
-    <div class="field" style="max-width:260px">
-      <label for="fund">How much do you want to put in?</label>
-      <input id="fund" type="text" inputmode="decimal" value="10000"
-             aria-describedby="fund-unit" />
-      <span class="unit" id="fund-unit" style="font-size:12px">USDG — a dollar-backed stablecoin</span>
-    </div>
-    <p class="guide" id="sizeGuide" hidden>
-      These test pools are tiny — about 2,000 rUSDG of liquidity for TSLA and 900 for AMZN.
-      Keep a basket around 20 rUSDG; much larger ones move the price past the limit and are
-      refused before any money moves. Your first purchase asks your wallet for one approval,
-      then one transaction.
-    </p>
-
-    <div id="allocRows" style="margin-top:20px"></div>
-
-    <div class="total-line" id="totalLine">
-      <span>Allocations must add up to 100%</span>
-      <span class="amount" id="totalPct">100%</span>
-    </div>
-
-    <div class="actions" style="margin-top:18px">
-      <button class="ghost" id="btnQuote" type="button">Check what I'd get</button>
-      <button class="primary" id="btnCreate" type="button">Create basket</button>
-    </div>
-
-    <div id="quote" aria-live="polite"></div>
-    <div id="createMsg" aria-live="assertive"></div>
-    <div class="txstate" id="createTx" data-state="idle" hidden>
-      <span class="pip"></span><span class="label"></span>
-    </div>
-  </section>
-
-  <!-- ================= 2. POSITIONS ================= -->
-  <section class="card" aria-labelledby="h-pos">
-    <header>
-      <h2 id="h-pos"><span class="step-n">2</span> Your baskets</h2>
-      <p class="lede">
-        What each position actually holds right now, read straight from the contract —
-        not an estimate.
-      </p>
-    </header>
-    <!-- Withdrawing closes the basket, which closes the detail card with it.
-         The receipt has to live outside that card or the user never sees it. -->
-    <div id="receipt" aria-live="polite"></div>
-
-    <div class="positions" id="positions"></div>
-    <div id="posEmpty" class="msg info" hidden>
-      <span class="icon">—</span>
-      <span class="body">No baskets yet. Build one above and it will appear here.</span>
-    </div>
-  </section>
-
-  <!-- ================= 3. DETAIL / ACTIONS ================= -->
-  <section class="card" aria-labelledby="h-detail" id="detailCard" hidden>
-    <header>
-      <h2 id="h-detail"><span class="step-n">3</span> Basket <span id="detailId"></span></h2>
-      <p class="lede" id="detailOwner"></p>
-    </header>
-
-    <table class="holdings">
-      <caption class="sr-only">Tokens held by this basket</caption>
-      <thead>
-        <!-- "Recipe" not "Share": this column is the split the basket was BUILT
-             from, which is what copying reuses. After a partial withdrawal it is
-             no longer the split of what the basket currently holds. -->
-        <tr><th scope="col">Token</th><th scope="col">Amount held</th><th scope="col">Recipe</th></tr>
-      </thead>
-      <tbody id="detailRows"></tbody>
-    </table>
-
-    <div id="detailNotes"></div>
-
-    <!-- Hand over -->
-    <div class="summary" style="margin-top:22px">
-      <h3 style="font-size:16px;margin-bottom:8px">Hand this basket to someone else</h3>
-      <p style="color:var(--fog);font-size:13px;margin:0 0 14px">
-        They get <strong>full control</strong>: they can take the tokens out, and you no
-        longer can. This cannot be undone from your side, so check the address carefully.
-      </p>
-      <div class="field" style="margin-bottom:6px">
-        <label for="toAddr">Their wallet address</label>
-        <input id="toAddr" type="text" spellcheck="false" autocomplete="off"
-               placeholder="0x followed by 40 characters" aria-describedby="toAddrHint" />
-        <span class="unit" id="toAddrHint" style="font-size:12px" aria-live="polite">
-          Paste the address of the person receiving it.</span>
-      </div>
-      <div class="actions" style="margin-top:10px">
-        <button class="ghost" id="btnTransfer" type="button" disabled>Review hand-over</button>
-      </div>
-
-      <!-- Explicit confirmation. Nothing is signed until this is answered. -->
-      <div class="confirm" id="transferConfirm" role="alertdialog" aria-labelledby="tcTitle" aria-describedby="tcBody" hidden>
-        <p id="tcTitle" style="margin:0 0 6px;font-weight:600">Give basket <span id="tcId"></span> away?</p>
-        <div id="tcBody" style="font-size:13px;color:var(--fog)">
-          <p style="margin:0 0 6px">It currently holds <span id="tcHoldings"></span>.</p>
-          <p style="margin:0 0 4px">It will belong to:</p>
-          <p class="addr-full" id="tcAddr"></p>
-          <p id="tcWarn" style="margin:6px 0 0"></p>
+  <div class="bv-grid">
+    <div class="bv-main">
+      <section class="panel p-holds" aria-labelledby="h-holds">
+        <div class="panel-head">
+          <h2 id="h-holds">What it holds</h2>
+          <p class="muted" id="bvValue"></p>
         </div>
-        <label class="check" style="margin-top:10px">
-          <input type="checkbox" id="tcAck" />
-          <span>I have checked this address. I understand I cannot take the basket back.</span>
-        </label>
-        <div class="actions" style="margin-top:12px">
-          <button class="primary" id="btnTransferConfirm" type="button" disabled>Give it away</button>
-          <button class="quiet" id="btnTransferCancel" type="button">Cancel</button>
+        <div class="ribbon ribbon-lg" id="bvRibbon"></div>
+        <table class="holdings">
+          <thead><tr><th scope="col">Stock</th><th scope="col" class="num">Amount</th><th scope="col" class="num">At reference price</th></tr></thead>
+          <tbody id="bvRows"></tbody>
+        </table>
+      </section>
+
+      <section class="panel p-plan" aria-labelledby="h-plan">
+        <div class="panel-head">
+          <h2 id="h-plan">Plan for new money</h2>
+          <p class="muted" id="bvPlanVersion"></p>
+        </div>
+        <div class="ribbon ribbon-thin" id="bvPlanRibbon"></div>
+        <p class="plan-text" id="bvPlanText"></p>
+        <p class="hint" id="bvPlanNote">Money added to this basket is split this way. The plan does not change what the basket already holds.</p>
+      </section>
+
+      <section class="panel p-history" aria-labelledby="h-history">
+        <div class="panel-head"><h2 id="h-history">History</h2></div>
+        <ol class="history" id="bvHistory"><li class="muted">Reading the basket's history from the chain…</li></ol>
+      </section>
+    </div>
+
+    <aside class="bv-actions panel" id="bvActions" aria-label="What you can do with this basket">
+      <div class="tabs" role="tablist" id="bvTabs">
+        <button role="tab" id="tabAdd" aria-controls="paneAdd" aria-selected="true" type="button">Add money</button>
+        <button role="tab" id="tabCopy" aria-controls="paneCopy" aria-selected="false" type="button">Copy plan</button>
+        <button role="tab" id="tabOut" aria-controls="paneOut" aria-selected="false" type="button" hidden>Take out</button>
+        <button role="tab" id="tabGive" aria-controls="paneGive" aria-selected="false" type="button" hidden>Hand on</button>
+        <button role="tab" id="tabPlan" aria-controls="panePlan" aria-selected="false" type="button" hidden>Change plan</button>
+      </div>
+
+      <p class="owner-only" id="ownerOnly" hidden></p>
+
+      <!-- Add money -->
+      <div role="tabpanel" id="paneAdd" aria-labelledby="tabAdd" class="pane">
+        <p class="pane-lede" id="addLede">Add money to this basket. It is bought by the basket's plan and belongs to its owner.</p>
+        <div id="addBody">
+          <label class="field-label" for="addAmt">Amount</label>
+          <div class="money-input"><input id="addAmt" inputmode="decimal" value="10" autocomplete="off" /><span class="unit" data-unit>rUSDG</span></div>
+          <div id="addBuyState"></div>
+          <div class="quote" id="addQuote"></div>
+          <div class="stack">
+            <button class="btn btn-ghost" id="btnAddQuote" type="button">Check what it buys</button>
+            <button class="btn btn-accent" id="btnAdd" type="button">Add to this basket</button>
+          </div>
+          <div class="txstate" id="addTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+          <div id="addMsg"></div>
         </div>
       </div>
 
-      <div id="transferMsg" aria-live="polite"></div>
-      <div class="txstate" id="transferTx" data-state="idle" hidden>
-        <span class="pip"></span><span class="label"></span>
-      </div>
-    </div>
-
-    <!-- Copy -->
-    <div class="summary" style="margin-top:16px">
-      <h3 style="font-size:16px;margin-bottom:8px">Copy this mix</h3>
-      <p style="color:var(--fog);font-size:13px;margin:0 0 14px">
-        Creates a new basket for you with the same split, bought with
-        <strong>your own money</strong>. Nothing is taken from the original and its
-        owner keeps everything.
-      </p>
-      <div class="actions">
-        <div class="field" style="max-width:200px">
-          <label for="copyFund">Your amount (USDG)</label>
-          <input id="copyFund" type="text" inputmode="decimal" value="5000" />
+      <!-- Copy plan -->
+      <div role="tabpanel" id="paneCopy" aria-labelledby="tabCopy" class="pane" hidden>
+        <p class="pane-lede">Start your own basket with this plan, paid with your own money. This basket and its owner are not affected.</p>
+        <label class="field-label" for="copyAmt">Your amount</label>
+        <div class="money-input"><input id="copyAmt" inputmode="decimal" value="10" autocomplete="off" /><span class="unit" data-unit>rUSDG</span></div>
+        <div id="copyBuyState"></div>
+        <div class="stack">
+          <button class="btn btn-primary" id="btnCopy" type="button">Start my basket with this plan</button>
         </div>
-        <button class="ghost" id="btnCopy" type="button" style="align-self:end">Copy this mix</button>
-      </div>
-      <div id="copyNotice" aria-live="polite"></div>
-      <div id="copyMsg" aria-live="polite"></div>
-      <div class="txstate" id="copyTx" data-state="idle" hidden>
-        <span class="pip"></span><span class="label"></span>
-      </div>
-    </div>
-
-    <!-- Withdraw -->
-    <div class="summary" style="margin-top:16px">
-      <h3 style="font-size:16px;margin-bottom:8px">Take the tokens out</h3>
-      <p style="color:var(--fog);font-size:13px;margin:0 0 14px">
-        Sends the actual tokens to your wallet. Nothing is sold, so this works
-        <strong>even when prices are unavailable</strong> — on a weekend, for example.
-        You can take part of it and keep the basket, or take everything and close it.
-      </p>
-
-      <div class="field" style="max-width:280px;margin-bottom:12px">
-        <label for="redeemPart">Take out part of it</label>
-        <select id="redeemPart">
-          <option value="frac:2500">A quarter of every token</option>
-          <option value="frac:5000">Half of every token</option>
-        </select>
-      </div>
-      <div class="actions" style="margin-bottom:16px">
-        <button class="ghost" id="btnRedeemPart" type="button">Withdraw that part</button>
+        <div class="txstate" id="copyTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <div id="copyMsg"></div>
       </div>
 
-      <div class="actions">
-        <button class="ghost" id="btnRedeem" type="button">Withdraw everything and close</button>
+      <!-- Take out (owner) -->
+      <div role="tabpanel" id="paneOut" aria-labelledby="tabOut" class="pane" hidden>
+        <p class="pane-lede">The tokens go straight to your wallet. Nothing is sold and no price is needed, so this works even while buying is paused.</p>
+        <fieldset class="choices" id="outChoices"><legend class="field-label">What to take out</legend></fieldset>
+        <div class="stack"><button class="btn btn-primary" id="btnOut" type="button">Take it out</button></div>
+        <div class="txstate" id="outTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <div id="outMsg"></div>
       </div>
-      <div id="redeemMsg" aria-live="polite"></div>
-      <div class="txstate" id="redeemTx" data-state="idle" hidden>
-        <span class="pip"></span><span class="label"></span>
+
+      <!-- Hand on (owner) -->
+      <div role="tabpanel" id="paneGive" aria-labelledby="tabGive" class="pane" hidden>
+        <p class="pane-lede">The person you choose gets the whole basket and full control of it. You cannot take it back.</p>
+        <label class="field-label" for="toAddr">Their wallet address</label>
+        <input class="text-input" id="toAddr" autocomplete="off" spellcheck="false" placeholder="0x…" />
+        <p class="hint" id="toAddrHint">Paste the address of the person receiving it.</p>
+        <div class="stack"><button class="btn btn-ghost" id="btnGiveReview" type="button" disabled>Review hand-over</button></div>
+        <div class="confirm" id="giveConfirm" hidden>
+          <p class="confirm-title">Hand basket <span id="gcId"></span> on?</p>
+          <p>It holds <span id="gcHoldings"></span>.</p>
+          <p>It will belong to:</p>
+          <p class="addr" id="gcAddr"></p>
+          <p class="warn-text" id="gcWarn"></p>
+          <label class="ack"><input type="checkbox" id="gcAck" /> I have checked this address. I understand I cannot take the basket back.</label>
+          <div class="stack">
+            <button class="btn btn-danger" id="btnGive" type="button" disabled>Hand it on</button>
+            <button class="btn btn-quiet" id="btnGiveCancel" type="button">Cancel</button>
+          </div>
+        </div>
+        <div class="txstate" id="giveTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <div id="giveMsg"></div>
       </div>
-    </div>
-  </section>
 
-  <!-- ================= ACTIVITY ================= -->
-  <section class="card activity" aria-labelledby="h-activity">
-    <header>
-      <h2 id="h-activity">Activity on this page</h2>
-      <p class="lede">Each transaction links to its receipt on the public explorer.</p>
-    </header>
-    <div class="log" id="log" role="log" aria-label="Activity log"></div>
-  </section>
-
-  <!-- @local-only-start -->
-  <!-- ================= DEMO PANEL ================= -->
-  <section class="demo" aria-labelledby="h-demo">
-    <header>
-      <h2 id="h-demo">Demo controls</h2>
-      <p class="lede">
-        These exist only so the demo can show situations that would otherwise take days
-        to occur. They are not part of the product and would not exist on a real network.
-      </p>
-    </header>
-
-    <div class="actions" style="margin-top:14px">
-      <button class="quiet" id="btnAcct" type="button">Switch wallet</button>
-      <button class="quiet" id="btnFillOther" type="button">Fill in the other demo wallet's address</button>
-      <button class="quiet" id="btnTime" type="button">Skip forward 48 hours</button>
-      <button class="quiet" id="btnPause" type="button">Pause the price oracle</button>
-      <button class="quiet" id="btnRefresh" type="button">Refresh prices</button>
-      <button class="quiet" id="btnReload" type="button">Reload state</button>
-    </div>
-    <div id="demoMsg" aria-live="polite"></div>
-  </section>
-  <!-- @local-only-end -->
-
+      <!-- Change plan (owner, version 2) -->
+      <div role="tabpanel" id="panePlan" aria-labelledby="tabPlan" class="pane" hidden>
+        <p class="pane-lede">Choose how money added from now on is split. Nothing the basket already holds is sold or bought.</p>
+        <div class="mix" id="planMix" role="group" aria-label="New plan"></div>
+        <div class="stack"><button class="btn btn-primary" id="btnPlan" type="button">Save the new plan</button></div>
+        <div class="txstate" id="planTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <div id="planMsg"></div>
+      </div>
+    </aside>
+  </div>
 </main>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <p><strong>Jayo</strong> runs on Robinhood Chain testnet. Every token here is a test asset with no value. On this testnet
+      the reference prices are read from the same pools Jayo buys in. The project's mainnet-fork test checks purchases against
+      Chainlink's independent price feeds instead.</p>
+    <details class="activity">
+      <summary>Activity on this page</summary>
+      <ol class="log" id="log"></ol>
+    </details>
+    <!-- @local-only-start -->
+    <section class="demo" id="demoPanel" hidden aria-labelledby="h-demo">
+      <h2 id="h-demo">Local demo controls</h2>
+      <p class="muted">Only on the local demo chain, with mock assets.</p>
+      <div class="stack">
+        <button class="btn btn-quiet btn-sm" id="btnAcct" type="button">Switch wallet</button>
+        <button class="btn btn-quiet btn-sm" id="btnFillOther" type="button">Fill in the other wallet's address</button>
+        <button class="btn btn-quiet btn-sm" id="btnTime" type="button">Skip forward 48 hours</button>
+        <button class="btn btn-quiet btn-sm" id="btnRefresh" type="button">Refresh prices</button>
+      </div>
+      <div id="demoMsg"></div>
+    </section>
+    <!-- @local-only-end -->
+  </div>
+</footer>
 
 <script type="module" src="/app/app.js"></script>
 </body>

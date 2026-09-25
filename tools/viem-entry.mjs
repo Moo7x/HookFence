@@ -2,7 +2,7 @@
 // build-vendor.mjs so the page loads no code from a third-party origin at runtime.
 export {
   createPublicClient, createWalletClient, http, custom,
-  parseUnits, formatUnits, isAddress, getAddress,
+  parseUnits, formatUnits, isAddress, getAddress, parseEventLogs,
 } from 'viem';
 export { privateKeyToAccount } from 'viem/accounts';
 export { foundry } from 'viem/chains';

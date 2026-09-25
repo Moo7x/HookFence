@@ -40,7 +40,8 @@ const GATEWAY = "0x" + "d".repeat(40);
 const TSLA = "0x" + "e".repeat(40);
 const ATTACKER = "0x" + "a".repeat(40);
 
-const CTX = { chainId: 46630, basket: BASKET, usdg: USDG, accounts: [ALICE, BOB], protected: [GATEWAY, TSLA] };
+const LEGACY = "0x" + "9".repeat(40);
+const CTX = { chainId: 46630, basket: BASKET, legacyBasket: LEGACY, usdg: USDG, accounts: [ALICE, BOB], protected: [GATEWAY, TSLA] };
 
 // Every function a hijacked page might try, with the real ABI shapes.
 const ABI = [
@@ -59,7 +60,11 @@ const ABI = [
   { type: "function", name: "create", inputs: [
     { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] },
     { type: "uint256" }, { type: "uint256" }] },
-  { type: "function", name: "copyAllocation", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }] },
+  { type: "function", name: "copyAllocation", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint64" }, { type: "uint256" }] },
+  { type: "function", name: "contribute", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint64" }, { type: "uint256" }] },
+  { type: "function", name: "setAllocation", inputs: [{ type: "uint256" },
+    { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] }] },
+  { type: "function", name: "setRenderer", inputs: [{ type: "address" }] },
   { type: "function", name: "redeem", inputs: [{ type: "uint256" }] },
   { type: "function", name: "redeemAsset", inputs: [{ type: "uint256" }, { type: "address" }] },
   { type: "function", name: "redeemFraction", inputs: [{ type: "uint256" }, { type: "uint16" }] },
@@ -74,7 +79,12 @@ const ALLOWED = {
   "approve the basket": { from: ALICE, to: USDG, data: enc("approve", [BASKET, 10n ** 30n]) },
   "mint test rUSDG to yourself": { from: ALICE, to: USDG, data: enc("mint", [ALICE, 100_000000n]) },
   "create within the cap": { from: ALICE, to: BASKET, data: enc("create", [alloc, 20_000000n, 1n]) },
-  "copy within the cap": { from: BOB, to: BASKET, data: enc("copyAllocation", [1n, 8_000000n, 1n]) },
+  "copy within the cap": { from: BOB, to: BASKET, data: enc("copyAllocation", [1n, 8_000000n, 1n, 1n]) },
+  "add money to someone's basket": { from: BOB, to: BASKET, data: enc("contribute", [101n, 8_000000n, 1n, 1n]) },
+  "change your basket's plan": { from: ALICE, to: BASKET, data: enc("setAllocation", [101n, alloc]) },
+  "remove a leftover version-1 permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY, 0n]) },
+  "withdraw from a version-1 basket": { from: ALICE, to: LEGACY, data: enc("redeemAsset", [5n, TSLA]) },
+  "hand on a version-1 basket": { from: ALICE, to: LEGACY, data: enc("safeTransferFrom", [ALICE, BOB, 5n], 3) },
   "redeem": { from: BOB, to: BASKET, data: enc("redeem", [1n]) },
   "redeem one asset": { from: ALICE, to: BASKET, data: enc("redeemAsset", [1n, TSLA]) },
   "redeem a fraction": { from: ALICE, to: BASKET, data: enc("redeemFraction", [1n, 5000]) },
@@ -103,7 +113,13 @@ const REFUSED = {
   "basket setMinLegInput (admin)": { from: ALICE, to: BASKET, data: enc("setMinLegInput", [0n]) },
   "basket recoverSurplus (admin)": { from: ALICE, to: BASKET, data: enc("recoverSurplus", [TSLA, ATTACKER]) },
   "create above the spend cap": { from: ALICE, to: BASKET, data: enc("create", [alloc, LIMITS.maxSpend + 1n, 1n]) },
-  "copy above the spend cap": { from: ALICE, to: BASKET, data: enc("copyAllocation", [1n, LIMITS.maxSpend + 1n, 1n]) },
+  "copy above the spend cap": { from: ALICE, to: BASKET, data: enc("copyAllocation", [1n, LIMITS.maxSpend + 1n, 1n, 1n]) },
+  "add money above the spend cap": { from: ALICE, to: BASKET, data: enc("contribute", [101n, LIMITS.maxSpend + 1n, 1n, 1n]) },
+  "a plan with no legs": { from: ALICE, to: BASKET, data: enc("setAllocation", [101n, []]) },
+  "basket setRenderer (admin)": { from: ALICE, to: BASKET, data: enc("setRenderer", [ATTACKER]) },
+  "grant the version-1 basket a new permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY, 1n]) },
+  "buy through the version-1 basket": { from: ALICE, to: LEGACY, data: enc("create", [alloc, 20_000000n, 1n]) },
+  "hand a version-1 basket to Jayo's own contract": { from: ALICE, to: LEGACY, data: enc("safeTransferFrom", [ALICE, BASKET, 5n], 3) },
   "create with no legs": { from: ALICE, to: BASKET, data: enc("create", [[], 1n, 1n]) },
   "redeem with trailing bytes": { from: ALICE, to: BASKET, data: enc("redeem", [1n]) + "deadbeef" },
   "unknown selector": { from: ALICE, to: BASKET, data: "0x12345678" },

@@ -2,5 +2,5 @@
 // (the visitor's wallet signs), and no local chain definitions.
 export {
   createPublicClient, createWalletClient, http, custom,
-  parseUnits, formatUnits, isAddress, getAddress,
+  parseUnits, formatUnits, isAddress, getAddress, parseEventLogs,
 } from 'viem';

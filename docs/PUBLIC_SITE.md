@@ -1,9 +1,12 @@
 # Jayo's public testnet site — build, checks, deploy, operate
 
 **Status (2026-09-25):** **live at <https://jayo-testnet.pages.dev>**, built by
-Cloudflare Pages from `master`. Headers and blocked paths were checked on the live
-URL, and the owner ran a purchase and a withdrawal with their own browser wallet
-(below).
+Cloudflare Pages from `master`. It now runs on **JayoBasket version 2**: anyone can
+add money to a basket, it is bought by that basket's own plan, and every basket
+has its own page (`?basket=101`). Version-1 baskets (#1 to #7) stay listed,
+withdrawable and transferable. Why version 2 exists is in
+[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md), and the redesign is in
+[design/README.md](design/README.md).
 
 ## What the site is
 
@@ -104,25 +107,78 @@ One known risk to watch for with other wallets: a wallet that injects its provid
 *inline* script would be blocked by `script-src 'self'`. Current MetaMask and Rabby
 inject from the extension, which a page's CSP does not govern.
 
-## Running a supervised demo session
+## Version 2 on the live testnet (2026-09-25)
 
-Buying works only while the price feeds are fresh (one hour each). Outside a
-session they expire, buying is paused with an explanation, and withdrawals keep
-working.
+Deployed beside version 1 (`contracts/script/DeployJayoV2Testnet.s.sol`), reusing
+the live gateway, policy and adapter. All 15 deployment transactions succeeded.
+
+| Contract | Address |
+|---|---|
+| JayoBasket v2 (ids from 101) | `0x1F0AB726154DCc487fE1Ccaf5e3ACC389226Ac0B` |
+| Renderer (what wallets show) | `0x8Bca8B14F3F84684e281143BDFaa022384F1fa98` |
+| TSLA / AMZN / rUSDG feeds (v2) | `0xC1CF…7C44`, `0xb28c…9B57`, `0x1c7B…3d6A` |
+| Dedicated updater key | `0x4C4fF2369690CD0D5177cFFC8B46b1744C25BDE0` |
+| JayoBasket v1 (still live) | `0xff5c76EAc645cb07317c95215B382909b9A00218` |
+
+The journey ran through the rebuilt page, with two ordinary wallets:
+
+| Step | Who | Receipt | Result |
+|---|---|---|---|
+| create #101, 20 rUSDG, 60/40 | Alice | `0x29a22237…24a1` | 0.041298 TSLA + 0.032988 AMZN; 998,590 gas |
+| **add 8 rUSDG to Alice's #101** | Bob | `0x9bd8b3e7…d6e0` | same token grew by 0.016391 TSLA + 0.013055 AMZN; 665,905 gas |
+| hand #101 to Bob | Alice | `0xcdba6124…c4b2` | 65,162 gas |
+| Alice tries to withdraw or re-plan #101 | Alice | simulated | refused: `NotPositionOwner(101, Alice)` for redeemAsset, redeem and setAllocation; the page shows her no such controls and says who the owner is |
+| start #102 from #101's plan, own 10 rUSDG | Alice | `0xec1a5793…d926` | #101 untouched; #102's history says where its plan came from |
+| take only the AMZN out of #101 | Bob | `0xad2b56e6…520c` | 0.046043 AMZN to Bob; #101 kept with its TSLA |
+| change #101's plan to 100% TSLA | Bob | `0xc5111b1b…561f` | plan version 2; nothing bought or sold |
+| publish prices with the updater key | updater | `0xe531b285…804f`, `0x335d1dda…36e5`, `0xe0071bca…6926` | the owner key was not used |
+
+`tokenURI(101)` now returns the holdings, the plan, 2 purchases, 28 rUSDG funded,
+and a link to `https://jayo-testnet.pages.dev/?basket=101`
+(`docs/design/after/wallet-basket-101.png` is its image).
+
+## Keeping prices fresh while nobody's computer is on
+
+Buying and adding money need a reference price less than an hour old.
+Withdrawing, handing on and changing a plan never do.
+
+- **Scheduled keeper** (`keeper/`): a Cloudflare Worker with a cron trigger
+  every 20 minutes. It reads both pools, applies the feeds' own bounds, and
+  publishes only what the feeds would accept. It has no public URL. Its one
+  secret is the **updater key**, which can do nothing on chain except
+  `setAnswer` on the three version-2 feeds.
+- **The feeds bound that key:** at most one update per 15 minutes, no step over
+  10%, and no more than 25% of movement from the start of any 24-hour window.
+  A stolen updater key can therefore walk a reference price at most 25% in a
+  day, one visible event at a time, until the owner calls `setUpdater`. The
+  deployer (owner) key never leaves this machine.
+- **Tested:** `keeper/src/decide.test.mjs` checks the rules (6/6), and
+  `contracts/test/unit/DemoPriceFeed.t.sol` checks the same bounds on-chain
+  (19/19). The Worker was run in Cloudflare's local runtime
+  (`wrangler dev --test-scheduled`) without a key: it reports its decisions and
+  sends nothing.
+- **Deploying it** needs the Cloudflare account owner: `wrangler login`, then
+  `npx wrangler deploy --config ../keeper/wrangler.toml` from `tools/`, then
+  `./scripts/put-updater-secret.sh`. The last step pipes the key from
+  `contracts/.env` into `wrangler secret put` without printing it.
+
+Until the Worker is deployed, or if it stops, the feeds expire an hour after
+their last update. Buying then pauses, the site says so, and taking tokens out
+keeps working. The same refresh can be run by hand from this machine:
 
 ```bash
-./scripts/keep-testnet-feeds-fresh.sh          # at the start; repeats every 40 min
-# Ctrl-C at the end. Feeds expire an hour later; buying pauses by itself.
+./scripts/keep-testnet-feeds-fresh.sh --once   # or without --once: every 20 min until Ctrl-C
+node keeper/src/cli.mjs                        # what the keeper would do now, sending nothing
 ```
 
-If a refresh prints `SKIPPED <asset>`, the pool moved more than 10% since the last
-publish. Look before overriding:
+If a refresh prints `SKIPPED <asset>`, the pool moved further than a bound
+allows. Look before overriding:
 
 ```bash
 node scripts/find-routes.mjs testnet TSLA AMZN       # current pool prices
 # if the move is genuine (e.g. steady trading by other addresses, not one block):
 cd contracts && FORCE_ASSET=AMZN forge script script/ForceTestnetFeed.s.sol \
-  --rpc-url https://rpc.testnet.chain.robinhood.com --broadcast
+  --rpc-url https://rpc.testnet.chain.robinhood.com --broadcast   # owner key; resets the 24-hour band
 ```
 
 This happened on 2026-09-25: an unrelated address had bought both pools for
@@ -132,6 +188,15 @@ checking (`0x4ce0a9be…2500`).
 ## Honest limits
 
 - The price feeds copy the pools. They cannot tell whether a pool is fairly priced.
+  Today the testnet TSLA pool is about 25% below Chainlink's mainnet TSLA price.
+  An "independent" testnet feed does not exist: Chainlink lists none for this
+  testnet. Copying mainnet prices here would set floors far below what the pools
+  pay, so it would protect nothing.
+- Anyone can add money to a basket: that is the point. An addition cannot take
+  anything out, but a basket's history will show additions its owner did not ask
+  for.
+- Creating a basket costs about 18% more gas in version 2 (998,590 against
+  848,716), for the plan version and funding totals it records.
 - The pools are tiny (about 2,000 rUSDG for TSLA, 900 for AMZN) and other testnet
   users trade them; each purchase moves the price for the next buyer.
 - Test assets have no value. rUSDG is a public test token anyone can mint; it is

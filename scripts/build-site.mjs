@@ -3,7 +3,7 @@
 //   node scripts/build-site.mjs                    -> site/dist
 //   node scripts/build-site.mjs --refresh-manifest also rewrites
 //                                                  deployments/robinhood-testnet.json
-//                                                  from contracts/reports/jayo-testnet.json
+//                                                  from contracts/reports/jayo-testnet-v2.json
 //
 // No dependencies beyond Node, so Cloudflare's own build (or a direct upload) can
 // run it as-is. Cloudflare Pages settings: build command `node scripts/build-site.mjs`,
@@ -34,8 +34,23 @@ const { sanitiseManifest } = await import(new URL("../app/serve.mjs", import.met
 
 // ------------------------------------------------------------------ manifest
 
+const fail = msg => { console.error(`BUILD REFUSED: ${msg}`); process.exit(1); };
+
+/** L2 block in which `address` was created, read from a forge broadcast record. */
+function creationBlock(script, address) {
+  const run = JSON.parse(readFileSync(join(REPO, "contracts", "broadcast", script, "46630", "run-latest.json"), "utf8"));
+  const i = run.transactions.findIndex(tx => tx.transactionType === "CREATE" && tx.contractAddress?.toLowerCase() === address.toLowerCase());
+  if (i === -1) fail(`${script} did not create ${address}`);
+  return parseInt(run.receipts[i].blockNumber, 16);
+}
+
 if (process.argv.includes("--refresh-manifest")) {
-  const report = JSON.parse(readFileSync(join(REPO, "contracts", "reports", "jayo-testnet.json"), "utf8"));
+  // Version 2 is what the site buys through; version 1 stays readable and
+  // withdrawable as `legacyBasket`. The deploy blocks let the page read a
+  // basket's history from its first event instead of from genesis.
+  const report = JSON.parse(readFileSync(join(REPO, "contracts", "reports", "jayo-testnet-v2.json"), "utf8"));
+  report.deployBlock = creationBlock("DeployJayoV2Testnet.s.sol", report.basket);
+  report.legacyDeployBlock = creationBlock("DeployJayoTestnet.s.sol", report.legacyBasket);
   const clean = sanitiseManifest(report);
   mkdirSync(dirname(PUBLIC_MANIFEST), { recursive: true });
   writeFileSync(PUBLIC_MANIFEST, JSON.stringify(clean, null, 2) + "\n");
@@ -43,7 +58,6 @@ if (process.argv.includes("--refresh-manifest")) {
 }
 const manifest = JSON.parse(readFileSync(PUBLIC_MANIFEST, "utf8"));
 const reSanitised = sanitiseManifest(manifest);
-const fail = msg => { console.error(`BUILD REFUSED: ${msg}`); process.exit(1); };
 if (JSON.stringify(Object.keys(reSanitised).sort()) !== JSON.stringify(Object.keys(manifest).sort())) {
   fail(`deployments/robinhood-testnet.json has fields outside the public schema: ${Object.keys(manifest).filter(k => !(k in reSanitised)).join(", ")}`);
 }

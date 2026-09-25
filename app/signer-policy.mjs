@@ -27,22 +27,31 @@ const STABLECOIN_ABI = [
   // The testnet rUSDG mints to anyone; the hosted page offers "get test rUSDG".
   { type: "function", name: "mint", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }] },
 ];
+const ALLOCATION = { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] };
+// JayoBasket version 2: everything the page does to a current basket.
 const BASKET_ABI = [
   { type: "function", name: "create", inputs: [
-    { name: "allocation", type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] },
-    { name: "usdgIn", type: "uint256" }, { name: "deadline", type: "uint256" }] },
+    { name: "allocation", ...ALLOCATION }, { name: "usdgIn", type: "uint256" }, { name: "deadline", type: "uint256" }] },
   { type: "function", name: "copyAllocation", inputs: [
-    { name: "sourceTokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" }, { name: "deadline", type: "uint256" }] },
+    { name: "sourceTokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" },
+    { name: "expectedAllocationVersion", type: "uint64" }, { name: "deadline", type: "uint256" }] },
+  { type: "function", name: "contribute", inputs: [
+    { name: "tokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" },
+    { name: "expectedAllocationVersion", type: "uint64" }, { name: "deadline", type: "uint256" }] },
+  { type: "function", name: "setAllocation", inputs: [{ name: "tokenId", type: "uint256" }, { name: "allocation", ...ALLOCATION }] },
   { type: "function", name: "redeem", inputs: [{ name: "tokenId", type: "uint256" }] },
   { type: "function", name: "redeemAsset", inputs: [{ name: "tokenId", type: "uint256" }, { name: "asset", type: "address" }] },
   { type: "function", name: "redeemFraction", inputs: [{ name: "tokenId", type: "uint256" }, { name: "bps", type: "uint16" }] },
   { type: "function", name: "safeTransferFrom", inputs: [
     { name: "from", type: "address" }, { name: "to", type: "address" }, { name: "tokenId", type: "uint256" }] },
 ];
+// JayoBasket version 1 stays live so its positions can still be withdrawn and
+// handed on. Nothing new is bought through it, so nothing that spends is allowed.
+const LEGACY_ABI = BASKET_ABI.filter(f => ["redeem", "redeemAsset", "redeemFraction", "safeTransferFrom"].includes(f.name));
 
 export const LIMITS = {
-  maxSpend: 100_000000n,   // 100 rUSDG per create/copy: a hijacked page cannot drain the wallet in one call
-  maxGas: 2_000_000n,      // create measured 917,294 and copy 821,487 on a testnet fork
+  maxSpend: 100_000000n,   // 100 rUSDG per create/copy/contribution: a hijacked page cannot drain the wallet in one call
+  maxGas: 2_000_000n,      // create measured 917,294, copy 821,487, a two-leg contribution about 900k
   maxLegs: 8,              // the basket's own MAX_LEGS
   maxMint: 1_000_000000n,  // 1,000 test rUSDG per mint, and only to the sender
 };
@@ -52,7 +61,7 @@ const refuse = reason => ({ ok: false, reason });
 
 /**
  * @param tx   eth_sendTransaction params[0] as the page sent it
- * @param ctx  { chainId, basket, usdg, accounts: [address...], protected: [address...] }
+ * @param ctx  { chainId, basket, legacyBasket?, usdg, accounts: [address...], protected: [address...] }
  */
 export function vetTransaction(tx, ctx) {
   if (!tx || typeof tx !== "object") return refuse("no transaction");
@@ -73,6 +82,7 @@ export function vetTransaction(tx, ctx) {
   let abi, target;
   if (to === lower(ctx.usdg)) { abi = STABLECOIN_ABI; target = "stablecoin"; }
   else if (to === lower(ctx.basket)) { abi = BASKET_ABI; target = "basket"; }
+  else if (ctx.legacyBasket && to === lower(ctx.legacyBasket)) { abi = LEGACY_ABI; target = "legacy"; }
   else return refuse(`will not sign a call to ${tx.to}`);
 
   let decoded;
@@ -88,9 +98,14 @@ export function vetTransaction(tx, ctx) {
   }
 
   const [a0, a1, a2] = decoded.args;
-  const protectedSet = new Set([ctx.basket, ctx.usdg, ...(ctx.protected || [])].map(lower));
+  const protectedSet = new Set([ctx.basket, ctx.legacyBasket, ctx.usdg, ...(ctx.protected || [])].filter(Boolean).map(lower));
   switch (`${target}.${decoded.functionName}`) {
     case "stablecoin.approve":
+      // Removing a leftover permission from version 1 is allowed; granting one is not.
+      if (ctx.legacyBasket && lower(a0) === lower(ctx.legacyBasket)) {
+        if (a1 !== 0n) return refuse("the version-1 basket may only have its permission removed (set to 0)");
+        return { ok: true, account, what: "remove version-1 permission" };
+      }
       if (lower(a0) !== lower(ctx.basket)) return refuse("the stablecoin may only be approved to the basket contract");
       return { ok: true, account, what: "approve basket" };
 
@@ -108,12 +123,24 @@ export function vetTransaction(tx, ctx) {
       if (a1 > LIMITS.maxSpend) return refuse(`spends more than the test signer's limit of ${LIMITS.maxSpend}`);
       return { ok: true, account, what: `copy #${a0} with ${a1}` };
 
+    case "basket.contribute":
+      if (a1 > LIMITS.maxSpend) return refuse(`spends more than the test signer's limit of ${LIMITS.maxSpend}`);
+      return { ok: true, account, what: `add ${a1} to #${a0}` };
+
+    case "basket.setAllocation":
+      if (a1.length === 0 || a1.length > LIMITS.maxLegs) return refuse("allocation must have 1 to 8 legs");
+      return { ok: true, account, what: `change the plan of #${a0}` };
+
     case "basket.redeem":
     case "basket.redeemAsset":
     case "basket.redeemFraction":
-      return { ok: true, account, what: `${decoded.functionName} #${a0}` };
+    case "legacy.redeem":
+    case "legacy.redeemAsset":
+    case "legacy.redeemFraction":
+      return { ok: true, account, what: `${target} ${decoded.functionName} #${a0}` };
 
     case "basket.safeTransferFrom":
+    case "legacy.safeTransferFrom":
       if (lower(a0) !== lower(account)) return refuse("can only hand over a basket from the sending account");
       if (/^0x0{40}$/.test(lower(a1))) return refuse("will not transfer to the zero address");
       if (protectedSet.has(lower(a1))) return refuse("will not transfer a basket to one of Jayo's own contracts");
