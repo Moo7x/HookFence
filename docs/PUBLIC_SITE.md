@@ -155,3 +155,13 @@ preview URLs.
 The build uses only Node's built-in modules and needs no `npm install`. It was
 checked from a clean clone with no `contracts/.env` and no `tools/node_modules`:
 the output matched the verified local build apart from line endings.
+
+**If a push to `master` does not deploy:** check for Cloudflare's banner "This
+project is disconnected from your Git account". It means the Cloudflare Workers
+and Pages GitHub app has lost access to the repository. To fix it, open
+<https://github.com/settings/installations>, go to Cloudflare Workers and Pages,
+choose Configure, and check that the app is not suspended and that
+`Moo7x/HookFence` is under Repository access. If that doesn't clear the banner,
+uninstall the app and reinstall it via Connect to Git. Cloudflare does not build
+pushes it missed while disconnected, so push again afterwards. This happened on
+2026-09-25, and the first fix cleared it.
