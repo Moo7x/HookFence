@@ -46,12 +46,15 @@ contract RefreshTestnetFeeds is Script {
 
     function run() external {
         require(block.chainid == 46630, "not Robinhood Chain testnet");
-        string memory json = vm.readFile("./reports/jayo-testnet.json");
+        // Version 2 feeds by default; FEEDS_REPORT can point at another report.
+        string memory json = vm.readFile(vm.envOr("FEEDS_REPORT", string("./reports/jayo-testnet-v2.json")));
 
         address pm = vm.parseJsonAddress(json, ".poolManager");
         address usdg = vm.parseJsonAddress(json, ".usdg");
 
-        uint256 pk = vm.envUint("PRIVATE_KEY");
+        // The dedicated updater, never the deployer: the updater can only publish
+        // prices within the feeds' bounds, so it is the key that may run unattended.
+        uint256 pk = vm.envUint("UPDATER_PRIVATE_KEY");
         vm.startBroadcast(pk);
 
         _refreshFromPool(pm, usdg, vm.parseJsonAddress(json, ".tsla"), DemoPriceFeed(vm.parseJsonAddress(json, ".tslaFeed")), "TSLA");
@@ -77,17 +80,33 @@ contract RefreshTestnetFeeds is Script {
     function _write(DemoPriceFeed feed, int256 next, string memory label) internal {
         (, int256 prev,, uint256 updatedAt,) = feed.latestRoundData();
         uint16 step = feed.maxStepBps();
-        uint256 diff = uint256(next > prev ? next - prev : prev - next);
 
-        if (next <= 0 || (step != 0 && diff * 10_000 > uint256(prev) * step)) {
+        if (block.timestamp < updatedAt + feed.minUpdateInterval()) {
+            console2.log(string.concat("WAITING ", label, ": updated too recently; the feed accepts one update per interval"));
+            return;
+        }
+        if (next <= 0 || (step != 0 && _exceeds(prev, next, step))) {
             console2.log(string.concat("SKIPPED ", label, ": move exceeds the feed's step bound"));
             console2.log("   previous (8dp):", uint256(prev));
             console2.log("   pool now (8dp):", next > 0 ? uint256(next) : 0);
             console2.log("   It will go stale and buying will stop. Check the pool, then forceAnswer if the move is real.");
             return;
         }
+        uint16 band = feed.maxDailyMoveBps();
+        int256 anchor = block.timestamp >= feed.bandStartedAt() + feed.BAND_WINDOW() ? prev : feed.bandAnchor();
+        if (band != 0 && _exceeds(anchor, next, band)) {
+            console2.log(string.concat("SKIPPED ", label, ": move exceeds the feed's 24-hour band"));
+            console2.log("   window anchor (8dp):", uint256(anchor));
+            console2.log("   pool now (8dp):", uint256(next));
+            return;
+        }
         feed.setAnswer(next);
         console2.log(string.concat("refreshed ", label, " (8dp):"), uint256(next));
         console2.log("   age before refresh, s:", block.timestamp - updatedAt);
+    }
+
+    function _exceeds(int256 from, int256 to, uint16 limitBps) internal pure returns (bool) {
+        uint256 diff = uint256(to > from ? to - from : from - to);
+        return diff * 10_000 > uint256(from) * limitBps;
     }
 }

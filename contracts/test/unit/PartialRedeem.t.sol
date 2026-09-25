@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {JayoFixture} from "../utils/JayoFixture.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IERC721Errors} from "openzeppelin-contracts/contracts/interfaces/draft-IERC6093.sol";
 
 import {JayoBasket} from "../../src/basket/JayoBasket.sol";
 import {RevertingPolicy} from "../../src/mocks/RevertingPolicy.sol";
@@ -10,8 +11,8 @@ import {RevertingPolicy} from "../../src/mocks/RevertingPolicy.sol";
 /// @title Taking part of a position out
 ///
 /// @notice `redeem` was all or nothing: wanting one leg back cost you the
-///         position, its allocation record and any manager you had appointed,
-///         and cost two more round trips through the pool to rebuild.
+///         position and its plan, and cost two more round trips through the pool
+///         to rebuild.
 ///
 /// @dev The property that has to survive is the one the whole design rests on:
 ///      these paths read no price. `test_PartialExitsWorkWithTheWholePolicyDead`
@@ -81,34 +82,25 @@ contract PartialRedeemTest is JayoFixture {
         basket.redeemAsset(id, address(stock2));
     }
 
-    /// @notice A recorded delegate grants no action at all today; above all it
-    ///         must never be able to take assets out.
-    function test_AManagerStillCannotTakeALegOut() public {
-        address manager = makeAddr("manager");
+    /// @notice Emptying every leg one at a time closes the position. Version 1 left
+    ///         an empty token behind that could still be handed on as if it held
+    ///         something; version 2 burns it when the last holding leaves.
+    function test_TakingEveryLegOutClosesThePosition() public {
         vm.prank(alice);
-        basket.setManager(id, manager);
-
-        vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, manager));
-        vm.prank(manager);
-        basket.redeemAsset(id, address(stock2));
-    }
-
-    /// @notice Emptying every leg one at a time leaves an empty position, not a
-    ///         burnt one. Closing it is still `redeem`'s job.
-    function test_TakingEveryLegOutLeavesAnEmptyPositionTheOwnerStillHolds() public {
-        vm.startPrank(alice);
         basket.redeemAsset(id, address(stock));
-        basket.redeemAsset(id, address(stock2));
-        vm.stopPrank();
+        assertEq(basket.ownerOf(id), alice, "one leg left: still open");
 
-        assertEq(basket.ownerOf(id), alice, "still owned");
-        (address[] memory assets,) = basket.holdingsOf(id);
-        assertEq(assets.length, 0, "and empty");
-
+        vm.expectEmit(true, true, false, false, address(basket));
+        emit JayoBasket.PositionClosed(id, alice);
         vm.prank(alice);
-        basket.redeem(id); // closes it without reverting on the empty leg list
+        basket.redeemAsset(id, address(stock2));
+
+        assertFalse(basket.exists(id), "closed");
         vm.expectRevert();
         basket.ownerOf(id);
+        assertEq(basket.allocationOf(id).length, 0, "its plan is gone too");
+        assertEq(basket.totalLiabilities(address(stock)), 0, "nothing owed");
+        assertEq(basket.totalLiabilities(address(stock2)), 0, "nothing owed");
     }
 
     // =======================================================================
@@ -142,13 +134,13 @@ contract PartialRedeemTest is JayoFixture {
         assertLe(basket.totalLiabilities(address(stock)), stock.balanceOf(address(basket)), "solvent");
     }
 
-    function test_FullFractionEmptiesEveryLegButKeepsThePosition() public {
+    function test_FullFractionClosesThePosition() public {
+        uint256 owed1 = _held(id, address(stock));
         vm.prank(alice);
         basket.redeemFraction(id, 10_000);
 
-        (address[] memory assets,) = basket.holdingsOf(id);
-        assertEq(assets.length, 0, "no legs left");
-        assertEq(basket.ownerOf(id), alice, "the position is still theirs");
+        assertFalse(basket.exists(id), "closed, not left empty");
+        assertEq(IERC20(address(stock)).balanceOf(alice), owed1, "everything delivered");
         assertEq(basket.totalLiabilities(address(stock)), 0, "nothing owed");
         assertEq(basket.totalLiabilities(address(stock2)), 0, "nothing owed");
     }
@@ -166,10 +158,22 @@ contract PartialRedeemTest is JayoFixture {
     /// @notice A share too small to deliver anything is refused rather than
     ///         emitting a successful withdrawal of nothing.
     function test_AFractionThatWouldDeliverNothingIsRefused() public {
-        vm.prank(alice);
-        basket.redeemFraction(id, 10_000); // empty it first
+        // Take 99.99% four times: each leg is left with a few thousand wei, of
+        // which 0.01% rounds to nothing on every leg.
+        vm.startPrank(alice);
+        for (uint256 i; i < 4; ++i) basket.redeemFraction(id, 9999);
+        assertTrue(basket.exists(id), "dust is still a holding, so the position is open");
 
         vm.expectRevert(abi.encodeWithSelector(JayoBasket.FractionWouldDeliverNothing.selector, id, uint16(1)));
+        basket.redeemFraction(id, 1);
+        vm.stopPrank();
+    }
+
+    function test_AClosedPositionCannotBeWithdrawnFromAgain() public {
+        vm.prank(alice);
+        basket.redeemFraction(id, 10_000);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
         vm.prank(alice);
         basket.redeemFraction(id, 1);
     }

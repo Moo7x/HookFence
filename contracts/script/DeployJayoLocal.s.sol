@@ -21,6 +21,7 @@ import {StockTokenReferencePolicy} from "../src/policy/StockTokenReferencePolicy
 import {ExecutionGateway} from "../src/core/ExecutionGateway.sol";
 import {V4ExactInputAdapter} from "../src/adapters/V4ExactInputAdapter.sol";
 import {JayoBasket} from "../src/basket/JayoBasket.sol";
+import {JayoRenderer} from "../src/basket/JayoRenderer.sol";
 
 /// @title Local Jayo deployment
 ///
@@ -106,9 +107,9 @@ contract DeployJayoLocal is Script {
         // Same access-controlled feed the testnet uses, so the demo panel's
         // "Refresh prices" exercises the real permission model rather than an
         // open setter. The deployer is owner and updater.
-        d.aaplFeed = new DemoPriceFeed(FEED_DECIMALS, AAPL_USD, "MOCK AAPL / USD", deployer, FEED_MAX_STEP_BPS);
-        d.nvdaFeed = new DemoPriceFeed(FEED_DECIMALS, NVDA_USD, "MOCK NVDA / USD", deployer, FEED_MAX_STEP_BPS);
-        d.usdgFeed = new DemoPriceFeed(FEED_DECIMALS, USDG_USD, "MOCK USDG / USD", deployer, FEED_MAX_STEP_BPS);
+        d.aaplFeed = new DemoPriceFeed(FEED_DECIMALS, AAPL_USD, "MOCK AAPL / USD", deployer, FEED_MAX_STEP_BPS, 0, 0);
+        d.nvdaFeed = new DemoPriceFeed(FEED_DECIMALS, NVDA_USD, "MOCK NVDA / USD", deployer, FEED_MAX_STEP_BPS, 0, 0);
+        d.usdgFeed = new DemoPriceFeed(FEED_DECIMALS, USDG_USD, "MOCK USDG / USD", deployer, FEED_MAX_STEP_BPS, 0, 0);
 
         d.policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), deployer);
         d.policy.setQuoteAsset(address(d.usdg), address(d.usdgFeed), FEED_HEARTBEAT, 6);
@@ -118,7 +119,10 @@ contract DeployJayoLocal is Script {
         d.adapter.setGateway(address(d.gateway));
         d.gateway.setAdapter(address(d.adapter), true);
 
-        d.basket = new JayoBasket(d.gateway, IERC20(address(d.usdg)), deployer);
+        d.basket = new JayoBasket(d.gateway, IERC20(address(d.usdg)), deployer, 1);
+        // No update interval or daily band on the local feeds above: the demo panel
+        // moves time and prices by hand, which those bounds exist to prevent.
+        d.basket.setRenderer(new JayoRenderer("http://127.0.0.1:5173", "Local demo chain: mock assets with no value."));
     }
 
     /// @dev Creates the pool, seeds it, and registers the instrument.

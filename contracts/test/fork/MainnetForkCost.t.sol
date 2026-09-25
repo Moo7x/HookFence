@@ -99,7 +99,7 @@ contract MainnetForkCostTest is Test {
         adapter = new V4ExactInputAdapter(IPoolManager(PM), address(this));
         adapter.setGateway(address(gateway));
         gateway.setAdapter(address(adapter), true);
-        basket = new JayoBasket(gateway, IERC20(USDG), address(this));
+        basket = new JayoBasket(gateway, IERC20(USDG), address(this), 1);
         _route(TSLA, tslaKey);
         _route(AMZN, amznKey);
 

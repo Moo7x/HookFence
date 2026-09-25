@@ -33,7 +33,7 @@ contract ForceTestnetFeed is Script {
         require(block.chainid == 46630, "not Robinhood Chain testnet");
         string memory asset = vm.envString("FORCE_ASSET");
         uint256 maxBps = vm.envOr("FORCE_MAX_BPS", uint256(2500));
-        string memory json = vm.readFile("./reports/jayo-testnet.json");
+        string memory json = vm.readFile(vm.envOr("FEEDS_REPORT", string("./reports/jayo-testnet-v2.json")));
 
         bool isT = keccak256(bytes(asset)) == keccak256("TSLA");
         bool isA = keccak256(bytes(asset)) == keccak256("AMZN");

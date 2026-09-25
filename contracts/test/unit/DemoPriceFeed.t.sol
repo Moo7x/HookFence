@@ -27,7 +27,7 @@ contract DemoPriceFeedTest is Test {
     DemoPriceFeed internal feed;
 
     function setUp() public {
-        feed = new DemoPriceFeed(DEC, PRICE, "DEMO TSLA / USD", owner, STEP);
+        feed = new DemoPriceFeed(DEC, PRICE, "DEMO TSLA / USD", owner, STEP, 0, 0);
         vm.prank(owner);
         feed.setUpdater(keeper);
     }
@@ -165,7 +165,7 @@ contract DemoPriceFeedTest is Test {
     function test_StaleFeedCanOnlyBeRevivedByTheUpdater() public {
         MockStockToken stock = new MockStockToken("Tesla", "TSLA");
         MockUSDG usdg = new MockUSDG();
-        DemoPriceFeed usdgFeed = new DemoPriceFeed(DEC, 1_00000000, "DEMO USDG / USD", owner, STEP);
+        DemoPriceFeed usdgFeed = new DemoPriceFeed(DEC, 1_00000000, "DEMO USDG / USD", owner, STEP, 0, 0);
 
         StockTokenReferencePolicy policy = new StockTokenReferencePolicy(keccak256("t"), owner);
         vm.startPrank(owner);
@@ -190,5 +190,80 @@ contract DemoPriceFeedTest is Test {
 
         (uint256 floor,) = policy.requiredMinOut(address(usdg), address(stock), 10e6, 0);
         assertGt(floor, 0, "buying resumes only after the updater refreshes");
+    }
+
+    // =======================================================================
+    // Version 2: bounds for an unattended updater
+    // =======================================================================
+
+    // vm.getBlockTimestamp(), not block.timestamp: under via_ir the latter can be
+    // read once and reused across vm.warp calls.
+
+    /// @dev The testnet parameters: 15 minutes between updates, 10% a step, 25% a day.
+    function _bounded() internal returns (DemoPriceFeed f) {
+        f = new DemoPriceFeed(DEC, PRICE, "DEMO TSLA / USD", owner, STEP, 900, 2500);
+        vm.prank(owner);
+        f.setUpdater(keeper);
+    }
+
+    function test_UpdaterMustWaitTheMinimumInterval() public {
+        DemoPriceFeed f = _bounded();
+        vm.prank(keeper);
+        vm.expectRevert(abi.encodeWithSelector(DemoPriceFeed.TooSoon.selector, vm.getBlockTimestamp() + 900));
+        f.setAnswer(PRICE + 1);
+
+        vm.warp(vm.getBlockTimestamp() + 900);
+        vm.prank(keeper);
+        f.setAnswer(PRICE + 1);
+    }
+
+    /// @notice The attack the interval exists for: a stolen updater key applying the
+    ///         10% step over and over. With the daily band, three steps is the limit.
+    function test_AStolenUpdaterKeyCannotWalkThePricePastTheDailyBand() public {
+        DemoPriceFeed f = _bounded();
+        int256 p = PRICE;
+        for (uint256 i; i < 2; ++i) {
+            vm.warp(vm.getBlockTimestamp() + 900);
+            p = p * 110 / 100;
+            vm.prank(keeper);
+            f.setAnswer(p); // +10%, then +21% cumulative
+        }
+        vm.warp(vm.getBlockTimestamp() + 900);
+        int256 next = p * 110 / 100; // +33% from the start of the window
+        vm.prank(keeper);
+        vm.expectRevert(abi.encodeWithSelector(DemoPriceFeed.OutsideDailyBand.selector, PRICE, next, uint16(2500)));
+        f.setAnswer(next);
+    }
+
+    function test_ANewWindowStartsFromTheAnswerThatStandsWhenTheOldOneEnds() public {
+        DemoPriceFeed f = _bounded();
+        int256 p = PRICE * 121 / 100;
+        vm.warp(vm.getBlockTimestamp() + 900);
+        vm.prank(keeper);
+        f.setAnswer(PRICE * 110 / 100);
+        vm.warp(vm.getBlockTimestamp() + 900);
+        vm.prank(keeper);
+        f.setAnswer(p);
+
+        vm.warp(vm.getBlockTimestamp() + 1 days);
+        vm.prank(keeper);
+        f.setAnswer(p * 110 / 100); // measured from p now, not from PRICE
+        assertEq(f.bandAnchor(), p, "the window re-anchored at the standing answer");
+    }
+
+    function test_TheOwnerCanStillForceAndThatRestartsTheWindow() public {
+        DemoPriceFeed f = _bounded();
+        int256 moved = PRICE * 140 / 100;
+        vm.prank(owner);
+        f.forceAnswer(moved); // no interval, step or band applies to the owner's override
+        assertEq(f.bandAnchor(), moved);
+        assertEq(f.bandStartedAt(), vm.getBlockTimestamp());
+    }
+
+    function test_BoundsApplyToTheOwnersOrdinaryUpdatesToo() public {
+        DemoPriceFeed f = _bounded();
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(DemoPriceFeed.TooSoon.selector, vm.getBlockTimestamp() + 900));
+        f.setAnswer(PRICE);
     }
 }

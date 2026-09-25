@@ -28,10 +28,26 @@ import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
 ///          closed is the intended outcome, not a malfunction;
 ///        - only the owner can bypass that bound, with `forceAnswer`, and every
 ///          bypass is its own event.
+///
+///      VERSION 2 adds two bounds, so the updater key can run unattended on a
+///      schedule (a Cloudflare Worker) without that key being able to walk the
+///      price anywhere it likes:
+///
+///        - `minUpdateInterval`: at most one update per interval. Without it, a
+///          stolen updater key could apply the 10% step once per block;
+///        - `maxDailyMoveBps`: no update may move the answer further than this from
+///          the answer that stood at the start of the current 24-hour window.
+///
+///      With a 15-minute interval, a 10% step and a 25% daily band, the most a
+///      stolen updater key can do is move a reference 25% in a day, one visible
+///      event at a time, until the owner replaces the updater. The owner's
+///      `forceAnswer` is exempt from all three bounds and resets the window.
 contract DemoPriceFeed is Ownable2Step, IAggregatorV3 {
     error NotUpdater(address caller);
     error AnswerNotPositive(int256 answer);
     error StepTooLarge(int256 previous, int256 next, uint16 maxStepBps);
+    error TooSoon(uint256 nextAllowedAt);
+    error OutsideDailyBand(int256 anchor, int256 next, uint16 maxDailyMoveBps);
 
     event UpdaterSet(address indexed updater);
     /// @dev Same signature as Chainlink's, so existing tooling reads it.
@@ -40,8 +56,13 @@ contract DemoPriceFeed is Ownable2Step, IAggregatorV3 {
 
     uint8 public immutable decimals;
     uint16 public immutable maxStepBps; // 0 = unbounded
+    /// @notice Seconds that must pass between two `setAnswer` calls. 0 = none.
+    uint32 public immutable minUpdateInterval;
+    /// @notice Largest move from the start-of-window answer within 24 hours. 0 = unbounded.
+    uint16 public immutable maxDailyMoveBps;
     string public description;
-    uint256 public constant version = 1;
+    uint256 public constant version = 2;
+    uint256 public constant BAND_WINDOW = 1 days;
 
     address public updater;
 
@@ -49,15 +70,28 @@ contract DemoPriceFeed is Ownable2Step, IAggregatorV3 {
     int256 private _answer;
     uint256 private _updatedAt;
 
-    constructor(uint8 decimals_, int256 initialAnswer, string memory description_, address owner_, uint16 maxStepBps_)
-        Ownable(owner_)
-    {
+    /// @notice The answer at the start of the current band window, and when it began.
+    int256 public bandAnchor;
+    uint256 public bandStartedAt;
+
+    constructor(
+        uint8 decimals_,
+        int256 initialAnswer,
+        string memory description_,
+        address owner_,
+        uint16 maxStepBps_,
+        uint32 minUpdateInterval_,
+        uint16 maxDailyMoveBps_
+    ) Ownable(owner_) {
         if (initialAnswer <= 0) revert AnswerNotPositive(initialAnswer);
         decimals = decimals_;
         description = description_;
         maxStepBps = maxStepBps_;
+        minUpdateInterval = minUpdateInterval_;
+        maxDailyMoveBps = maxDailyMoveBps_;
         updater = owner_;
         _write(initialAnswer);
+        _startBand(initialAnswer);
     }
 
     // --------------------------------------------------------------- writes
@@ -70,10 +104,15 @@ contract DemoPriceFeed is Ownable2Step, IAggregatorV3 {
     function setAnswer(int256 answer) external {
         if (msg.sender != updater && msg.sender != owner()) revert NotUpdater(msg.sender);
         if (answer <= 0) revert AnswerNotPositive(answer);
-        if (maxStepBps != 0) {
-            int256 prev = _answer;
-            uint256 diff = uint256(answer > prev ? answer - prev : prev - answer);
-            if (diff * 10_000 > uint256(prev) * maxStepBps) revert StepTooLarge(prev, answer, maxStepBps);
+        if (block.timestamp < _updatedAt + minUpdateInterval) revert TooSoon(_updatedAt + minUpdateInterval);
+        int256 prev = _answer;
+        if (maxStepBps != 0 && _moveBpsExceeds(prev, answer, maxStepBps)) revert StepTooLarge(prev, answer, maxStepBps);
+        if (maxDailyMoveBps != 0) {
+            // A new window starts from whatever answer stands when the old one ends.
+            if (block.timestamp >= bandStartedAt + BAND_WINDOW) _startBand(prev);
+            if (_moveBpsExceeds(bandAnchor, answer, maxDailyMoveBps)) {
+                revert OutsideDailyBand(bandAnchor, answer, maxDailyMoveBps);
+            }
         }
         _write(answer);
     }
@@ -83,7 +122,18 @@ contract DemoPriceFeed is Ownable2Step, IAggregatorV3 {
         if (answer <= 0) revert AnswerNotPositive(answer);
         int256 prev = _answer;
         _write(answer);
+        _startBand(answer);
         emit AnswerForced(prev, answer, _round);
+    }
+
+    function _startBand(int256 anchor) private {
+        bandAnchor = anchor;
+        bandStartedAt = block.timestamp;
+    }
+
+    function _moveBpsExceeds(int256 from, int256 to, uint16 limitBps) private pure returns (bool) {
+        uint256 diff = uint256(to > from ? to - from : from - to);
+        return diff * 10_000 > uint256(from) * limitBps;
     }
 
     function _write(int256 answer) private {

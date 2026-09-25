@@ -91,7 +91,7 @@ abstract contract JayoFixture is HookFenceFixture {
 
     function _deployBasket() internal {
         vm.startPrank(admin);
-        basket = new JayoBasket(gateway, IERC20(address(usdg)), admin);
+        basket = new JayoBasket(gateway, IERC20(address(usdg)), admin, 1);
 
         // Buy routes for both instruments.
         adapter.setRoute(honestKey, buy1, true);

@@ -5,7 +5,7 @@ import {Script} from "forge-std/Script.sol";
 import {console2} from "forge-std/console2.sol";
 import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 
-import {JayoBasket} from "../src/basket/JayoBasket.sol";
+import {IJayoBasketV1} from "../src/interfaces/IJayoBasketV1.sol";
 
 /// @title The Jayo journey on the public testnet, between two independent wallets
 ///
@@ -36,14 +36,14 @@ contract PublicJourney is Script {
     uint256 constant FUND_COPY = 8_000000;   // smaller: it trades right after, further along thin curves
     string constant STATE = "./reports/journey-testnet.json";
 
-    JayoBasket basket;
+    IJayoBasketV1 basket; // the version-1 deployment this journey was run against
     address tsla;
     address amzn;
 
     function run() external {
         require(block.chainid == 46630, "not Robinhood Chain testnet");
         string memory json = vm.readFile("./reports/jayo-testnet.json");
-        basket = JayoBasket(vm.parseJsonAddress(json, ".basket"));
+        basket = IJayoBasketV1(vm.parseJsonAddress(json, ".basket"));
         address rusdg = vm.parseJsonAddress(json, ".usdg");
         tsla = vm.parseJsonAddress(json, ".tsla");
         amzn = vm.parseJsonAddress(json, ".amzn");
@@ -57,9 +57,9 @@ contract PublicJourney is Script {
         uint256 phase = vm.envUint("JOURNEY_PHASE");
 
         if (phase == 1) {
-            JayoBasket.Allocation[] memory a = new JayoBasket.Allocation[](2);
-            a[0] = JayoBasket.Allocation({asset: tsla, weightBps: 6000});
-            a[1] = JayoBasket.Allocation({asset: amzn, weightBps: 4000});
+            IJayoBasketV1.Allocation[] memory a = new IJayoBasketV1.Allocation[](2);
+            a[0] = IJayoBasketV1.Allocation({asset: tsla, weightBps: 6000});
+            a[1] = IJayoBasketV1.Allocation({asset: amzn, weightBps: 4000});
 
             vm.startBroadcast(aliceKey);
             IERC20(rusdg).approve(address(basket), type(uint256).max);

@@ -15,6 +15,7 @@ import {StockTokenReferencePolicy} from "../src/policy/StockTokenReferencePolicy
 import {ExecutionGateway} from "../src/core/ExecutionGateway.sol";
 import {V4ExactInputAdapter} from "../src/adapters/V4ExactInputAdapter.sol";
 import {JayoBasket} from "../src/basket/JayoBasket.sol";
+import {JayoRenderer} from "../src/basket/JayoRenderer.sol";
 import {IStockToken} from "../src/interfaces/IStockToken.sol";
 import {PoolPriceReader} from "../src/testnet/PoolPriceReader.sol";
 
@@ -106,6 +107,15 @@ contract DeployJayoTestnet is Script {
     ///      refused, the feed ages out after FEED_HEARTBEAT and buying stops until
     ///      the owner looks at it. See DemoPriceFeed.
     uint16 constant FEED_MAX_STEP_BPS = 1000;
+    /// @dev At most one scheduled update per 15 minutes, and no more than 25% of
+    ///      movement inside any 24 hours, so an unattended updater key can only
+    ///      follow the pool slowly and visibly. See DemoPriceFeed, version 2.
+    uint32 constant FEED_MIN_INTERVAL = 900;
+    uint16 constant FEED_DAILY_BAND_BPS = 2500;
+
+    /// @dev What the renderer links each position to, and says about its value.
+    string constant SITE_URL = "https://jayo-testnet.pages.dev";
+    string constant NETWORK_NOTE = "Robinhood Chain testnet: test assets with no value.";
 
     /// @dev 10 rUSDG a leg, which measures at 78 bps against a 300 bps floor.
     uint256 constant DEFAULT_FUND = 20_000000;
@@ -117,6 +127,7 @@ contract DeployJayoTestnet is Script {
         ExecutionGateway gateway;
         V4ExactInputAdapter adapter;
         JayoBasket basket;
+        JayoRenderer renderer;
         DemoPriceFeed tslaFeed;
         DemoPriceFeed amznFeed;
         DemoPriceFeed usdgFeed;
@@ -158,9 +169,7 @@ contract DeployJayoTestnet is Script {
         // and no single update may move one more than FEED_MAX_STEP_BPS. The first
         // version of this script used an open-setter mock, which on a public
         // chain let anyone rewrite the price a user's floor is computed from.
-        d.tslaFeed = new DemoPriceFeed(FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD (pool-derived, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
-        d.amznFeed = new DemoPriceFeed(FEED_DECIMALS, amznUsd, "DEMO AMZN / USD (pool-derived, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
-        d.usdgFeed = new DemoPriceFeed(FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD (fixed at $1, Jayo testnet)", deployer, FEED_MAX_STEP_BPS);
+        (d.tslaFeed, d.amznFeed, d.usdgFeed) = _deployFeeds(deployer, tslaUsd, amznUsd);
 
         d.policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), deployer);
         d.policy.setQuoteAsset(RUSDG, address(d.usdgFeed), FEED_HEARTBEAT, 6);
@@ -172,12 +181,32 @@ contract DeployJayoTestnet is Script {
         d.adapter.setGateway(address(d.gateway));
         d.gateway.setAdapter(address(d.adapter), true);
 
-        d.basket = new JayoBasket(d.gateway, IERC20(RUSDG), deployer);
+        d.basket = new JayoBasket(d.gateway, IERC20(RUSDG), deployer, 1);
+        d.renderer = new JayoRenderer(SITE_URL, NETWORK_NOTE);
+        d.basket.setRenderer(d.renderer);
 
         _wireRoutes(d);
 
         // rUSDG mints to anyone, so the demo wallet funds itself.
         IOpenMintERC20(RUSDG).mint(deployer, 10_000_000000);
+    }
+
+    function _deployFeeds(address deployer, int256 tslaUsd, int256 amznUsd)
+        internal
+        returns (DemoPriceFeed tsla, DemoPriceFeed amzn, DemoPriceFeed rusdg)
+    {
+        tsla = new DemoPriceFeed(
+            FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD (pool-derived, Jayo testnet)", deployer,
+            FEED_MAX_STEP_BPS, FEED_MIN_INTERVAL, FEED_DAILY_BAND_BPS
+        );
+        amzn = new DemoPriceFeed(
+            FEED_DECIMALS, amznUsd, "DEMO AMZN / USD (pool-derived, Jayo testnet)", deployer,
+            FEED_MAX_STEP_BPS, FEED_MIN_INTERVAL, FEED_DAILY_BAND_BPS
+        );
+        rusdg = new DemoPriceFeed(
+            FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD (fixed at $1, Jayo testnet)", deployer,
+            FEED_MAX_STEP_BPS, FEED_MIN_INTERVAL, FEED_DAILY_BAND_BPS
+        );
     }
 
     function _wireRoutes(Deployed memory d) internal {
@@ -261,6 +290,7 @@ contract DeployJayoTestnet is Script {
         vm.serializeUint(j, "feedHeartbeat", FEED_HEARTBEAT);
         vm.serializeUint(j, "maxShortfallBps", MAX_SHORTFALL_BPS);
         vm.serializeString(j, "priceSource", "pool");
+        vm.serializeAddress(j, "renderer", address(d.renderer));
         string memory out = vm.serializeAddress(j, "basket", address(d.basket));
         vm.writeJson(out, "./reports/jayo-testnet.json");
         // Also written to a fixed path so the interface fetches exactly one

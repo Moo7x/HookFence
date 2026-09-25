@@ -15,6 +15,7 @@ import {StockTokenReferencePolicy} from "../../src/policy/StockTokenReferencePol
 import {ExecutionGateway} from "../../src/core/ExecutionGateway.sol";
 import {V4ExactInputAdapter} from "../../src/adapters/V4ExactInputAdapter.sol";
 import {JayoBasket} from "../../src/basket/JayoBasket.sol";
+import {JayoRenderer} from "../../src/basket/JayoRenderer.sol";
 import {IStockToken} from "../../src/interfaces/IStockToken.sol";
 import {PoolPriceReader} from "../../src/testnet/PoolPriceReader.sol";
 
@@ -93,9 +94,9 @@ contract TestnetJourneyTest is Test {
         console2.log("TSLA pool price, 8dp:", uint256(tslaUsd));
         console2.log("AMZN pool price, 8dp:", uint256(amznUsd));
 
-        tslaFeed = new DemoPriceFeed(FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD", admin, 1000);
-        amznFeed = new DemoPriceFeed(FEED_DECIMALS, amznUsd, "DEMO AMZN / USD", admin, 1000);
-        usdgFeed = new DemoPriceFeed(FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD", admin, 1000);
+        tslaFeed = new DemoPriceFeed(FEED_DECIMALS, tslaUsd, "DEMO TSLA / USD", admin, 1000, 0, 0);
+        amznFeed = new DemoPriceFeed(FEED_DECIMALS, amznUsd, "DEMO AMZN / USD", admin, 1000, 0, 0);
+        usdgFeed = new DemoPriceFeed(FEED_DECIMALS, RUSDG_USD, "DEMO rUSDG / USD", admin, 1000, 0, 0);
 
         policy = new StockTokenReferencePolicy(keccak256("Jayo.StockTokenBasket.v1"), admin);
         policy.setQuoteAsset(RUSDG, address(usdgFeed), FEED_HEARTBEAT, 6);
@@ -107,7 +108,7 @@ contract TestnetJourneyTest is Test {
         adapter.setGateway(address(gateway));
         gateway.setAdapter(address(adapter), true);
 
-        basket = new JayoBasket(gateway, IERC20(RUSDG), admin);
+        basket = new JayoBasket(gateway, IERC20(RUSDG), admin, 1);
 
         _route(TSLA);
         _route(AMZN);
@@ -285,7 +286,7 @@ contract TestnetJourneyTest is Test {
 
         vm.startPrank(copier);
         IERC20(RUSDG).approve(address(basket), type(uint256).max);
-        uint256 copy = basket.copyAllocation(source, 8_000000, block.timestamp + 1 hours);
+        uint256 copy = basket.copyAllocation(source, 8_000000, basket.allocationVersion(source), block.timestamp + 1 hours);
         vm.stopPrank();
 
         assertEq(basket.ownerOf(copy), copier, "the copy belongs to the copier");
@@ -296,5 +297,39 @@ contract TestnetJourneyTest is Test {
         assertEq(sourceAfter[1], sourceBefore[1], "source keeps its AMZN");
 
         assertEq(IERC20(RUSDG).balanceOf(copier), 0, "the copier paid");
+    }
+
+    /// @notice Version 2 on real chain state: a second, ordinary wallet adds money
+    ///         to someone else's basket; the same token grows by the basket's plan
+    ///         against the real pools, and its on-chain metadata says so.
+    function test_ASecondWalletAddsToSomeoneElsesBasket() public {
+        if (!forked) return;
+        basket.setRenderer(new JayoRenderer("https://jayo-testnet.pages.dev", "Robinhood Chain testnet: test assets with no value."));
+
+        vm.startPrank(user);
+        IERC20(RUSDG).approve(address(basket), type(uint256).max);
+        uint256 id = basket.create(_alloc(), 12_000000, block.timestamp + 1 hours);
+        vm.stopPrank();
+        (, uint256[] memory before) = basket.holdingsOf(id);
+
+        address giver = makeAddr("giver");
+        IOpenMintERC20(RUSDG).mint(giver, 8_000000);
+        vm.startPrank(giver);
+        IERC20(RUSDG).approve(address(basket), 8_000000);
+        basket.contribute(id, 8_000000, 1, block.timestamp + 1 hours);
+        vm.stopPrank();
+
+        (, uint256[] memory afterwards) = basket.holdingsOf(id);
+        assertGt(afterwards[0], before[0], "more TSLA in the same basket");
+        assertGt(afterwards[1], before[1], "more AMZN in the same basket");
+        assertEq(basket.ownerOf(id), user, "still the owner's");
+        assertEq(IERC20(RUSDG).balanceOf(giver), 0, "the giver paid");
+        assertEq(basket.fundingCount(id), 2);
+        assertEq(basket.totalFunded(id), 20_000000);
+
+        string memory json = JayoRenderer(address(basket.renderer())).tokenJSON(address(basket), id);
+        console2.log(json);
+        assertEq(vm.parseJsonString(json, ".attributes[2].value"), "TSLA 50% / AMZN 50%", "real symbols");
+        assertEq(vm.parseJsonString(json, ".attributes[5].value"), "20 rUSDG", "real stablecoin symbol and total");
     }
 }

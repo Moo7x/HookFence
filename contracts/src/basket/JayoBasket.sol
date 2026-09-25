@@ -11,11 +11,15 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
 import {ExecutionGateway} from "../core/ExecutionGateway.sol";
 import {IExecutionPolicy} from "../interfaces/IExecutionPolicy.sol";
+import {IJayoRenderer} from "../interfaces/IJayoRenderer.sol";
 
-/// @title JayoBasket
-/// @notice A funded token basket you own as a single ERC-721 position: create it
-///         with USDG, transfer it whole, copy its allocation with your own money,
-///         and redeem the underlying tokens in kind.
+/// @title JayoBasket (version 2)
+/// @notice A funded token basket owned as a single ERC-721 position. You create it
+///         with USDG, and then anyone - you, or someone giving to you - can add
+///         more money to that same position, bought by its own plan. You can hand
+///         the whole position on, copy its plan with your own money, change the
+///         plan for future money, and take the underlying tokens out in kind:
+///         everything, a fraction, or one asset.
 ///
 /// @dev DESIGN DECISIONS THAT MATTER FOR REVIEW
 ///
@@ -26,32 +30,43 @@ import {IExecutionPolicy} from "../interfaces/IExecutionPolicy.sol";
 ///         Surplus is tracked, never assignable to a position, and recoverable by
 ///         the operator only down to the liability line.
 ///
-///      2. **In-kind redemption never touches the policy.** `redeem` reads no feed,
-///         calls no oracle and asks no price. A position whose exit depended on a
-///         reference that sleeps 24/5 would not be reliably redeemable, which is
-///         the contradiction the sell-only design could not resolve. Redemption is
-///         therefore pure bookkeeping plus ERC-20 transfers, and works while every
-///         feed is stale. Asserted in `test/unit/BasketRedemption.t.sol` against a
-///         policy that reverts on every call.
+///      2. **In-kind redemption never touches the policy.** Every withdrawal path
+///         reads no feed, calls no oracle and asks no price, so a position can be
+///         emptied while every feed is stale. Buying - `create`, `contribute`,
+///         `copyAllocation` - is the only thing that needs a price.
 ///
 ///      3. **Dust is rejected, not silently accepted.** A funded leg that would
 ///         acquire zero tokens fails with a named error. A zero floor is not
-///         protection, so a leg whose reference floor rounds to zero is refused
-///         rather than executed against `minOut = 0`. See `_assertLegIsMeaningful`.
+///         protection. See `_assertLegIsMeaningful`.
 ///
-///      4. **Transfer revokes delegated authority.** Position management is bound to
-///         a version that increments on every transfer, so a manager appointed by a
-///         previous owner cannot act after the sale, and an authorisation signed
-///         before it is dead.
-///
-///      5. **Holdings are per-position and isolated.** `holdings[tokenId][asset]` is
+///      4. **Holdings are per-position and isolated.** `holdings[tokenId][asset]` is
 ///         the only way value is attributed. No code path lets one position spend
-///         another's assets; redemption transfers exactly the recorded amount and
-///         decrements exactly that amount.
+///         another's assets. A contribution is credited to exactly the position it
+///         names and to no other.
+///
+///      5. **The plan is for future money, and is versioned.** `allocationOf` is
+///         the split that the NEXT purchase into a position uses - a contribution,
+///         or someone's copy. It is not a claim about what the position holds
+///         (`holdingsOf` is). The owner may change it; existing holdings are never
+///         rebalanced. Every change bumps `allocationVersion`, and `contribute` and
+///         `copyAllocation` take the version the caller saw, so a plan changed
+///         while a contribution is in flight makes that contribution revert
+///         instead of buying something the contributor did not choose.
+///
+///      6. **No empty position can exist.** Withdrawing the last holding, by any
+///         path, closes the position and burns the token. A V1 position could be
+///         emptied one asset at a time and still be handed on as if it held
+///         something.
+///
+///      7. **Metadata is rendered on-chain, by a replaceable renderer.** The
+///         renderer reads this contract's public views. Replacing it is the
+///         operator's only power over positions, and it reaches what a wallet
+///         DISPLAYS, never what a position holds or who may withdraw it.
 ///
 ///      NOT IMPLEMENTED, deliberately: rebalancing. It is a fee pump, it enables a
 ///      sale/rebalance race, and it is the largest source of accounting bugs. A
-///      holder who wants a different allocation redeems and creates.
+///      holder who wants a different mix changes the plan for new money, or
+///      withdraws and creates.
 contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -67,8 +82,8 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     error LegWouldAcquireNothing(address asset, uint256 amountIn);
     error LegAcquiredNothing(address asset, uint256 amountIn);
     error NotPositionOwner(uint256 tokenId, address caller);
-    error NotOwnerOrManager(uint256 tokenId, address caller);
     error PositionDoesNotExist(uint256 tokenId);
+    error AllocationChangedSinceQuote(uint256 tokenId, uint64 expected, uint64 current);
     error ZeroAddress();
     error ZeroAmount();
     error NothingToRecover(address asset);
@@ -90,7 +105,14 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         uint256 legCount
     );
 
+    /// @notice Money added to an existing position, by its owner or anyone else.
+    event Contributed(
+        uint256 indexed tokenId, address indexed contributor, uint256 usdgFunded, uint256 usdgSpent, uint64 allocationVersion
+    );
+
     /// @notice Emitted per leg with what was actually acquired, not what was quoted.
+    ///         Every purchase into a position - creation or contribution - emits one
+    ///         per leg.
     event LegSettled(
         uint256 indexed tokenId, address indexed asset, uint16 weightBps, uint256 usdgSpent, uint256 acquired
     );
@@ -98,26 +120,31 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     /// @notice Emitted when unspent USDG is returned, so a remainder is never silent.
     event UnspentReturned(uint256 indexed tokenId, address indexed to, uint256 amount, string reason);
 
+    /// @notice The plan for future money changed. Carries the new plan in full.
+    event AllocationChanged(uint256 indexed tokenId, uint64 version, Allocation[] allocation);
+
     event BasketRedeemed(uint256 indexed tokenId, address indexed to, uint256 legCount);
     event AssetRedeemed(uint256 indexed tokenId, address indexed asset, address indexed to, uint256 amount);
     /// @notice A position survived the withdrawal; `legsLeft` is what it still holds.
     event PartiallyRedeemed(uint256 indexed tokenId, address indexed to, uint256 legsLeft);
+    /// @notice The position no longer exists. Emitted by every path that empties it.
+    event PositionClosed(uint256 indexed tokenId, address indexed lastOwner);
 
     event AllocationCopied(uint256 indexed sourceTokenId, uint256 indexed newTokenId, address indexed creator);
 
-    /// @notice Emitted on every transfer, recording that prior authority is dead.
-    event AuthorityRevoked(uint256 indexed tokenId, address indexed from, address indexed to, uint64 newVersion);
+    /// @notice ERC-4906: a wallet showing this token should re-read its metadata.
+    event MetadataUpdate(uint256 _tokenId);
 
-    event ManagerSet(uint256 indexed tokenId, address indexed manager, uint64 positionVersion);
     event AssetRouteConfigured(address indexed asset, bool enabled);
     event MinLegInputConfigured(uint256 minLegInput);
     event SurplusRecovered(address indexed asset, address indexed to, uint256 amount);
+    event RendererSet(address indexed renderer);
 
     // -----------------------------------------------------------------------
     // Types
     // -----------------------------------------------------------------------
 
-    /// @notice One line of a basket recipe: which asset, and what share of the funding.
+    /// @notice One line of a plan: which asset, and what share of each purchase.
     struct Allocation {
         address asset;
         uint16 weightBps;
@@ -139,17 +166,24 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
 
     ExecutionGateway public immutable gateway;
     IERC20 public immutable usdg;
+    /// @notice The first id this contract minted. Ids run from here to
+    ///         `nextTokenId() - 1`; closed positions leave gaps.
+    uint256 public immutable firstTokenId;
 
     uint16 public constant BPS = 10_000;
     uint8 public constant MAX_LEGS = 8;
+    /// @notice Contract generation. Version 1 is deployed separately and stays live.
+    uint8 public constant CONTRACT_VERSION = 2;
+    /// @dev ERC-4906 interface id.
+    bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
     /// @notice Smallest USDG a single leg may be funded with.
-    /// @dev Guards the low end of the dust range before pricing is even consulted.
-    ///      Defaults to 1.000000 USDG. See `_assertLegIsMeaningful` for the check
-    ///      that matters more: that the leg would actually acquire something.
     uint256 public minLegInput;
 
-    uint256 private _nextTokenId = 1;
+    /// @notice Draws what a wallet displays for a position. See design note 7.
+    IJayoRenderer public renderer;
+
+    uint256 private _nextTokenId;
     uint256 private _nextGatewayNonce;
 
     mapping(address asset => AssetRoute) private _routes;
@@ -158,34 +192,33 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     mapping(uint256 tokenId => mapping(address asset => uint256)) public holdings;
     /// @notice Assets held by a position, for enumeration at redemption.
     mapping(uint256 tokenId => address[]) private _assetsOf;
-    /// @notice The recipe, kept so an allocation can be copied without copying value.
+    /// @notice The plan for future money into this position. See design note 5.
     mapping(uint256 tokenId => Allocation[]) private _allocationOf;
+    /// @notice Starts at 1 when a position is created; bumped on every plan change.
+    mapping(uint256 tokenId => uint64) public allocationVersion;
+    /// @notice USDG actually spent buying into this position, across all fundings.
+    mapping(uint256 tokenId => uint256) public totalFunded;
+    /// @notice How many purchases have gone into this position (creation included).
+    mapping(uint256 tokenId => uint32) public fundingCount;
 
     /// @notice Sum of `holdings[*][asset]` across every live position.
-    /// @dev Must never exceed this contract's balance of that asset. Surplus above
-    ///      it is a donation and belongs to no position.
+    /// @dev Must never exceed this contract's balance of that asset.
     mapping(address asset => uint256) public totalLiabilities;
 
-    /// @notice Increments on every transfer. Anything authorised against an older
-    ///         version is no longer valid.
-    mapping(uint256 tokenId => uint64) public positionVersion;
-    /// @notice A recorded delegate address for a position. Cleared on transfer.
-    /// @dev GRANTS NOTHING TODAY. No function in this contract accepts it as
-    ///      authority: create, copy, transfer and every withdrawal check the owner
-    ///      alone. It is kept, and kept revoked on transfer, so that a future
-    ///      delegated action cannot inherit a stale delegate from a previous owner.
-    ///      The interface does not offer it, because offering a permission that
-    ///      permits nothing would mislead.
-    mapping(uint256 tokenId => address) public positionManager;
-
-    constructor(ExecutionGateway gateway_, IERC20 usdg_, address owner_)
+    /// @param firstTokenId_ The first id this contract mints. Set above the last id
+    ///        of the version-1 contract on the same network, so a basket number
+    ///        names exactly one position across both.
+    constructor(ExecutionGateway gateway_, IERC20 usdg_, address owner_, uint256 firstTokenId_)
         ERC721("Jayo Basket", "JAYO")
         Ownable(owner_)
     {
         if (address(gateway_) == address(0) || address(usdg_) == address(0)) revert ZeroAddress();
+        if (firstTokenId_ == 0) revert ZeroAmount();
         gateway = gateway_;
         usdg = usdg_;
         minLegInput = 1_000000; // 1.000000 USDG
+        firstTokenId = firstTokenId_;
+        _nextTokenId = firstTokenId_;
     }
 
     // -----------------------------------------------------------------------
@@ -205,6 +238,12 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         if (v == 0) revert ZeroAmount();
         minLegInput = v;
         emit MinLegInputConfigured(v);
+    }
+
+    /// @notice Replace what wallets display. Cannot touch holdings or ownership.
+    function setRenderer(IJayoRenderer renderer_) external onlyOwner {
+        renderer = renderer_;
+        emit RendererSet(address(renderer_));
     }
 
     /// @notice Recover tokens donated to this contract above the liability line.
@@ -249,6 +288,16 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         }
     }
 
+    /// @notice The id the next created position will get.
+    function nextTokenId() external view returns (uint256) {
+        return _nextTokenId;
+    }
+
+    /// @notice True while the position exists (it has been created and not closed).
+    function exists(uint256 tokenId) external view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
     /// @notice Surplus of an asset held above what positions are owed.
     function surplusOf(address asset) external view returns (uint256) {
         uint256 balance = IERC20(asset).balanceOf(address(this));
@@ -256,16 +305,34 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         return balance > owed ? balance - owed : 0;
     }
 
-    /// @notice What each leg would cost and acquire, before committing funds.
+    /// @notice What each leg would cost and acquire for a new position.
     /// @dev Reference amounts, NOT executed amounts - the pool charges a fee and
-    ///      moves on impact. `BuyExecution.t.sol` measures the gap. A preview is a
-    ///      forecast; only a settled transaction is a result.
+    ///      moves on impact. A preview is a forecast; only a settled transaction is
+    ///      a result.
     function previewCreate(Allocation[] calldata allocation, uint256 usdgIn)
         external
         view
         returns (uint256[] memory legInputs, uint256[] memory referenceOut, uint256[] memory floors, uint256 unspent)
     {
         _validateAllocationShape(allocation);
+        return _preview(_toMemory(allocation), usdgIn);
+    }
+
+    /// @notice The same forecast for money added to an existing position by its plan.
+    function previewContribute(uint256 tokenId, uint256 usdgIn)
+        external
+        view
+        returns (uint256[] memory legInputs, uint256[] memory referenceOut, uint256[] memory floors, uint256 unspent)
+    {
+        _requireOwned(tokenId);
+        return _preview(_allocationOf[tokenId], usdgIn);
+    }
+
+    function _preview(Allocation[] memory allocation, uint256 usdgIn)
+        internal
+        view
+        returns (uint256[] memory legInputs, uint256[] memory referenceOut, uint256[] memory floors, uint256 unspent)
+    {
         uint256 n = allocation.length;
         legInputs = new uint256[](n);
         referenceOut = new uint256[](n);
@@ -284,64 +351,110 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         unspent = usdgIn - spent;
     }
 
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        _requireOwned(tokenId);
+        IJayoRenderer r = renderer;
+        return address(r) == address(0) ? "" : r.tokenURI(address(this), tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+        return interfaceId == ERC4906_INTERFACE_ID || super.supportsInterface(interfaceId);
+    }
+
     // -----------------------------------------------------------------------
-    // Create
+    // Buy: create, contribute, copy
     // -----------------------------------------------------------------------
 
     /// @notice Fund a new basket with USDG and acquire its assets.
     /// @dev All or nothing. Any leg that cannot be priced, is too small to acquire
-    ///      anything, or fills below its floor reverts the entire creation - no
-    ///      partially-built position can exist.
+    ///      anything, or fills below its floor reverts the entire creation.
     function create(Allocation[] calldata allocation, uint256 usdgIn, uint256 deadline)
         external
         nonReentrant
         returns (uint256 tokenId)
     {
-        return _create(allocation, usdgIn, deadline, 0);
+        _validateAllocationShape(allocation);
+        return _createFrom(_toMemory(allocation), usdgIn, deadline);
     }
 
-    /// @notice Create a new position using another position's allocation.
-    /// @dev Copies the RECIPE only. The new position is funded entirely by the
-    ///      caller and starts with no history and no holdings of the source. The
-    ///      source owner keeps their position and receives nothing.
-    function copyAllocation(uint256 sourceTokenId, uint256 usdgIn, uint256 deadline)
+    /// @notice Add money to an existing position, bought by that position's plan.
+    ///
+    /// @dev Open to anyone: the owner topping up, or someone giving to the owner.
+    ///      The contributor pays; the position's owner receives everything bought,
+    ///      and the contributor gains no claim on it. `expectedAllocationVersion` is
+    ///      the plan version the contributor was shown - if the owner has changed
+    ///      the plan since, this reverts rather than buy a different mix. All or
+    ///      nothing, with the same per-leg floors as `create`.
+    function contribute(uint256 tokenId, uint256 usdgIn, uint64 expectedAllocationVersion, uint256 deadline)
+        external
+        nonReentrant
+    {
+        _requireOwned(tokenId);
+        _checkAllocationVersion(tokenId, expectedAllocationVersion);
+
+        uint256 spent = _fund(tokenId, _allocationOf[tokenId], usdgIn, deadline);
+        emit Contributed(tokenId, msg.sender, usdgIn, spent, expectedAllocationVersion);
+        emit MetadataUpdate(tokenId);
+    }
+
+    /// @notice Create a new position using another position's current plan.
+    /// @dev Copies the PLAN only. The new position is funded entirely by the
+    ///      caller and starts with no holdings of the source. The source owner
+    ///      keeps their position and receives nothing.
+    function copyAllocation(uint256 sourceTokenId, uint256 usdgIn, uint64 expectedAllocationVersion, uint256 deadline)
         external
         nonReentrant
         returns (uint256 tokenId)
     {
         if (_ownerOf(sourceTokenId) == address(0)) revert PositionDoesNotExist(sourceTokenId);
-        Allocation[] memory recipe = _allocationOf[sourceTokenId];
-        tokenId = _createFromMemory(recipe, usdgIn, deadline, sourceTokenId);
+        _checkAllocationVersion(sourceTokenId, expectedAllocationVersion);
+        tokenId = _createFrom(_allocationOf[sourceTokenId], usdgIn, deadline);
         emit AllocationCopied(sourceTokenId, tokenId, msg.sender);
     }
 
-    function _create(Allocation[] calldata allocation, uint256 usdgIn, uint256 deadline, uint256 copiedFrom)
-        internal
-        returns (uint256)
-    {
+    /// @notice Change the plan that future money into this position is split by.
+    /// @dev Owner only. Holdings are not touched - nothing is bought or sold. Every
+    ///      asset must have an enabled route now, so a plan cannot be set that no
+    ///      contribution could ever buy.
+    function setAllocation(uint256 tokenId, Allocation[] calldata allocation) external nonReentrant {
+        address owner_ = _requireOwned(tokenId);
+        if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
         _validateAllocationShape(allocation);
-        Allocation[] memory mem = new Allocation[](allocation.length);
         for (uint256 i; i < allocation.length; ++i) {
-            mem[i] = allocation[i];
+            if (!_routes[allocation[i].asset].enabled) revert AssetNotSupported(allocation[i].asset);
         }
-        return _createFromMemory(mem, usdgIn, deadline, copiedFrom);
+        Allocation[] memory plan = _toMemory(allocation);
+        uint64 v = _storeAllocation(tokenId, plan);
+        emit AllocationChanged(tokenId, v, plan);
+        emit MetadataUpdate(tokenId);
     }
 
-    function _createFromMemory(Allocation[] memory allocation, uint256 usdgIn, uint256 deadline, uint256)
+    function _createFrom(Allocation[] memory plan, uint256 usdgIn, uint256 deadline)
         internal
         returns (uint256 tokenId)
     {
-        if (usdgIn == 0) revert ZeroAmount();
-
         tokenId = _nextTokenId++;
+        uint64 v = _storeAllocation(tokenId, plan);
+        uint256 spent = _fund(tokenId, plan, usdgIn, deadline);
+
+        _safeMint(msg.sender, tokenId);
+        emit BasketCreated(tokenId, msg.sender, usdgIn, spent, usdgIn - spent, plan.length);
+        emit AllocationChanged(tokenId, v, plan);
+    }
+
+    /// @dev Take `usdgIn` from the caller, buy every leg of `plan` into `tokenId`,
+    ///      and return the weight-rounding remainder to the caller.
+    function _fund(uint256 tokenId, Allocation[] memory plan, uint256 usdgIn, uint256 deadline)
+        internal
+        returns (uint256 spent)
+    {
+        if (usdgIn == 0) revert ZeroAmount();
         usdg.safeTransferFrom(msg.sender, address(this), usdgIn);
 
-        uint256 spent;
-        for (uint256 i; i < allocation.length; ++i) {
-            uint256 amountIn = Math.mulDiv(usdgIn, allocation[i].weightBps, BPS);
+        for (uint256 i; i < plan.length; ++i) {
+            uint256 amountIn = Math.mulDiv(usdgIn, plan[i].weightBps, BPS);
             spent += amountIn;
-            _settleLeg(tokenId, allocation[i], amountIn, deadline);
-            _allocationOf[tokenId].push(allocation[i]);
+            _settleLeg(tokenId, plan[i], amountIn, deadline);
         }
 
         // Integer division of the weights leaves a remainder. Return it rather than
@@ -353,8 +466,10 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
             emit UnspentReturned(tokenId, msg.sender, unspent, "weight rounding remainder");
         }
 
-        _safeMint(msg.sender, tokenId);
-        emit BasketCreated(tokenId, msg.sender, usdgIn, spent, unspent, allocation.length);
+        totalFunded[tokenId] += spent;
+        unchecked {
+            ++fundingCount[tokenId];
+        }
     }
 
     function _settleLeg(uint256 tokenId, Allocation memory leg, uint256 amountIn, uint256 deadline) internal {
@@ -451,19 +566,39 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         if (sum != BPS) revert WeightsMustSumToBps(sum);
     }
 
+    function _checkAllocationVersion(uint256 tokenId, uint64 expected) internal view {
+        uint64 current = allocationVersion[tokenId];
+        if (current != expected) revert AllocationChangedSinceQuote(tokenId, expected, current);
+    }
+
+    /// @dev Replace a position's plan and return its new version (1 on creation).
+    function _storeAllocation(uint256 tokenId, Allocation[] memory plan) internal returns (uint64 v) {
+        delete _allocationOf[tokenId];
+        for (uint256 i; i < plan.length; ++i) {
+            _allocationOf[tokenId].push(plan[i]);
+        }
+        unchecked {
+            v = ++allocationVersion[tokenId];
+        }
+    }
+
+    function _toMemory(Allocation[] calldata allocation) internal pure returns (Allocation[] memory mem) {
+        mem = new Allocation[](allocation.length);
+        for (uint256 i; i < allocation.length; ++i) {
+            mem[i] = allocation[i];
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Redeem — in kind, no pricing
     // -----------------------------------------------------------------------
 
-    /// @notice Burn a position and receive its underlying tokens.
+    /// @notice Close a position and receive every underlying token.
     ///
     /// @dev Reads no price, calls no oracle, consults no policy. A holder can always
     ///      get their assets out provided the assets themselves are transferable -
     ///      which is the only dependency we cannot remove, since a token-level
     ///      freeze is the token's decision, not ours.
-    ///
-    ///      This is why the promise "withdraw its underlying assets" survives a
-    ///      weekend when every equity feed is stale.
     function redeem(uint256 tokenId) external nonReentrant {
         address owner_ = _requireOwned(tokenId);
         if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
@@ -480,9 +615,7 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
             totalLiabilities[assets[i]] -= amount;
         }
         delete _assetsOf[tokenId];
-        delete _allocationOf[tokenId];
-        delete positionManager[tokenId];
-        _burn(tokenId);
+        _close(tokenId, owner_);
 
         for (uint256 i; i < n; ++i) {
             if (amounts[i] == 0) continue;
@@ -493,17 +626,13 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         emit BasketRedeemed(tokenId, owner_, n);
     }
 
-    /// @notice Withdraw one asset and keep the position.
+    /// @notice Withdraw one asset in full. The position survives if anything is
+    ///         left in it; taking the last asset out closes it.
     ///
-    /// @dev Same guarantee as `redeem`: reads no price, calls no oracle, consults
-    ///      no policy. Wanting one leg back should not cost you the position, its
-    ///      allocation record, or the manager you appointed - and it should not
-    ///      have to wait for a market to open.
-    ///
-    ///      The allocation record is deliberately left alone. It is the recipe the
-    ///      basket was built from and what `copyAllocation` copies; it is not a
-    ///      claim about what the position currently holds. `holdingsOf` answers
-    ///      that, and it is read straight from the ledger.
+    /// @dev Same guarantee as `redeem`: no price, no oracle, no policy. The plan is
+    ///      left alone - it describes future money, not current holdings - so the
+    ///      next contribution buys the withdrawn asset again unless the owner
+    ///      changes the plan.
     function redeemAsset(uint256 tokenId, address asset) external nonReentrant {
         address owner_ = _requireOwned(tokenId);
         if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
@@ -515,13 +644,18 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         holdings[tokenId][asset] = 0;
         totalLiabilities[asset] -= amount;
         uint256 legsLeft = _dropAsset(tokenId, asset);
+        if (legsLeft == 0) _close(tokenId, owner_);
 
         IERC20(asset).safeTransfer(owner_, amount);
         emit AssetRedeemed(tokenId, asset, owner_, amount);
-        emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+        if (legsLeft != 0) {
+            emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+            emit MetadataUpdate(tokenId);
+        }
     }
 
-    /// @notice Withdraw the same fraction of every holding and keep the position.
+    /// @notice Withdraw the same fraction of every holding. At 100%, or whenever
+    ///         nothing would be left, the position closes.
     ///
     /// @dev Rounding truncates, so the position keeps the remainder rather than
     ///      the caller - a withdrawal can never take out more than its share, and
@@ -556,13 +690,17 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
             if (amounts[i] != 0 && holdings[tokenId][assets[i]] == 0) _dropAsset(tokenId, assets[i]);
         }
         uint256 legsLeft = _assetsOf[tokenId].length;
+        if (legsLeft == 0) _close(tokenId, owner_);
 
         for (uint256 i; i < n; ++i) {
             if (amounts[i] == 0) continue;
             IERC20(assets[i]).safeTransfer(owner_, amounts[i]);
             emit AssetRedeemed(tokenId, assets[i], owner_, amounts[i]);
         }
-        emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+        if (legsLeft != 0) {
+            emit PartiallyRedeemed(tokenId, owner_, legsLeft);
+            emit MetadataUpdate(tokenId);
+        }
     }
 
     /// @dev Remove `asset` from a position's leg list. Order is not meaningful, so
@@ -579,45 +717,14 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         return list.length;
     }
 
-    // -----------------------------------------------------------------------
-    // Management delegation
-    // -----------------------------------------------------------------------
-
-    /// @notice Record a delegate for a position. Cleared automatically on transfer.
-    /// @dev See `positionManager`: recording one currently authorises no action.
-    function setManager(uint256 tokenId, address manager) external {
-        address owner_ = _requireOwned(tokenId);
-        if (msg.sender != owner_) revert NotPositionOwner(tokenId, msg.sender);
-        positionManager[tokenId] = manager;
-        emit ManagerSet(tokenId, manager, positionVersion[tokenId]);
-    }
-
-    /// @notice True only for the current owner or their current delegate.
-    /// @dev A view for off-chain readers. Nothing in this contract calls it.
-    function isAuthorised(uint256 tokenId, address who) public view returns (bool) {
-        address owner_ = _ownerOf(tokenId);
-        if (owner_ == address(0)) return false;
-        return who == owner_ || who == positionManager[tokenId];
-    }
-
-    /// @dev Transfer revokes everything the previous owner arranged.
-    ///
-    ///      ERC-721 already clears the single-token approval, and
-    ///      `setApprovalForAll` is scoped to the granting owner so it cannot reach a
-    ///      token they no longer hold. What that does NOT cover is authority this
-    ///      contract grants itself - a manager appointment, or anything signed
-    ///      against a position version. Both are invalidated here.
-    function _update(address to, uint256 tokenId, address auth) internal override returns (address from) {
-        from = super._update(to, tokenId, auth);
-
-        // Only on a real transfer; a mint has no prior owner and a burn has no next.
-        if (from != address(0) && to != address(0)) {
-            delete positionManager[tokenId];
-            uint64 v;
-            unchecked {
-                v = ++positionVersion[tokenId];
-            }
-            emit AuthorityRevoked(tokenId, from, to, v);
-        }
+    /// @dev Burn an emptied position and forget its plan and counters. Callers
+    ///      have already zeroed every holding.
+    function _close(uint256 tokenId, address lastOwner) internal {
+        delete _allocationOf[tokenId];
+        delete allocationVersion[tokenId];
+        delete totalFunded[tokenId];
+        delete fundingCount[tokenId];
+        _burn(tokenId);
+        emit PositionClosed(tokenId, lastOwner);
     }
 }

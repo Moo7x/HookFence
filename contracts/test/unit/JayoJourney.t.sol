@@ -11,9 +11,9 @@ import {StockTokenReferencePolicy} from "../../src/policy/StockTokenReferencePol
 /// @title The complete Jayo journey
 ///
 /// @notice One test walks the entire product promise end to end:
-///         create → inspect actual holdings → transfer → prior owner and their
-///         delegate are locked out → independently copy → redeem underlying
-///         assets while pricing is unavailable.
+///         create → inspect actual holdings → transfer → the prior owner is
+///         locked out → independently copy → redeem underlying assets while
+///         pricing is unavailable.
 ///
 /// @dev MOCKED: both Stock Tokens, USDG, the Chainlink feeds, the hooks, all pool
 ///      liquidity. REAL: the `v4-core` PoolManager — every swap below is genuine
@@ -44,43 +44,31 @@ contract JayoJourneyTest is JayoFixture {
         _assertSolvent(assets);
 
         console2.log("=== 3. TRANSFER =====================================");
-        // Alice appoints a manager first, so we can prove it dies on transfer.
-        vm.prank(alice);
-        basket.setManager(id, mallory);
-        assertTrue(basket.isAuthorised(id, mallory), "manager authorised before transfer");
-        uint64 versionBefore = basket.positionVersion(id);
-
         vm.prank(alice);
         basket.transferFrom(alice, bob, id);
         assertEq(basket.ownerOf(id), bob, "bob owns it now");
 
-        console2.log("=== 4. PRIOR AUTHORITY IS DEAD ======================");
-        assertEq(basket.positionManager(id), address(0), "manager cleared by transfer");
-        assertFalse(basket.isAuthorised(id, mallory), "old delegate locked out");
-        assertFalse(basket.isAuthorised(id, alice), "old owner locked out");
-        assertEq(basket.positionVersion(id), versionBefore + 1, "version bumped");
-
-        // The old owner cannot redeem it.
+        console2.log("=== 4. THE OLD OWNER IS LOCKED OUT ==================");
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, alice));
         basket.redeem(id);
 
-        // Nor can the delegate she appointed.
-        vm.prank(mallory);
-        vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, mallory));
-        basket.redeem(id);
-
-        // Nor can she re-appoint one.
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, alice));
-        basket.setManager(id, mallory);
+        basket.redeemAsset(id, address(stock));
+
+        // Nor can she change what future money into it buys.
+        vm.prank(alice);
+        vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, alice));
+        basket.setAllocation(id, _twoLegAllocation());
 
         console2.log("=== 5. COPY, INDEPENDENTLY FUNDED ===================");
         uint256 bobHoldings1 = basket.holdings(id, address(stock));
         uint256 aliceUsdgBefore = usdg.balanceOf(alice);
 
+        uint64 planVersion = basket.allocationVersion(id); // read before the prank, which the next call consumes
         vm.prank(alice);
-        uint256 copyId = basket.copyAllocation(id, FUNDING / 2, block.timestamp + 1 hours);
+        uint256 copyId = basket.copyAllocation(id, FUNDING / 2, planVersion, block.timestamp + 1 hours);
 
         assertEq(basket.ownerOf(copyId), alice, "alice owns the copy");
         assertTrue(copyId != id, "a distinct position");
@@ -89,9 +77,9 @@ contract JayoJourneyTest is JayoFixture {
         assertEq(basket.ownerOf(id), bob, "source ownership unchanged");
         // Alice paid for it herself.
         assertEq(aliceUsdgBefore - usdg.balanceOf(alice), FUNDING / 2, "copy is funded by the copier");
-        // Same recipe, roughly half the size, and no history inherited.
+        // Same plan, roughly half the size, and none of the source's funding record.
         _assertSameRecipe(id, copyId);
-        assertEq(basket.positionVersion(copyId), 0, "a copy starts with a fresh history");
+        assertEq(basket.fundingCount(copyId), 1, "a copy starts with its own single purchase");
 
         console2.log("=== 6. REDEEM WITH PRICING UNAVAILABLE ==============");
         // Every feed goes stale — a weekend, in effect.

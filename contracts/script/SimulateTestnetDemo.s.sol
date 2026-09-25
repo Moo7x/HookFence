@@ -36,7 +36,7 @@ contract SimulateTestnetDemo is DeployJayoTestnet {
         a[1] = JayoBasket.Allocation({asset: AMZN, weightBps: 4000});
 
         uint256 first = d.basket.create(a, DEFAULT_FUND, block.timestamp + 1 hours);
-        uint256 copy = d.basket.copyAllocation(first, DEFAULT_FUND / 2, block.timestamp + 1 hours);
+        uint256 copy = d.basket.copyAllocation(first, DEFAULT_FUND / 2, d.basket.allocationVersion(first), block.timestamp + 1 hours);
         d.basket.redeemAsset(copy, AMZN);
         d.basket.redeemFraction(copy, 5000);
         d.basket.safeTransferFrom(me, recipient, first);

@@ -256,20 +256,6 @@ contract BasketDustAndFailureTest is JayoFixture {
         basket.redeem(id);
     }
 
-    /// @notice A delegate can be appointed but still cannot redeem.
-    /// @dev Management authority is deliberately narrower than ownership.
-    function test_ManagerCannotRedeem() public {
-        vm.prank(alice);
-        uint256 id = basket.create(_twoLegAllocation(), FUNDING, block.timestamp + 1 hours);
-        vm.prank(alice);
-        basket.setManager(id, mallory);
-
-        assertTrue(basket.isAuthorised(id, mallory), "appointed");
-        vm.prank(mallory);
-        vm.expectRevert(abi.encodeWithSelector(JayoBasket.NotPositionOwner.selector, id, mallory));
-        basket.redeem(id);
-    }
-
     // =======================================================================
     // Helper
     // =======================================================================
