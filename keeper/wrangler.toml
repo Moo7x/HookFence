@@ -1,0 +1,27 @@
+# Jayo testnet keeper: a scheduled Cloudflare Worker (see src/index.mjs).
+# Deploy from the repo root:  cd tools && npx wrangler deploy --config ../keeper/wrangler.toml
+# Its one secret, UPDATER_KEY, is set with scripts/put-updater-secret.sh and is
+# never written to this file or to the repository.
+name = "jayo-testnet-keeper"
+main = "src/index.mjs"
+compatibility_date = "2025-02-14"
+workers_dev = false   # no public URL; it only runs on the schedule below
+
+[triggers]
+# Every 20 minutes: inside the feeds' one-hour heartbeat, above their 15-minute
+# minimum interval, so a single missed run never lets a feed expire.
+crons = ["*/20 * * * *"]
+
+[vars]
+CHAIN_ID = "46630"
+RPC_URL = "https://rpc.testnet.chain.robinhood.com"
+POOL_MANAGER = "0x8366a39CC670B4001A1121B8F6A443A643e40951"
+RUSDG = "0x7C902600cb5bf24225DF1a77b333D84e03C1F210"
+TSLA = "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E"
+AMZN = "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02"
+TSLA_FEED = "0xC1CF351776506901A15ba526F4Ad88eEdE907C44"
+AMZN_FEED = "0xb28c934EfB724C8CF64506f3023297403dC09B57"
+RUSDG_FEED = "0x1c7B0366C6b6Df82AD0e1A9af4D1a130BaB53d6A"
+
+[observability]
+enabled = true

@@ -43,3 +43,8 @@ tools/node_modules/
 # Hosted site build output (rebuilt by scripts/build-site.mjs)
 site/dist/
 .wrangler/
+
+# Cloudflare Worker keeper build output
+keeper/.dryrun/
+keeper/.wrangler/
+.wrangler/

@@ -4,11 +4,15 @@
 #   ./scripts/new-testnet-wallet.sh                 the deployer (admin, feed keeper)
 #   ./scripts/new-testnet-wallet.sh --role alice    demo user A
 #   ./scripts/new-testnet-wallet.sh --role bob      demo user B
+#   ./scripts/new-testnet-wallet.sh --role updater  the scheduled price updater
 #
 # Three separate keys on purpose. The deployer owns the contracts and writes the
 # price feeds; it is never loaded by the interface's test signer. Alice and Bob
 # are ordinary users: two independent wallets, so the public proof can show a
-# basket handed from one to the other and the recipient withdrawing it.
+# basket handed from one to the other and the recipient withdrawing it. The
+# updater can do exactly one thing - publish testnet reference prices within the
+# feeds' on-chain bounds - so it is the only key that may run unattended (in a
+# scheduled Cloudflare Worker), while the deployer key stays offline.
 #
 # The key is written to contracts/.env only (git-ignored) and is never printed,
 # never held in a shell variable, and never passed on a command line. Never paste
@@ -33,7 +37,8 @@ case "$ROLE" in
   deployer) KEY_VAR=PRIVATE_KEY;       ADDR_VAR=DEPLOYER_ADDRESS ;;
   alice)    KEY_VAR=ALICE_PRIVATE_KEY; ADDR_VAR=ALICE_ADDRESS ;;
   bob)      KEY_VAR=BOB_PRIVATE_KEY;   ADDR_VAR=BOB_ADDRESS ;;
-  *) echo "unknown role '$ROLE' (use deployer, alice or bob)"; exit 2 ;;
+  updater)  KEY_VAR=UPDATER_PRIVATE_KEY; ADDR_VAR=UPDATER_ADDRESS ;;
+  *) echo "unknown role '$ROLE' (use deployer, alice, bob or updater)"; exit 2 ;;
 esac
 
 if [ -f "$ENV_FILE" ] && grep -qE "^${KEY_VAR}=.+" "$ENV_FILE"; then

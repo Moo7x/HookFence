@@ -1,0 +1,9 @@
+{
+  "name": "jayo-testnet-keeper",
+  "private": true,
+  "description": "Scheduled Cloudflare Worker that republishes the Jayo testnet demo price feeds. See src/index.mjs.",
+  "type": "module",
+  "dependencies": {
+    "viem": "2.21.55"
+  }
+}
