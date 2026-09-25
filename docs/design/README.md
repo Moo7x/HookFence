@@ -113,5 +113,9 @@ The rule: **the page moves only on real state.**
 | Start in kind | the wallet's Stock Tokens with "All" buttons, a plan suggested from their value, and a note that no price is needed | `after/v3-start-in-kind.png` |
 | Phone | actions follow the holdings | `after/v3-mobile-basket.png` |
 
+`after/v3-addition-confirmed.png` was captured 0.4 s after confirmation, so its
+TSLA amount (0.083756) is a frame of the count-up. The settled value, 0.083765,
+is in `after/v3-live-basket-201.png`, taken from the live site.
+
 `prefers-reduced-motion` turns off the flash, the counting and the slide. An
 estimate is never drawn like a holding: it is dashed, faded, and says so.
