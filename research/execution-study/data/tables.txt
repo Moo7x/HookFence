@@ -1,0 +1,58 @@
+classification of all sampled transactions: {
+  BUY: 1221,
+  'unpriced-counter': 713,
+  'no-user-stock-delta': 192,
+  'no-counter': 309,
+  'multi-stock': 22,
+  SELL: 1282,
+  lp: 28,
+  odd: 18
+}
+priced user trades >= $1: 2415
+
+| Session | Size | Trades | Volume | Median bps vs Chainlink, buys / sells | Vol-weighted bps | With a peer | Worse than peer by >25 bps | Observed difference vs peers |
+|---|---|---|---|---|---|---|---|---|
+| regular | $1–100 | 518 | $17257 | -2 / -6 | -2.1 | 466 | 134 | $22.66 (15.2 bps) |
+| regular | $100–1000 | 324 | $103641 | -2 / -7 | 1.6 | 232 | 43 | $60.34 (9.5 bps) |
+| regular | $1000–10000 | 48 | $100524 | 1 / 5 | 14.4 | 15 | 2 | $20.72 (8.8 bps) |
+| regular | $10000–∞ | 3 | $63936 | 56 / 22 | 19.1 | 0 | 0 | $0.00 (- bps) |
+| extended | $1–100 | 689 | $23229 | -2 / -2 | -0.2 | 604 | 145 | $31.18 (15.4 bps) |
+| extended | $100–1000 | 521 | $151068 | -5 / 2 | -4.3 | 401 | 50 | $80.44 (7.5 bps) |
+| extended | $1000–10000 | 61 | $116597 | -2 / -23 | -6.6 | 19 | 2 | $10.20 (3.7 bps) |
+| extended | $10000–∞ | 1 | $10000 | 1 / - | 1.5 | 0 | 0 | $0.00 (- bps) |
+| weekend | $1–100 | 161 | $5681 | -26 / 18 | n/a (feed frozen) | 127 | 4 | $2.50 (5.6 bps) |
+| weekend | $100–1000 | 74 | $26766 | -19 / 9 | n/a (feed frozen) | 39 | 0 | $1.37 (1.2 bps) |
+| weekend | $1000–10000 | 14 | $30794 | -11 / 78 | n/a (feed frozen) | 1 | 0 | $0.00 (0.0 bps) |
+| weekend | $10000–∞ | 1 | $18500 | - / 18 | n/a (feed frozen) | 0 | 0 | $0.00 (- bps) |
+
+all sessions: 1904 trades with a peer, $274118 volume, observed difference $229.40; largest single $6.87
+
+by token (non-weekend): median buy / sell bps vs Chainlink, n
+  TSLA: 17 / -4  n=119
+  GOOGL: -1 / -7  n=468
+  NVDA: -6 / -0  n=1317
+  AAPL: -0 / -6  n=163
+  AMZN: 13 / -20  n=46
+  QQQ: -10 / -2  n=52
+
+routers (non-weekend, >= 20 trades): median buy / sell bps vs Chainlink
+  0x65050a9b7e5075a2ba5ced7b1b64ee66262c40dc 0x4d819a2a: -9 / -4  n=478
+  0xccc88a9d1b4ed6b0eaba998850414b24f1c315be 0x0a2b8f36: 16 / -5  n=312
+  0x4337084d9e255ff0702461cf8895ce9e3b5ff108 0x765e827f: -1 / -18  n=256
+  0x9689992f5b5c09447f15906d8d11214944488341 0x3e0f9c3c: -2 / -4  n=61
+  0xbea6edfb4cd1196a0d5f486432ec6020fb407369 0x39ecce49: 3 / -11  n=54
+  0x6e2a35a7ad683cf634d91492d73bb7ff774c6919 0x0c307f76: -3 / -4  n=53
+  0x8876789976decbfcbbbe364623c63652db8c0904 0x3593564c: -2 / -1  n=49
+  0x7ab338fde039feb0da5a38d90d1a08fff1c31af0 0x39ecce49: -0 / -7  n=45
+  0x1521027b665fa38fa4a642991607ad708376dd7b 0x00000000: -4 / -23  n=38
+  0x278d858f05b94576c1e6f73285886876ff6ef8d2 0x669dc5b6: 23 / 13  n=38
+  0x0000000071727de22e5e9d8baf0edac6f37da032 0x765e827f: -8 / 9  n=34
+  0x0000000000001ff3684f28c67538d4d072c22734 0x2213bc0b: 1 / -7  n=32
+  0x520ed467860d840ec6ca20f1dacb9c0fa5168aa7 0x6bfd6286: 28 / 47  n=31
+  0xe492912f37c2a4eca45d42dc67548f4c6cd7ce2b 0x4d819a2a: -3 / -8  n=26
+  0xb300000b72deaeb607a12d5f54773d1c19c7028d 0x810c705b: -1 / 10  n=25
+  0xc33acc93942105c57602e59e8e448c20ba718a85 0x000000e7: 61 / 39  n=23
+  0x7ddbd3952d9fd58cc7d344ad0931d08db072114a 0xfea69838: -1 / 8  n=23
+  0x6e2a35a7ad683cf634d91492d73bb7ff774c6919 0xf2c42696: -5 / -17  n=20
+UniswapX fills among priced trades: 2
+median gas per trade $80 /1000

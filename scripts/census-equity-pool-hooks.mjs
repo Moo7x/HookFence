@@ -15,7 +15,7 @@ const pad=a=>'0x'+a.toLowerCase().replace('0x','').padStart(64,'0');
 
 const STOCKS={NVDA:'0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC',
               GOOGL:'0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3',
-              SPY:'0xD5f3879160bc7c32ebb4dC785F8a4F505888de68',
+              QQQ:'0xD5f3879160bc7c32ebb4dC785F8a4F505888de68',
               AAPL:'0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9'};
 const ZERO='0x0000000000000000000000000000000000000000';
 const head=parseInt(await rpc('eth_blockNumber',[]),16);

@@ -11,6 +11,7 @@ reproducible from `scripts/`. Kept so we never re-litigate a dead idea.
 | 2 | Stock Tokens trade against memecoins with sustained volume: NVDA/SI 849 swaps, musebook/META, CHONK/LLY, SCHIFFY/GLD | `scan-pool-activity.mjs` |
 | 3 | USDG is a real quote asset; ETH/USDG, ROBIN/USDG, CASHCAT/USDG, AI/USDG all traded in 6/6 windows | `scan-pool-activity.mjs` |
 | 4 | Verified launch-asset liquidity: ETH, GOOGL, NVDA + ROBIN, CASHCAT, AI. **SPY, AAPL, MSTR have NO sustained USDG liquidity** | `scan-pool-activity.mjs` |
+| 4a | **Correction (2026-09-25):** the address these scripts called SPY, `0xD5f3…de68`, is **QQQ** (`symbol()` returns QQQ). Fact 4's "SPY" means QQQ. See `EXECUTION_STUDY.md` §5 | on-chain `symbol()` |
 | 5 | Dynamic fees are live: 4 of 1,462 pools charged different fees between swaps (0.000%→0.300%, 0.328%→0.528%). Range 0%–3% | `scan-dynamic-fees.mjs` |
 | 6 | 36 corporate actions / 29 tokens / 86 days, accelerating. CRWD 4:1 split. **WEEK: split applied then REVERTED 15 min later** | `scan-corporate-actions.mjs` |
 | 7 | Equity feeds update 24/5; all 5 sampled were 36–45h stale on a Sunday vs 24h heartbeat. Crypto feeds fresh | `observe-live-feeds.sh` |
@@ -18,6 +19,8 @@ reproducible from `scripts/`. Kept so we never re-litigate a dead idea.
 | 9 | **Corporate-action mispricing is smaller than daily noise.** SPY: multiplier +0.17%, feed moved −0.17%. NVDA: +0.08% vs −0.50%. MSFT: +0.04% vs +0.57% | `measure-corporate-action-impact.mjs` |
 
 ## Ideas killed, and by what
+
+- **Execution product (routing, oracle-checked swaps, RFQ) for Stock Tokens** — killed 2026-09-25 by `EXECUTION_STUDY.md`: 1,904 real trades with a same-size peer within 30 s show $0.12 per trade (8 bps) of observed difference; routers converge; UniswapX already live. Lending against Stock Tokens: ~$578k USDG supplied on Morpho, ~$1.3k borrowed.
 
 | Idea | Killed by | Time spent |
 |---|---|---|
