@@ -90,10 +90,12 @@ decoded into plain language, with the raw error folded away.
 
 - Disconnected, connected, owner, visitor: screenshots above.
 - Closed basket: the page says so, lists its history, and offers no actions.
-- Buying paused (prices expired): `after/desktop-basket-paused.png`, taken
-  after the feeds genuinely expired. The chip turns amber, every buy panel
-  says why buying is paused and that taking out and handing on still work,
-  and the buy buttons are disabled.
+- Buying paused (prices expired): `after/desktop-basket-paused-local.png`.
+  This was taken on the **local demo** after skipping 48 hours of chain time,
+  which runs the same page code as the live site. The chip turns amber, every
+  buy panel says why buying is paused and that taking out and handing on still
+  work, and the buy buttons are disabled. In that same state, taking out a
+  quarter of the basket worked ("Sent 0.011729 AAPL and 0.013293 NVDA").
 - Error: `after/desktop-error-insufficient.png`.
 - Phone width (390 px): no horizontal scrolling, and tap targets are at least
   36 px (44 px for primary buttons).

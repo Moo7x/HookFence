@@ -1,11 +1,46 @@
 # What the closest alternatives do, and the two things worth adding
 
-**Updated:** 2026-09-24, after HoodETF was pointed out. Written as reference, not
-as a reason to pivot. Jayo's promise is frozen and nothing here proposes
-changing it:
+**Updated:** 2026-09-24, after HoodETF was pointed out. **Addendum 2026-09-25:**
+version 2 adds contributions (section 0 below). The rest of this document still
+stands; the promise it quotes gained one clause, "anyone can add money to it,
+bought by its own plan". The original text:
 
 > Build a funded token basket, own and transfer it as one position, copy its
 > allocation using your own funds, and withdraw its underlying assets.
+
+---
+
+## 0. Contributions, against the alternatives and the gallery (2026-09-25)
+
+Read on 2026-09-25: HoodETF's documentation, and all 64 projects in the
+buildathon gallery. Nothing below claims novelty for a quote, an in-kind
+deposit, or an NFT that holds tokens. The claim is about one behaviour.
+
+**The behaviour.** One transaction, by anyone, turns stablecoin into every
+asset of a specific person's basket, split by that basket's own plan. Each leg
+is checked against a reference floor, the result is credited to that basket
+alone, and the basket's page and metadata record who added what.
+
+| To put money into someone's own mix of stocks | What happens |
+|---|---|
+| Manual swaps and transfers | the giver must know the mix, do one swap per stock and one transfer each, and nothing records what it was for |
+| HoodETF | shares in a creator's shared fund, with its recipe and fees; not the recipient's own mix |
+| batpilot (gallery) | scheduled recurring buys of **single** stocks for the plan's owner; "baskets" is on its roadmap; no third-party funding |
+| NERON & LYRA (gallery) | copy-trading bots, not an owned position |
+| INSTANT WIN (gallery) | verifiable prize distribution of tokens, including RWAs; not a portfolio |
+| ERC-6551 token-bound accounts | can receive tokens, but do not buy by a plan, protect the price, or show who added what |
+| **Jayo v2** | `contribute(id, amount, planVersion, deadline)`; demonstrated on testnet with a second wallet (`0x9bd8b3e7…d6e0`) |
+
+**Where the same behaviour exists off-chain.** M1 Finance pies split every
+deposit by the pie's target weights, and a pie can be shared as a link.
+Robinhood's custodial accounts (March 2026) "allow family and friends to
+contribute through a new gifting experience". Jayo is that behaviour for an
+individually owned, self-custodied, transferable basket.
+
+**What it does not change.** For a two-stock basket bought, handed on and
+emptied at once, doing it by hand is still cheaper (about 2.1×, section 1b).
+The case for a basket is that it *persists*: it keeps being added to, has a
+page, and can be handed on with its history.
 
 ---
 

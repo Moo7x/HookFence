@@ -5,6 +5,19 @@
 Codex review were treated as hypotheses and checked against the chain, the code
 and the competition before any of them was built.
 
+**Status: built and live the same day.**
+- JayoBasket v2 is on testnet at `0x1F0AB726…Ac0B`, with 151 unit tests and 7
+  testnet fork tests passing.
+- The site runs on it, with a page per basket.
+- The two-wallet journey ran through that page, including a second wallet
+  adding to someone else's basket. Receipts are in
+  [PUBLIC_SITE.md](PUBLIC_SITE.md) and
+  [evidence/testnet-2026-09-25-v2.json](evidence/testnet-2026-09-25-v2.json).
+- The redesign is in [design/README.md](design/README.md).
+- **Not yet done:** the scheduled keeper is built and tested but waits for the
+  owner's Cloudflare login. Contributions have not yet been tried by anyone
+  outside the project (see [USER_TESTS.md](USER_TESTS.md)).
+
 ## 1. What was checked, and what it showed
 
 ### The five leads from the review, verified
@@ -152,7 +165,9 @@ contributions exist, and is recorded as future work, not built now.
 6. **Ids start at 101**, so each basket number names one position across both
    contracts.
 
-**V1 positions (#1–#7) are not stranded.** V1 is immutable and stays deployed.
+**V1 positions (#1–#7) are not stranded, and V1 takes no new money.** Its
+purchase routes were disabled on chain after V2 went live, so its baskets can
+only be withdrawn or handed on. V1 is immutable and stays deployed.
 The site lists V1 positions under "Earlier baskets", where owners can still
 withdraw them in whole, in part or one asset at a time, and hand them on. They
 cannot receive contributions, and the page says so.

@@ -13,17 +13,19 @@ const RPC = "https://rpc.testnet.chain.robinhood.com";
 const EXPLORER = "https://explorer.testnet.chain.robinhood.com";
 const [date, ...specs] = process.argv.slice(2);
 const read = p => JSON.parse(readFileSync(p, "utf8"));
-const deployment = read("contracts/reports/jayo-testnet.json");
+// EVIDENCE_REPORT selects the deployment the evidence belongs to (default: version 1).
+const deployment = read(process.env.EVIDENCE_REPORT || "contracts/reports/jayo-testnet.json");
 const env = readFileSync("contracts/.env", "utf8");
 const addr = name => env.split(/\r?\n/).find(l => l.startsWith(name + "="))?.split("=")[1]?.trim();
-const wallets = { deployer: addr("DEPLOYER_ADDRESS"), Alice: addr("ALICE_ADDRESS"), Bob: addr("BOB_ADDRESS") };
+const wallets = { deployer: addr("DEPLOYER_ADDRESS"), Alice: addr("ALICE_ADDRESS"), Bob: addr("BOB_ADDRESS"), updater: addr("UPDATER_ADDRESS") };
+if (process.env.OWNER_WALLET) wallets["project owner (own browser wallet)"] = process.env.OWNER_WALLET;
 const who = Object.fromEntries(Object.entries(wallets).map(([k, v]) => [String(v).toLowerCase(), k]));
 
 const steps = [];
 for (const spec of specs) {
   const i = spec.indexOf("=");
   const phase = spec.slice(0, i), src = spec.slice(i + 1);
-  if (/^0x[0-9a-fA-F]{64}$/.test(src)) { steps.push({ phase, hash: src }); continue; }
+  if (/^0x[0-9a-fA-F]{64}$/.test(src)) { steps.push({ phase, what: phase, hash: src }); continue; }
   for (const t of read(src).transactions) {
     steps.push({ phase, what: t.transactionType === "CREATE" ? `deploy ${t.contractName}` : (t.function || "call").split("(")[0],
       hash: t.hash, created: t.contractAddress || undefined });

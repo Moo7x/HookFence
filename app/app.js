@@ -465,6 +465,7 @@ async function boot() {
   if (!(await connect())) { $('heroCard').innerHTML = '<div class="skeleton">This build does not include the local demo.</div>'; return; }
 
   $('netPill').textContent = isLocal ? 'Local demo · mock assets' : 'Testnet · no real value';
+  if (isLocal) $('footNote').innerHTML = '<strong>Jayo</strong> local demo: every asset, pool and price here is a mock on a local chain, with no value.';
   /* @local-only-start */
   if (isLocal) $('demoPanel').hidden = false;
   /* @local-only-end */

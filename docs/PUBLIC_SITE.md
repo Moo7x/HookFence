@@ -133,6 +133,15 @@ The journey ran through the rebuilt page, with two ordinary wallets:
 | change #101's plan to 100% TSLA | Bob | `0xc5111b1b…561f` | plan version 2; nothing bought or sold |
 | publish prices with the updater key | updater | `0xe531b285…804f`, `0x335d1dda…36e5`, `0xe0071bca…6926` | the owner key was not used |
 
+**Version 1 is withdraw-only on chain.** Its owner disabled its two purchase
+routes (`contracts/script/FreezeV1Purchases.s.sol`: `0x37a7aacf…a1e2`,
+`0x0f06e609…5bc9`). `create` and `copyAllocation` there now revert with
+`AssetNotSupported`. Every withdrawal path never reads a route, and the
+hand-over is untouched. A fork of the live chain, run before broadcasting,
+showed basket #5's owner could still take one stock, half, or everything out,
+and hand it on. This also keeps version-1 ids from ever reaching 101, where
+version 2's begin.
+
 `tokenURI(101)` now returns the holdings, the plan, 2 purchases, 28 rUSDG funded,
 and a link to `https://jayo-testnet.pages.dev/?basket=101`
 (`docs/design/after/wallet-basket-101.png` is its image).
