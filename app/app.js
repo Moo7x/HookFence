@@ -568,7 +568,7 @@ async function boot() {
   if (!D) { $('heroCard').innerHTML = '<div class="skeleton">No deployment found. Run ./scripts/run-demo.sh.</div>'; return; }
   if (!(await connect())) { $('heroCard').innerHTML = '<div class="skeleton">This build does not include the local demo.</div>'; return; }
 
-  $('netPill').textContent = isLocal ? 'Local demo · mock assets' : 'Testnet · no real value';
+  $('netPill').textContent = isLocal ? 'Local demo · mock assets' : 'Testnet prototype · no real value';
   if (isLocal) $('footNote').innerHTML = '<strong>Jayo</strong> local demo: every asset, pool and price here is a mock on a local chain, with no value.';
   /* @local-only-start */
   if (isLocal) $('demoPanel').hidden = false;
@@ -1220,7 +1220,7 @@ async function showBasket(id, { from = null } = {}) {
     : 'Connect your wallet. If this basket is yours, you can take Stock Tokens out, hand it on or change its plan here.';
   $('addLede').textContent = mine
     ? "Top up your basket with money, bought by its plan, or with Stock Tokens you already hold."
-    : "Add to this basket as a gift: money, bought by its plan, or Stock Tokens you already hold. It all belongs to the basket's owner, and you get nothing back.";
+    : "Add to this basket: money, bought by its plan, or Stock Tokens you already hold. It all belongs to the basket's owner; you receive nothing for it.";
   $('addGoesTo').innerHTML = b.exists && !b.legacy
     ? (mine ? 'Goes to: <b>you</b>.' : `Goes to: <b>${addrHtml(b.owner)}</b>, the owner now. If the basket changes hands before your addition is confirmed, it is refused and nothing is spent.`)
     : '';

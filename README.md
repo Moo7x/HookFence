@@ -1,6 +1,10 @@
 # Jayo
 
-**Baskets of Stock Tokens you own, give and grow.**
+**Status: engineering prototype, not the project's product.** On 2026-09-25
+the team concluded that a basket position has no user benefit strong enough to
+beat holding the same Stock Tokens in one's own wallet
+([docs/GO_NO_GO.md](docs/GO_NO_GO.md)). The contracts, tests and live testnet
+site are kept as working engineering.
 
 A Jayo basket is one NFT that holds a mix of Stock Tokens on Robinhood Chain,
 bought through Uniswap v4. Its owner can withdraw everything, a fraction, or a

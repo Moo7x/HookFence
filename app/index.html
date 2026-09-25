@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Jayo — baskets of Stock Tokens you own, give and grow</title>
-<meta name="description" content="Put a mix of Stock Tokens into one basket you own. Anyone can add to it by your plan. Hand it on whole, or take out one Stock Token at a time. Testnet: nothing here has value." />
+<title>Jayo — a testnet prototype: a mix of Stock Tokens held as one position</title>
+<meta name="description" content="An engineering prototype on Robinhood Chain testnet: buy or move in a mix of Stock Tokens, hold it as one transferable position, and withdraw any of it without a price. Nothing here has value." />
 <!-- Inline so the browser does not request /favicon.ico. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%230B5563'/%3E%3Crect x='7' y='12' width='11' height='8' rx='3' fill='%23EE6A4C'/%3E%3Crect x='18' y='12' width='7' height='8' rx='3' fill='%23E6B23A'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,7 +19,7 @@
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="./" aria-label="Jayo, all baskets">Jayo</a>
-    <span class="net-pill" id="netPill" title="Nothing here has real value">Testnet · no real value</span>
+    <span class="net-pill" id="netPill" title="Nothing here has real value">Testnet prototype · no real value</span>
     <span class="grow"></span>
     <button class="price-chip" id="priceChip" type="button" data-state="loading" aria-controls="aboutPrices">
       <span class="dot" aria-hidden="true"></span><span id="priceChipText">Checking prices…</span>
@@ -72,15 +72,17 @@
 
   <section class="hero">
     <div class="hero-copy">
-      <h1>Baskets of Stock Tokens you own, give, and grow.</h1>
-      <p class="lede">Put a mix of Stock Tokens into one basket with one payment. Anyone can add
-        money to your basket, and it is bought the way you planned it. Hand the basket on whole,
-        or take out one Stock Token at a time.</p>
+      <h1>A mix of Stock Tokens, held as one position.</h1>
+      <p class="lede">An engineering prototype. Buy a mix of Stock Tokens in one price-checked transaction, or move
+        in tokens you already hold; hold them as one transferable position; take out any of them at any time,
+        with no price needed.</p>
       <div class="hero-actions">
         <a class="btn btn-primary" href="#start">Start a basket</a>
         <a class="btn btn-ghost" href="#browse">See everyone's baskets</a>
       </div>
-      <p class="hero-note">On Robinhood Chain <strong>testnet</strong>. Every token here is a test asset with no value.</p>
+      <p class="hero-note">On Robinhood Chain <strong>testnet</strong>. Every token here is a test asset with no value.
+        This is a working prototype of the contracts, not a finished product: holding the same Stock Tokens in
+        your own wallet is cheaper, and the project is still testing whether a basket position is worth it.</p>
     </div>
     <div class="hero-card" id="heroCard" aria-live="polite">
       <div class="skeleton">Reading baskets from the chain…</div>
@@ -164,10 +166,9 @@
           it holds, and nobody else's holdings are mixed in.</p>
       </div>
       <div>
-        <h3>Anyone can add to it</h3>
-        <p>Send a basket's link to someone. Money they add is split by the basket's plan and bought into it;
-          Stock Tokens they hold can be moved in directly. It all goes to the owner they saw on the page, or the
-          addition is refused, and the giver gets nothing back.</p>
+        <h3>Adding to it</h3>
+        <p>Money added to a basket is split by its plan and bought into it; Stock Tokens can be moved in directly.
+          Every addition names the owner shown on the page and is refused if the basket has changed hands.</p>
       </div>
       <div>
         <h3>Take out what you want, when you want</h3>
