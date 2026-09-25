@@ -316,7 +316,7 @@ contract TestnetJourneyTest is Test {
         IOpenMintERC20(RUSDG).mint(giver, 8_000000);
         vm.startPrank(giver);
         IERC20(RUSDG).approve(address(basket), 8_000000);
-        basket.contribute(id, 8_000000, 1, block.timestamp + 1 hours);
+        basket.contribute(id, 8_000000, user, 1, block.timestamp + 1 hours);
         vm.stopPrank();
 
         (, uint256[] memory afterwards) = basket.holdingsOf(id);
@@ -331,5 +331,43 @@ contract TestnetJourneyTest is Test {
         console2.log(json);
         assertEq(vm.parseJsonString(json, ".attributes[2].value"), "TSLA 50% / AMZN 50%", "real symbols");
         assertEq(vm.parseJsonString(json, ".attributes[5].value"), "20 rUSDG", "real stablecoin symbol and total");
+    }
+
+    /// @notice Version 3 on real chain state: a wallet that already holds the
+    ///         faucet's TSLA and AMZN starts a basket with them - no rUSDG, no
+    ///         pool, no price - hands it on, and the recipient takes one out.
+    ///         Every feed is left stale on purpose.
+    function test_StartABasketWithStockTokensAlreadyHeld() public {
+        if (!forked) return;
+        vm.warp(block.timestamp + FEED_HEARTBEAT + 1); // buying is now impossible
+        address holder = 0xEDC63393bf4eBd5310E5260121D2b474fCb86a7a; // received faucet TSLA and AMZN
+        uint256 t0 = IERC20(TSLA).balanceOf(holder);
+        uint256 a0 = IERC20(AMZN).balanceOf(holder);
+        assertGt(t0, 1e18, "holder has TSLA");
+        assertGt(a0, 1e18, "holder has AMZN");
+
+        address[] memory assets = new address[](2);
+        assets[0] = TSLA;
+        assets[1] = AMZN;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1e18;
+        amounts[1] = 1e18;
+
+        vm.startPrank(holder);
+        IERC20(TSLA).approve(address(basket), 1e18);
+        IERC20(AMZN).approve(address(basket), 1e18);
+        uint256 g = gasleft();
+        uint256 id = basket.createInKind(_alloc(), assets, amounts);
+        console2.log("createInKind gas (2 Stock Tokens, real testnet tokens):", g - gasleft());
+        basket.safeTransferFrom(holder, user, id);
+        vm.stopPrank();
+
+        assertEq(basket.holdings(id, TSLA), 1e18, "exactly 1 TSLA credited");
+        assertEq(basket.holdings(id, AMZN), 1e18, "exactly 1 AMZN credited");
+
+        vm.prank(user);
+        basket.redeemAsset(id, AMZN);
+        assertEq(IERC20(AMZN).balanceOf(user), 1e18, "the recipient took the AMZN out with every feed stale");
+        assertEq(basket.holdings(id, TSLA), 1e18, "and kept the basket with its TSLA");
     }
 }

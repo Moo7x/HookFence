@@ -369,8 +369,9 @@ contract MainnetForkCostTest is Test {
         IERC20(USDG).approve(address(basket), size);
         uint256 approveGas = g - gasleft();
         (, uint256[] memory before) = basket.holdingsOf(id);
+        uint64 planVersion = basket.allocationVersion(id);
         g = gasleft();
-        basket.contribute(id, size, basket.allocationVersion(id), block.timestamp + 1 hours);
+        basket.contribute(id, size, alice, planVersion, block.timestamp + 1 hours);
         uint256 contributeGas = g - gasleft();
         vm.stopPrank();
         (, uint256[] memory afterwards) = basket.holdingsOf(id);
@@ -402,5 +403,48 @@ contract MainnetForkCostTest is Test {
         console2.log("  manual approve + 2 swaps + 2 transfers (5 tx), gas: ", manApprove + swapGas + sendGas + 5 * INTRINSIC);
         console2.log("  TSLA delivered, Jayo = manual (1e18):", jt);
         console2.log("  AMZN delivered, Jayo = manual (1e18):", ja);
+    }
+
+    /// @notice Version 3: start a basket with Stock Tokens already held. Compared
+    ///         with buying the same tokens (create), and with simply sending them
+    ///         to someone (the manual hand-over), on real mainnet Stock Tokens.
+    function test_V3InKindCost() public {
+        if (!ready) return;
+        deal(TSLA, alice, 2e18);
+        deal(AMZN, alice, 2e18);
+        address[] memory assets = new address[](2);
+        assets[0] = TSLA;
+        assets[1] = AMZN;
+        uint256[] memory amounts = new uint256[](2);
+        amounts[0] = 1e18;
+        amounts[1] = 1e18;
+
+        uint256 snap = vm.snapshotState();
+        vm.startPrank(alice);
+        uint256 g = gasleft();
+        IERC20(TSLA).approve(address(basket), 1e18);
+        IERC20(AMZN).approve(address(basket), 1e18);
+        uint256 approveGas = g - gasleft();
+        g = gasleft();
+        uint256 id = basket.createInKind(_alloc(), assets, amounts);
+        uint256 importGas = g - gasleft();
+        g = gasleft();
+        basket.safeTransferFrom(alice, bob, id);
+        uint256 handGas = g - gasleft();
+        vm.stopPrank();
+        vm.revertToState(snap);
+
+        vm.startPrank(alice);
+        g = gasleft();
+        IERC20(TSLA).transfer(bob, 1e18);
+        IERC20(AMZN).transfer(bob, 1e18);
+        uint256 directGas = g - gasleft();
+        vm.stopPrank();
+
+        console2.log("=====================================================");
+        console2.log("V3 IN KIND, 1 TSLA + 1 AMZN already held (mainnet Stock Tokens)");
+        console2.log("  createInKind:", importGas);
+        console2.log("  approve x2 + createInKind + hand over (4 tx, incl. 21k/tx):", approveGas + importGas + handGas + 4 * INTRINSIC);
+        console2.log("  just send both tokens to the recipient (2 tx):", directGas + 2 * INTRINSIC);
     }
 }

@@ -13,13 +13,14 @@ import {ExecutionGateway} from "../core/ExecutionGateway.sol";
 import {IExecutionPolicy} from "../interfaces/IExecutionPolicy.sol";
 import {IJayoRenderer} from "../interfaces/IJayoRenderer.sol";
 
-/// @title JayoBasket (version 2)
-/// @notice A funded token basket owned as a single ERC-721 position. You create it
-///         with USDG, and then anyone - you, or someone giving to you - can add
-///         more money to that same position, bought by its own plan. You can hand
-///         the whole position on, copy its plan with your own money, change the
-///         plan for future money, and take the underlying tokens out in kind:
-///         everything, a fraction, or one asset.
+/// @title JayoBasket (version 3)
+/// @notice A basket of Stock Tokens owned as a single ERC-721 position. You start
+///         it with USDG, or with Stock Tokens you already hold. After that,
+///         anyone - you, or someone giving to you - can add money to that same
+///         position, bought by its own plan, or add Stock Tokens they hold. You
+///         can hand the whole position on, copy its plan with your own money,
+///         change the plan for future money, and take the underlying tokens out
+///         in kind: everything, a fraction, or one asset.
 ///
 /// @dev DESIGN DECISIONS THAT MATTER FOR REVIEW
 ///
@@ -63,6 +64,20 @@ import {IJayoRenderer} from "../interfaces/IJayoRenderer.sol";
 ///         operator's only power over positions, and it reaches what a wallet
 ///         DISPLAYS, never what a position holds or who may withdraw it.
 ///
+///      8. **Additions name the owner they were meant for.** `contribute` and
+///         `depositInKind` take the owner the caller saw, as well as the plan
+///         version. Version 2 bound only the plan, so a contribution mined after
+///         a hand-over reached the new owner; a gift to the person on screen
+///         must reach that person or not happen.
+///
+///      9. **In-kind additions need no price.** `createInKind` and
+///         `depositInKind` move Stock Tokens the caller already holds into a
+///         position and credit exactly what arrived (a balance difference, not
+///         the requested amount). No feed, pool or policy is consulted, so a
+///         basket can be started, added to, handed on and emptied while buying
+///         is paused. Only assets with an enabled route are accepted, the same
+///         set a purchase could buy.
+///
 ///      NOT IMPLEMENTED, deliberately: rebalancing. It is a fee pump, it enables a
 ///      sale/rebalance race, and it is the largest source of accounting bugs. A
 ///      holder who wants a different mix changes the plan for new money, or
@@ -84,6 +99,9 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     error NotPositionOwner(uint256 tokenId, address caller);
     error PositionDoesNotExist(uint256 tokenId);
     error AllocationChangedSinceQuote(uint256 tokenId, uint64 expected, uint64 current);
+    error OwnerChangedSinceQuote(uint256 tokenId, address expected, address current);
+    error LengthMismatch(uint256 assets, uint256 amounts);
+    error NothingReceived(address asset, uint256 requested);
     error ZeroAddress();
     error ZeroAmount();
     error NothingToRecover(address asset);
@@ -109,6 +127,10 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     event Contributed(
         uint256 indexed tokenId, address indexed contributor, uint256 usdgFunded, uint256 usdgSpent, uint64 allocationVersion
     );
+
+    /// @notice Stock Tokens moved into a position in kind, by its owner or anyone else.
+    ///         `amount` is what arrived, which is what the position is credited.
+    event DepositedInKind(uint256 indexed tokenId, address indexed depositor, address indexed asset, uint256 amount);
 
     /// @notice Emitted per leg with what was actually acquired, not what was quoted.
     ///         Every purchase into a position - creation or contribution - emits one
@@ -173,7 +195,7 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     uint16 public constant BPS = 10_000;
     uint8 public constant MAX_LEGS = 8;
     /// @notice Contract generation. Version 1 is deployed separately and stays live.
-    uint8 public constant CONTRACT_VERSION = 2;
+    uint8 public constant CONTRACT_VERSION = 3;
     /// @dev ERC-4906 interface id.
     bytes4 private constant ERC4906_INTERFACE_ID = 0x49064906;
 
@@ -196,9 +218,11 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     mapping(uint256 tokenId => Allocation[]) private _allocationOf;
     /// @notice Starts at 1 when a position is created; bumped on every plan change.
     mapping(uint256 tokenId => uint64) public allocationVersion;
-    /// @notice USDG actually spent buying into this position, across all fundings.
+    /// @notice USDG actually spent buying into this position, across all purchases.
+    ///         In-kind deposits are not priced and do not count here.
     mapping(uint256 tokenId => uint256) public totalFunded;
-    /// @notice How many purchases have gone into this position (creation included).
+    /// @notice How many times anything has been added: purchases and in-kind
+    ///         deposits, creation included.
     mapping(uint256 tokenId => uint32) public fundingCount;
 
     /// @notice Sum of `holdings[*][asset]` across every live position.
@@ -381,15 +405,19 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
     ///
     /// @dev Open to anyone: the owner topping up, or someone giving to the owner.
     ///      The contributor pays; the position's owner receives everything bought,
-    ///      and the contributor gains no claim on it. `expectedAllocationVersion` is
-    ///      the plan version the contributor was shown - if the owner has changed
-    ///      the plan since, this reverts rather than buy a different mix. All or
-    ///      nothing, with the same per-leg floors as `create`.
-    function contribute(uint256 tokenId, uint256 usdgIn, uint64 expectedAllocationVersion, uint256 deadline)
-        external
-        nonReentrant
-    {
-        _requireOwned(tokenId);
+    ///      and the contributor gains no claim on it. `expectedOwner` and
+    ///      `expectedAllocationVersion` are what the contributor was shown: if the
+    ///      position has changed hands, or the owner has changed the plan, this
+    ///      reverts rather than give to someone else or buy a different mix. All
+    ///      or nothing, with the same per-leg floors as `create`.
+    function contribute(
+        uint256 tokenId,
+        uint256 usdgIn,
+        address expectedOwner,
+        uint64 expectedAllocationVersion,
+        uint256 deadline
+    ) external nonReentrant {
+        _checkOwner(tokenId, expectedOwner);
         _checkAllocationVersion(tokenId, expectedAllocationVersion);
 
         uint256 spent = _fund(tokenId, _allocationOf[tokenId], usdgIn, deadline);
@@ -410,6 +438,78 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
         _checkAllocationVersion(sourceTokenId, expectedAllocationVersion);
         tokenId = _createFrom(_allocationOf[sourceTokenId], usdgIn, deadline);
         emit AllocationCopied(sourceTokenId, tokenId, msg.sender);
+    }
+
+    /// @notice Start a position with Stock Tokens you already hold. Nothing is
+    ///         bought, so no price, pool or feed is needed.
+    /// @param allocation The plan for money added later (validated like any plan).
+    /// @param assets     Stock Tokens to move in; each needs an enabled route.
+    /// @param amounts    How much of each to move; the position is credited with
+    ///                   what actually arrives.
+    function createInKind(Allocation[] calldata allocation, address[] calldata assets, uint256[] calldata amounts)
+        external
+        nonReentrant
+        returns (uint256 tokenId)
+    {
+        _validateAllocationShape(allocation);
+        for (uint256 i; i < allocation.length; ++i) {
+            if (!_routes[allocation[i].asset].enabled) revert AssetNotSupported(allocation[i].asset);
+        }
+        Allocation[] memory plan = _toMemory(allocation);
+        tokenId = _nextTokenId++;
+        uint64 v = _storeAllocation(tokenId, plan);
+        _depositInKind(tokenId, assets, amounts);
+
+        _safeMint(msg.sender, tokenId);
+        emit BasketCreated(tokenId, msg.sender, 0, 0, 0, assets.length);
+        emit AllocationChanged(tokenId, v, plan);
+    }
+
+    /// @notice Move Stock Tokens you hold into an existing position - your own, or
+    ///         someone else's as a gift. The position's owner receives them; the
+    ///         depositor gains no claim. Reverts if the position has changed hands
+    ///         since the depositor saw `expectedOwner`.
+    function depositInKind(uint256 tokenId, address expectedOwner, address[] calldata assets, uint256[] calldata amounts)
+        external
+        nonReentrant
+    {
+        _checkOwner(tokenId, expectedOwner);
+        _depositInKind(tokenId, assets, amounts);
+        emit MetadataUpdate(tokenId);
+    }
+
+    /// @dev Pull each asset from the caller and credit what arrived. Same asset
+    ///      set and size limit as a plan, so a position cannot be stuffed with
+    ///      tokens no purchase could buy or with more legs than a redemption
+    ///      handles.
+    function _depositInKind(uint256 tokenId, address[] calldata assets, uint256[] calldata amounts) internal {
+        uint256 n = assets.length;
+        if (n != amounts.length) revert LengthMismatch(n, amounts.length);
+        if (n == 0) revert NoLegs();
+        if (n > MAX_LEGS) revert TooManyLegs(n, MAX_LEGS);
+        for (uint256 i; i < n; ++i) {
+            address asset = assets[i];
+            if (!_routes[asset].enabled) revert AssetNotSupported(asset);
+            if (amounts[i] == 0) revert ZeroAmount();
+            for (uint256 j = i + 1; j < n; ++j) {
+                if (asset == assets[j]) revert DuplicateAsset(asset);
+            }
+            uint256 before = IERC20(asset).balanceOf(address(this));
+            IERC20(asset).safeTransferFrom(msg.sender, address(this), amounts[i]);
+            // Credit what arrived, never what was asked for: a token that takes a
+            // fee on transfer must not leave a position owed more than exists.
+            uint256 received = IERC20(asset).balanceOf(address(this)) - before;
+            if (received == 0) revert NothingReceived(asset, amounts[i]);
+
+            if (holdings[tokenId][asset] == 0) _assetsOf[tokenId].push(asset);
+            holdings[tokenId][asset] += received;
+            totalLiabilities[asset] += received;
+            emit DepositedInKind(tokenId, msg.sender, asset, received);
+        }
+        if (_assetsOf[tokenId].length > MAX_LEGS * 2) revert TooManyLegs(_assetsOf[tokenId].length, MAX_LEGS * 2);
+        unchecked {
+            ++fundingCount[tokenId];
+        }
     }
 
     /// @notice Change the plan that future money into this position is split by.
@@ -564,6 +664,11 @@ contract JayoBasket is ERC721, Ownable2Step, ReentrancyGuard {
             }
         }
         if (sum != BPS) revert WeightsMustSumToBps(sum);
+    }
+
+    function _checkOwner(uint256 tokenId, address expected) internal view {
+        address current = _requireOwned(tokenId);
+        if (current != expected) revert OwnerChangedSinceQuote(tokenId, expected, current);
     }
 
     function _checkAllocationVersion(uint256 tokenId, uint64 expected) internal view {

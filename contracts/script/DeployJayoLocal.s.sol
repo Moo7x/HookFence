@@ -122,7 +122,11 @@ contract DeployJayoLocal is Script {
         d.basket = new JayoBasket(d.gateway, IERC20(address(d.usdg)), deployer, 1);
         // No update interval or daily band on the local feeds above: the demo panel
         // moves time and prices by hand, which those bounds exist to prevent.
-        d.basket.setRenderer(new JayoRenderer("http://127.0.0.1:5173", "Local demo chain: mock assets with no value."));
+        // Created first, then set: forge cannot decode the constructor arguments of
+        // a contract created inline inside another call's arguments, and the whole
+        // broadcast then fails after the simulation has printed its addresses.
+        JayoRenderer renderer = new JayoRenderer("http://127.0.0.1:5173", "Local demo chain: mock assets with no value.");
+        d.basket.setRenderer(renderer);
     }
 
     /// @dev Creates the pool, seeds it, and registers the instrument.

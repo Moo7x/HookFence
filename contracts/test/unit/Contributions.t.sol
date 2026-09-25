@@ -46,7 +46,7 @@ contract ContributionsTest is JayoFixture {
         vm.expectEmit(true, true, false, true, address(basket));
         emit JayoBasket.Contributed(id, alice, GIFT, GIFT, 1);
         vm.prank(alice);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         assertGt(basket.holdings(id, address(stock)), h1, "leg 1 grew");
         assertGt(basket.holdings(id, address(stock2)), h2, "leg 2 grew");
@@ -62,7 +62,7 @@ contract ContributionsTest is JayoFixture {
         uint256 h1 = basket.holdings(id, address(stock));
 
         vm.prank(bob);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         assertEq(bobUsdg - usdg.balanceOf(bob), GIFT, "the contributor paid");
         assertEq(basket.balanceOf(bob), 0, "and holds nothing for it");
@@ -89,7 +89,7 @@ contract ContributionsTest is JayoFixture {
         uint256 h1 = basket.holdings(id, address(stock));
         uint256 h2 = basket.holdings(id, address(stock2));
         vm.prank(carol);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         assertGe(basket.holdings(id, address(stock)) - h1, floors[0], "leg 1 at or above its floor");
         assertGe(basket.holdings(id, address(stock2)) - h2, floors[1], "leg 2 at or above its floor");
@@ -102,7 +102,7 @@ contract ContributionsTest is JayoFixture {
         vm.expectEmit(true, true, false, true, address(basket));
         emit JayoBasket.UnspentReturned(id, carol, 1, "weight rounding remainder");
         vm.prank(carol);
-        basket.contribute(id, odd, 1, block.timestamp + 1 hours);
+        basket.contribute(id, odd, alice, 1, block.timestamp + 1 hours);
 
         assertEq(before - usdg.balanceOf(carol), GIFT, "charged only what was spent");
     }
@@ -116,7 +116,7 @@ contract ContributionsTest is JayoFixture {
 
         vm.prank(bob);
         vm.expectRevert();
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         assertEq(usdg.balanceOf(bob), before, "nothing charged");
         assertEq(basket.holdings(id, address(stock2)), h2, "no half-bought addition");
@@ -128,7 +128,7 @@ contract ContributionsTest is JayoFixture {
 
         vm.prank(bob);
         vm.expectRevert();
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         vm.prank(alice);
         basket.redeemAsset(id, address(stock2)); // still works
@@ -137,13 +137,13 @@ contract ContributionsTest is JayoFixture {
     function test_CannotAddToAPositionThatDoesNotExist() public {
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 999));
-        basket.contribute(999, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(999, GIFT, alice, 1, block.timestamp + 1 hours);
 
         vm.prank(alice);
         basket.redeem(id);
         vm.prank(bob);
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
     }
 
     function test_AdditionRebuysAnAssetTheOwnerTookOut() public {
@@ -152,7 +152,7 @@ contract ContributionsTest is JayoFixture {
         assertEq(basket.assetsOf(id).length, 1, "one asset left");
 
         vm.prank(carol);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         assertEq(basket.assetsOf(id).length, 2, "the plan still includes it, so it is bought again");
         assertGt(basket.holdings(id, address(stock2)), 0);
@@ -164,7 +164,7 @@ contract ContributionsTest is JayoFixture {
         basket.transferFrom(alice, bob, id);
 
         vm.prank(carol);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, bob, 1, block.timestamp + 1 hours); // Carol sees, and names, Bob
 
         uint256 owed = basket.holdings(id, address(stock));
         vm.prank(bob);
@@ -190,7 +190,7 @@ contract ContributionsTest is JayoFixture {
 
         // The next addition follows the new plan: all into leg 1.
         vm.prank(carol);
-        basket.contribute(id, GIFT, 2, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 2, block.timestamp + 1 hours);
         assertGt(basket.holdings(id, address(stock)), h1, "leg 1 bought");
         assertEq(basket.holdings(id, address(stock2)), h2, "leg 2 not bought");
     }
@@ -204,7 +204,7 @@ contract ContributionsTest is JayoFixture {
         uint256 before = usdg.balanceOf(carol);
         vm.prank(carol);
         vm.expectRevert(abi.encodeWithSelector(JayoBasket.AllocationChangedSinceQuote.selector, id, 1, 2));
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
         assertEq(usdg.balanceOf(carol), before, "nothing charged");
     }
 
@@ -248,7 +248,7 @@ contract ContributionsTest is JayoFixture {
         // would (correctly) run into the 0.5% floor rather than test solvency.
         for (uint256 i; i < 4; ++i) {
             vm.prank(i % 2 == 0 ? bob : carol);
-            basket.contribute(id, 100e6 + i * 7, 1, block.timestamp + 1 hours);
+            basket.contribute(id, 100e6 + i * 7, alice, 1, block.timestamp + 1 hours);
             vm.prank(alice);
             basket.redeemFraction(id, 3333);
         }
@@ -268,7 +268,7 @@ contract ContributionsTest is JayoFixture {
         vm.prank(admin);
         basket.setRenderer(r);
         vm.prank(bob);
-        basket.contribute(id, GIFT, 1, block.timestamp + 1 hours);
+        basket.contribute(id, GIFT, alice, 1, block.timestamp + 1 hours);
 
         string memory uri = basket.tokenURI(id);
         assertEq(_prefix(uri, 29), "data:application/json;base64,", "base64 JSON");
@@ -278,8 +278,9 @@ contract ContributionsTest is JayoFixture {
         assertEq(vm.parseJsonString(json, ".external_url"), "https://jayo.example/?basket=1");
         assertEq(vm.parseJsonString(json, ".attributes[0].trait_type"), string.concat("Holds ", stock.symbol()));
         assertEq(vm.parseJsonString(json, ".attributes[2].value"), "AAPL 60% / NVDA 40%");
-        assertEq(vm.parseJsonUint(json, ".attributes[4].value"), 2, "two purchases");
-        assertEq(vm.parseJsonString(json, ".attributes[5].value"), "12500 USDG", "funded total");
+        assertEq(vm.parseJsonUint(json, ".attributes[4].value"), 2, "added to twice");
+        assertEq(vm.parseJsonString(json, ".attributes[5].value"), "12500 USDG", "bought with");
+        assertEq(vm.parseJsonString(json, ".attributes[4].trait_type"), "Times added to");
     }
 
     function test_MetadataStopsWhenThePositionCloses() public {
@@ -321,25 +322,26 @@ contract ContributionsTest is JayoFixture {
     }
 
     // =======================================================================
-    // Reproduction: a contribution signed while Alice owns the basket, mined
-    // after she has handed it to Bob (Codex review, 2026-09-25)
+    // The race Codex's review found (2026-09-25): a contribution signed while
+    // Alice owns the basket, mined after she has handed it to Bob. Version 2
+    // let it through to Bob (reproduced on the V2 source, tag jayo-v2-deployed).
+    // Version 3 binds the owner the contributor saw.
     // =======================================================================
 
-    function test_Race_AContributionMinedAfterAHandOverGoesToTheNewOwner() public {
-        // Carol looks at the basket: Alice owns it, plan version 1. She signs.
-        assertEq(basket.ownerOf(id), alice);
+    function test_Race_AContributionMinedAfterAHandOverIsRefused() public {
         uint64 seenVersion = basket.allocationVersion(id);
+        address seenOwner = basket.ownerOf(id); // Alice
 
-        // Before Carol's transaction is mined, Alice hands the basket to Bob.
         vm.prank(alice);
         basket.transferFrom(alice, bob, id);
 
-        // Carol's transaction lands. Nothing in it names Alice, so it succeeds.
         uint256 before = basket.holdings(id, address(stock));
+        uint256 carolBefore = usdg.balanceOf(carol);
         vm.prank(carol);
-        basket.contribute(id, GIFT, seenVersion, block.timestamp + 1 hours);
+        vm.expectRevert(abi.encodeWithSelector(JayoBasket.OwnerChangedSinceQuote.selector, id, alice, bob));
+        basket.contribute(id, GIFT, seenOwner, seenVersion, block.timestamp + 1 hours);
 
-        assertGt(basket.holdings(id, address(stock)), before, "Carol's money was bought into the basket");
-        assertEq(basket.ownerOf(id), bob, "...which Bob, not Alice, now owns");
+        assertEq(basket.holdings(id, address(stock)), before, "nothing reached Bob");
+        assertEq(usdg.balanceOf(carol), carolBefore, "and Carol paid nothing");
     }
 }

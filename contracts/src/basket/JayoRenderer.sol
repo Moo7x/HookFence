@@ -44,7 +44,7 @@ contract JayoRenderer is IJayoRenderer {
         IERC20Metadata usdg = IERC20Metadata(address(b.usdg()));
         string memory usdgSym = _symbol(address(usdg));
         string memory funded = string.concat(_amount(b.totalFunded(tokenId), _decimals(address(usdg)), 2), " ", usdgSym);
-        string memory purchases = uint256(b.fundingCount(tokenId)).toString();
+        string memory purchases = uint256(b.fundingCount(tokenId)).toString(); // purchases and in-kind additions
 
         string memory attrs;
         for (uint256 i; i < assets.length; ++i) {
@@ -58,8 +58,8 @@ contract JayoRenderer is IJayoRenderer {
             attrs,
             '{"trait_type":"Plan for new money","value":"', _planText(plan), '"},',
             '{"trait_type":"Plan version","display_type":"number","value":', uint256(b.allocationVersion(tokenId)).toString(), "},",
-            '{"trait_type":"Purchases","display_type":"number","value":', purchases, "},",
-            '{"trait_type":"Funded","value":"', funded, '"}'
+            '{"trait_type":"Times added to","display_type":"number","value":', purchases, "},",
+            '{"trait_type":"Bought with","value":"', funded, '"}'
         );
 
         return string.concat(
@@ -106,7 +106,7 @@ contract JayoRenderer is IJayoRenderer {
         }
         s = string.concat(
             s,
-            '<text x="32" y="344" font-size="13" fill="#4B6068">Funded ', funded, " in ", purchases, " purchase(s)</text>",
+            '<text x="32" y="344" font-size="13" fill="#4B6068">Added to ', purchases, " time(s) - bought with ", funded, "</text>",
             '<text x="32" y="368" font-size="13" fill="#8A5A0E">', networkNote, "</text></svg>"
         );
     }
