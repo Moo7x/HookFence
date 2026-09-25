@@ -1,5 +1,9 @@
 # Where Jayo goes next, and why
 
+> **Superseded on 2026-09-25 by [GO_NO_GO.md](GO_NO_GO.md).** The contributions/gift direction
+> chosen below was rejected: the person paying gets nothing, and a recipient can simply
+> receive stablecoins. It is kept here as a record of the reasoning that failed.
+
 **Date:** 2026-09-25. The product decision after the first real-wallet run on
 <https://jayo-testnet.pages.dev>. The suggestions from the owner and from the
 Codex review were treated as hypotheses and checked against the chain, the code

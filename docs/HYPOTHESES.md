@@ -1,12 +1,14 @@
 # Jayo's bets, the evidence for each, and when to drop them
 
+> **Superseded by [GO_NO_GO.md](GO_NO_GO.md): no-go on Jayo as the main product.**
+
 **Updated 2026-09-25.** Each major feature is treated as a hypothesis. "Status"
 records what has actually been shown, not what is hoped. The owner's tests with
 outsiders (`USER_TESTS.md`) are the missing evidence for most of them.
 
 | # | Hypothesis | Evidence so far | Status | Drop or change it if |
 |---|---|---|---|---|
-| H1 | People will add money to *someone else's* basket, bought by that basket's plan, rather than send tokens directly | Off-chain precedent: Robinhood custodial gifting (March 2026). On mainnet, adding 100 USDG costs 1.32× the manual route (5 transactions plus knowing the mix), for identical Stock Tokens. Works through the page on testnet (`0x520d8760…02d1`). | **Built; demand untested** | outsiders cannot say who receives the money, or say they would just send tokens |
+| H1 | People will add money to *someone else's* basket, bought by that basket's plan, rather than send tokens directly | Off-chain precedent: Robinhood custodial gifting (March 2026). On mainnet, adding 100 USDG costs 1.32× the manual route (5 transactions plus knowing the mix), for identical Stock Tokens. Works through the page on testnet (`0x520d8760…02d1`). | **Rejected (2026-09-25).** The owner rejected it outright, and review found no benefit to the person paying; see [GO_NO_GO.md](GO_NO_GO.md) | — |
 | H2 | An addition must reach the owner the giver saw, or not happen | V2 let a contribution mined after a hand-over reach the new owner (reproduced). V3 binds `expectedOwner`, and a unit test checks the refusal. Through the page, a stale addition was refused **before any transaction**: the wallet's nonce stayed at 26. | **Confirmed** | never; this is correctness |
 | H3 | Starting a basket in kind removes first use's dependence on prices, pools and the keeper | Fork test on real testnet Stock Tokens with every feed stale: passes. Testnet start in kind: 502,813 gas (`0x5eb80fb3…2374`), about half of buying. 225,292 and 288,878 wallets hold testnet TSLA and AMZN. | **Technically confirmed; value to users untested** | outsiders see it as "the same tokens, now harder to reach" |
 | H3′ | In-kind import is a cheaper way to *give* Stock Tokens | Mainnet fork: start in kind and hand over costs 790,920 gas; sending both tokens directly costs 205,573 (3.85× cheaper). | **Refuted.** Not claimed. | — |
