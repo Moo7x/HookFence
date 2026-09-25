@@ -61,10 +61,10 @@ const ADDR = /^0x[0-9a-fA-F]{40}$/;
 const MANIFEST_SCHEMA = {
   address: ["poolManager", "usdg", "basket", "gateway", "policy", "adapter", "deployer",
             "tsla", "amzn", "aapl", "nvda", "tslaFeed", "amznFeed", "usdgFeed", "aaplFeed", "nvdaFeed", "multicall3",
-    "legacyBasket", "renderer", "updater"],
+    "legacyBasket", "legacyBasket2", "renderer", "updater"],
   addressList: ["stocks"],
   uint: ["chainId", "suggestedFund", "feedHeartbeat", "maxShortfallBps", "feedMinInterval", "firstTokenId",
-    "deployBlock", "legacyDeployBlock"],
+    "deployBlock", "legacyDeployBlock", "legacyDeployBlock2"],
   bool: ["demoControls"],
   text: ["network", "warning", "priceSource"],
   url: ["rpcUrl", "explorer"],

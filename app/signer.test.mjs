@@ -41,7 +41,8 @@ const TSLA = "0x" + "e".repeat(40);
 const ATTACKER = "0x" + "a".repeat(40);
 
 const LEGACY = "0x" + "9".repeat(40);
-const CTX = { chainId: 46630, basket: BASKET, legacyBasket: LEGACY, usdg: USDG, accounts: [ALICE, BOB], protected: [GATEWAY, TSLA] };
+const LEGACY2 = "0x" + "8".repeat(40);
+const CTX = { chainId: 46630, basket: BASKET, legacyBaskets: [LEGACY, LEGACY2], stocks: [TSLA], usdg: USDG, accounts: [ALICE, BOB], protected: [GATEWAY] };
 
 // Every function a hijacked page might try, with the real ABI shapes.
 const ABI = [
@@ -61,7 +62,11 @@ const ABI = [
     { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] },
     { type: "uint256" }, { type: "uint256" }] },
   { type: "function", name: "copyAllocation", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint64" }, { type: "uint256" }] },
-  { type: "function", name: "contribute", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint64" }, { type: "uint256" }] },
+  { type: "function", name: "contribute", inputs: [{ type: "uint256" }, { type: "uint256" }, { type: "address" }, { type: "uint64" }, { type: "uint256" }] },
+  { type: "function", name: "createInKind", inputs: [
+    { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] },
+    { type: "address[]" }, { type: "uint256[]" }] },
+  { type: "function", name: "depositInKind", inputs: [{ type: "uint256" }, { type: "address" }, { type: "address[]" }, { type: "uint256[]" }] },
   { type: "function", name: "setAllocation", inputs: [{ type: "uint256" },
     { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] }] },
   { type: "function", name: "setRenderer", inputs: [{ type: "address" }] },
@@ -80,7 +85,12 @@ const ALLOWED = {
   "mint test rUSDG to yourself": { from: ALICE, to: USDG, data: enc("mint", [ALICE, 100_000000n]) },
   "create within the cap": { from: ALICE, to: BASKET, data: enc("create", [alloc, 20_000000n, 1n]) },
   "copy within the cap": { from: BOB, to: BASKET, data: enc("copyAllocation", [1n, 8_000000n, 1n, 1n]) },
-  "add money to someone's basket": { from: BOB, to: BASKET, data: enc("contribute", [101n, 8_000000n, 1n, 1n]) },
+  "add money to someone's basket": { from: BOB, to: BASKET, data: enc("contribute", [201n, 8_000000n, ALICE, 1n, 1n]) },
+  "start a basket in kind": { from: ALICE, to: BASKET, data: enc("createInKind", [alloc, [TSLA], [10n ** 18n]]) },
+  "add Stock Tokens in kind to someone's basket": { from: BOB, to: BASKET, data: enc("depositInKind", [201n, ALICE, [TSLA], [10n ** 18n]]) },
+  "approve a Stock Token to the basket": { from: ALICE, to: TSLA, data: enc("approve", [BASKET, 10n ** 18n]) },
+  "remove a leftover version-2 permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY2, 0n]) },
+  "withdraw from a version-2 basket": { from: BOB, to: LEGACY2, data: enc("redeemAsset", [101n, TSLA]) },
   "change your basket's plan": { from: ALICE, to: BASKET, data: enc("setAllocation", [101n, alloc]) },
   "remove a leftover version-1 permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY, 0n]) },
   "withdraw from a version-1 basket": { from: ALICE, to: LEGACY, data: enc("redeemAsset", [5n, TSLA]) },
@@ -114,7 +124,12 @@ const REFUSED = {
   "basket recoverSurplus (admin)": { from: ALICE, to: BASKET, data: enc("recoverSurplus", [TSLA, ATTACKER]) },
   "create above the spend cap": { from: ALICE, to: BASKET, data: enc("create", [alloc, LIMITS.maxSpend + 1n, 1n]) },
   "copy above the spend cap": { from: ALICE, to: BASKET, data: enc("copyAllocation", [1n, LIMITS.maxSpend + 1n, 1n, 1n]) },
-  "add money above the spend cap": { from: ALICE, to: BASKET, data: enc("contribute", [101n, LIMITS.maxSpend + 1n, 1n, 1n]) },
+  "add money above the spend cap": { from: ALICE, to: BASKET, data: enc("contribute", [201n, LIMITS.maxSpend + 1n, ALICE, 1n, 1n]) },
+  "approve a Stock Token to anyone but the basket": { from: ALICE, to: TSLA, data: enc("approve", [ATTACKER, 10n ** 18n]) },
+  "transfer a Stock Token away": { from: ALICE, to: TSLA, data: enc("transfer", [ATTACKER, 1n]) },
+  "an in-kind start with no tokens": { from: ALICE, to: BASKET, data: enc("createInKind", [alloc, [], []]) },
+  "buy through the version-2 basket": { from: ALICE, to: LEGACY2, data: enc("create", [alloc, 20_000000n, 1n]) },
+  "grant the version-2 basket a new permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY2, 1n]) },
   "a plan with no legs": { from: ALICE, to: BASKET, data: enc("setAllocation", [101n, []]) },
   "basket setRenderer (admin)": { from: ALICE, to: BASKET, data: enc("setRenderer", [ATTACKER]) },
   "grant the version-1 basket a new permission": { from: ALICE, to: USDG, data: enc("approve", [LEGACY, 1n]) },

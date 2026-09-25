@@ -5,16 +5,17 @@
 //   1. A basket is the product. Anyone who lands on one - by link, from a card -
 //      can see exactly what it holds, how new money into it is split, who owns
 //      it, what has happened to it, and what THEY can do with it.
-//   2. Every rejection says, in plain words, what happened and what to change.
-//      The contract's own error stays available, folded away.
-//   3. Transaction state is always explicit: signing, pending, confirmed or
-//      failed, with a link to the receipt. Never a button that silently does
-//      nothing.
+//   2. The page moves only on real state. An addition is previewed from the
+//      contract's own quote (drawn dashed and called an estimate), then walks
+//      through its real steps - permission, wallet, pending, confirmed or
+//      failed - and only a confirmed receipt changes the basket on screen,
+//      showing what was actually bought beside what was estimated.
+//   3. Every rejection says, in plain words, what happened and what to change.
 //
-// Two contracts are read. Version 2 is where everything new happens. Version 1
-// is immutable and stays live: its baskets are listed, can be withdrawn and
-// handed on, and their plans can be copied into a new version-2 basket - they
-// cannot receive additions, and the page says so.
+// Three contracts are read. Version 3 is where everything new happens: buying,
+// adding money or Stock Tokens held, copying. Versions 1 and 2 are immutable,
+// withdraw-only on chain, and stay listed: their baskets can be taken out of and
+// handed on, and their plans copied into a new version-3 basket.
 //
 // The same file serves the local demo (mock assets, demo controls) and the
 // HOSTED site (the visitor's own browser wallet). scripts/build-site.mjs removes
@@ -74,6 +75,8 @@ const ERRORS = [
   ['AssetNotSupported', ['address']], ['NoLegs', []], ['TooManyLegs', ['uint256', 'uint256']],
   ['NotPositionOwner', ['uint256', 'address']], ['AssetNotHeld', ['uint256', 'address']], ['FractionOutOfRange', ['uint16']],
   ['FractionWouldDeliverNothing', ['uint256', 'uint16']], ['AllocationChangedSinceQuote', ['uint256', 'uint64', 'uint64']],
+  ['OwnerChangedSinceQuote', ['uint256', 'address', 'address']], ['LengthMismatch', ['uint256', 'uint256']],
+  ['NothingReceived', ['address', 'uint256']],
   ['PositionDoesNotExist', ['uint256']], ['ZeroAmount', []],
   ['OutputBelowFloor', ['uint256', 'uint256']], ['InputOverspent', ['uint256', 'uint256']], ['IntentExpired', ['uint256', 'uint256']],
   ['FeedStale', ['address', 'uint256', 'uint256', 'uint256']], ['FeedAnswerNotPositive', ['address', 'int256']],
@@ -92,6 +95,8 @@ const EVENTS = [
     { name: 'usdgFunded', type: 'uint256' }, { name: 'usdgSpent', type: 'uint256' }, { name: 'usdgReturned', type: 'uint256' }, { name: 'legCount', type: 'uint256' }] },
   { type: 'event', name: 'Contributed', inputs: [{ name: 'tokenId', type: 'uint256', indexed: true }, { name: 'contributor', type: 'address', indexed: true },
     { name: 'usdgFunded', type: 'uint256' }, { name: 'usdgSpent', type: 'uint256' }, { name: 'allocationVersion', type: 'uint64' }] },
+  { type: 'event', name: 'DepositedInKind', inputs: [{ name: 'tokenId', type: 'uint256', indexed: true }, { name: 'depositor', type: 'address', indexed: true },
+    { name: 'asset', type: 'address', indexed: true }, { name: 'amount', type: 'uint256' }] },
   { type: 'event', name: 'LegSettled', inputs: [{ name: 'tokenId', type: 'uint256', indexed: true }, { name: 'asset', type: 'address', indexed: true },
     { name: 'weightBps', type: 'uint16' }, { name: 'usdgSpent', type: 'uint256' }, { name: 'acquired', type: 'uint256' }] },
   { type: 'event', name: 'AllocationChanged', inputs: [{ name: 'tokenId', type: 'uint256', indexed: true }, { name: 'version', type: 'uint64' }, { name: 'allocation', ...ALLOC }] },
@@ -104,32 +109,41 @@ const EVENTS = [
   { type: 'event', name: 'Transfer', inputs: [{ name: 'from', type: 'address', indexed: true }, { name: 'to', type: 'address', indexed: true }, { name: 'tokenId', type: 'uint256', indexed: true }] },
 ];
 
-// Version 2: everything the page reads and writes on a current basket.
-const BASKET_ABI = [
-  view('previewCreate', [{ name: 'allocation', ...ALLOC }, 'uint256'], ['uint256[]', 'uint256[]', 'uint256[]', 'uint256']),
-  view('previewContribute', ['uint256', 'uint256'], ['uint256[]', 'uint256[]', 'uint256[]', 'uint256']),
-  fn('create', [{ name: 'allocation', ...ALLOC }, 'uint256', 'uint256'], ['uint256']),
-  fn('contribute', ['uint256', 'uint256', 'uint64', 'uint256']),
-  fn('copyAllocation', ['uint256', 'uint256', 'uint64', 'uint256'], ['uint256']),
-  fn('setAllocation', ['uint256', { name: 'allocation', ...ALLOC }]),
+const READS = [
   view('holdingsOf', ['uint256'], ['address[]', 'uint256[]']),
   view('allocationOf', ['uint256'], [{ ...ALLOC }]),
+  view('ownerOf', ['uint256'], ['address']),
+];
+const COUNTERS = [
   view('allocationVersion', ['uint256'], ['uint64']),
   view('totalFunded', ['uint256'], ['uint256']),
   view('fundingCount', ['uint256'], ['uint32']),
-  view('ownerOf', ['uint256'], ['address']),
   view('firstTokenId', [], ['uint256']),
   view('nextTokenId', [], ['uint256']),
-  view('minLegInput', [], ['uint256']),
+];
+const EXITS = [
   fn('safeTransferFrom', ['address', 'address', 'uint256']),
   fn('redeem', ['uint256']),
   fn('redeemAsset', ['uint256', 'address']),
   fn('redeemFraction', ['uint256', 'uint16']),
+];
+// Version 3: everything the page reads and writes on a current basket.
+const BASKET_ABI = [
+  ...READS, ...COUNTERS, ...EXITS,
+  view('previewCreate', [{ name: 'allocation', ...ALLOC }, 'uint256'], ['uint256[]', 'uint256[]', 'uint256[]', 'uint256']),
+  view('previewContribute', ['uint256', 'uint256'], ['uint256[]', 'uint256[]', 'uint256[]', 'uint256']),
+  view('minLegInput', [], ['uint256']),
+  fn('create', [{ name: 'allocation', ...ALLOC }, 'uint256', 'uint256'], ['uint256']),
+  fn('contribute', ['uint256', 'uint256', 'address', 'uint64', 'uint256']),
+  fn('copyAllocation', ['uint256', 'uint256', 'uint64', 'uint256'], ['uint256']),
+  fn('createInKind', [{ name: 'allocation', ...ALLOC }, 'address[]', 'uint256[]'], ['uint256']),
+  fn('depositInKind', ['uint256', 'address', 'address[]', 'uint256[]']),
+  fn('setAllocation', ['uint256', { name: 'allocation', ...ALLOC }]),
   ...ERRORS, ...EVENTS,
 ];
-// Version 1: read, withdraw, hand on. Nothing that buys.
-const LEGACY_ABI = BASKET_ABI.filter(x => x.type !== 'function' ||
-  ['holdingsOf', 'allocationOf', 'ownerOf', 'safeTransferFrom', 'redeem', 'redeemAsset', 'redeemFraction'].includes(x.name));
+// Earlier versions: read, take out, hand on. Nothing that buys.
+const LEGACY1_ABI = [...READS, ...EXITS, ...ERRORS, ...EVENTS];
+const LEGACY2_ABI = [...READS, ...COUNTERS, ...EXITS, ...ERRORS, ...EVENTS];
 
 const ERC20_ABI = [
   fn('approve', ['address', 'uint256'], ['bool']),
@@ -158,16 +172,16 @@ const POLICY_ABI = [
 
 let D = null;                 // the deployment manifest
 const META = {};              // address -> { symbol, name, color }
-let ASSETS = [];              // buyable stock tokens
+let ASSETS = [];              // Stock Tokens this deployment supports
 let PRICES = {};              // address -> { price8, updatedAt, maxStale }
 let buyingOpen = false;
-let chainNow = 0;
-let firstV2 = 1n;
-let baskets = [];             // every live basket, both versions
+let CONTRACTS = [];           // [{ version, address, abi, first, end, legacy, deployBlock, counters, enumerate }]
+let baskets = [];             // every live basket, all versions
 let current = null;           // the basket on screen
 let minLeg = 1_000000n;
 const PALETTE = ['#0B5563', '#EE6A4C', '#E6B23A', '#5B9FD1', '#7E5AA2', '#3E9E86', '#C7577A', '#8A6D52'];
 const NUM = 'en-US';          // one locale, so separators never mix in a sentence
+const REDUCED = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -196,6 +210,7 @@ const valueOf = (asset, amount) => {
 };
 const basketUrl = b => `?basket=${b.id}`;
 const isMine = b => connected() && b.owner?.toLowerCase() === me();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function log(msg, cls = '', hash = null) {
   const li = document.createElement('li');
@@ -227,12 +242,17 @@ const PLAIN = {
   LegWouldAcquireNothing: a => ({ title: `The ${symOf(a[0])} part is too small to buy anything.`, fix: 'It would spend money for zero tokens, so it was stopped. Increase the amount or that share.' }),
   LegAcquiredNothing: a => ({ title: `The ${symOf(a[0])} purchase came back empty.`, fix: 'Nothing was spent. The pool may not have enough liquidity right now.' }),
   DuplicateAsset: a => ({ title: `${symOf(a[0])} appears twice.`, fix: 'Give each Stock Token one share.' }),
-  AssetNotSupported: a => ({ title: `${symOf(a[0])} cannot be bought here.`, fix: 'Only Stock Tokens with a reviewed trading route can be. Pick another.' }),
-  NoLegs: () => ({ title: 'The mix is empty.', fix: 'Give at least one Stock Token a share.' }),
-  TooManyLegs: a => ({ title: `${a[0]} Stock Tokens is too many.`, fix: `A basket can hold at most ${a[1]}.` }),
+  AssetNotSupported: a => ({ title: `${symOf(a[0])} cannot be used here.`, fix: 'Only Stock Tokens with a reviewed trading route can. Pick another.' }),
+  NoLegs: () => ({ title: 'Nothing was chosen.', fix: 'Give at least one Stock Token an amount or a share.' }),
+  TooManyLegs: a => ({ title: `${a[0]} Stock Tokens is too many.`, fix: `A basket can take at most ${a[1]} at once.` }),
   NotPositionOwner: () => ({ title: 'Only the owner can do that.', fix: 'If this basket was handed on, control went with it.' }),
   AllocationChangedSinceQuote: () => ({ title: "The owner changed this basket's plan a moment ago.", fix: 'Nothing was spent. The page now shows the new plan: check it, then try again.' }),
+  OwnerChangedSinceQuote: a => ({ title: 'This basket changed hands before your addition went through.',
+    fix: `You meant it for ${short(a[1])}; it now belongs to ${short(a[2])}. Nothing was spent. The page now shows the new owner; add again only if you mean it for them.` }),
+  LengthMismatch: () => ({ title: 'The amounts did not line up with the Stock Tokens.', fix: 'Nothing was moved. Reload and try again.' }),
+  NothingReceived: a => ({ title: `No ${symOf(a[0])} arrived.`, fix: 'Nothing was credited. Check the amount and try again.' }),
   PositionDoesNotExist: a => ({ title: `Basket #${a[0]} does not exist any more.`, fix: 'Nothing was spent.' }),
+  ZeroAmount: () => ({ title: 'An amount was zero.', fix: 'Enter an amount above zero.' }),
   OutputBelowFloor: a => ({
     title: 'The pool would have given too little, so the purchase was stopped.',
     fix: `One Stock Token would have come to ${tok(a[0])}; the reference price requires at least ${tok(a[1])}. Nothing was spent. ` +
@@ -242,13 +262,13 @@ const PLAIN = {
   }),
   InputOverspent: () => ({ title: 'The purchase tried to spend more than you allowed.', fix: 'It was cancelled and nothing left your wallet.' }),
   IntentExpired: () => ({ title: 'This took too long and expired.', fix: 'Nothing was spent. Try again.' }),
-  FeedStale: () => ({ title: 'There is no current price, so buying is paused.', fix: 'Jayo refuses to buy without a fresh reference price. Taking tokens out and handing baskets on still work.' }),
-  FeedAnswerNotPositive: () => ({ title: 'The price feed returned an invalid value.', fix: 'Buying is paused until it recovers. Taking tokens out still works.' }),
+  FeedStale: () => ({ title: 'There is no current price, so buying is paused.', fix: 'Jayo refuses to buy without a fresh reference price. Moving in Stock Tokens you hold, taking them out and handing baskets on still work.' }),
+  FeedAnswerNotPositive: () => ({ title: 'The price feed returned an invalid value.', fix: 'Buying is paused until it recovers. Everything that needs no price still works.' }),
   OraclePausedForCorporateAction: a => ({ title: `${symOf(a[0])} is paused by its issuer.`, fix: 'This happens around dividends or share splits. Taking tokens out still works.' }),
   CorporateActionPending: a => ({ title: `${symOf(a[0])} has a change taking effect shortly.`, fix: 'Jayo does not buy across that moment. Try again afterwards.' }),
   ERC721InsufficientApproval: () => ({ title: 'This basket is not yours to move.', fix: 'Switch to the wallet that owns it.' }),
-  ERC20InsufficientBalance: () => ({ title: `You do not have enough ${stableSym()}.`, fix: 'Get more test rUSDG from your wallet panel, or use a smaller amount.' }),
-  ERC20InsufficientAllowance: () => ({ title: 'The spending permission was too small.', fix: 'Nothing was spent. Try again; the page asks for exactly the amount needed.' }),
+  ERC20InsufficientBalance: () => ({ title: 'Your wallet does not hold enough.', fix: 'Use a smaller amount. Nothing was moved.' }),
+  ERC20InsufficientAllowance: () => ({ title: 'The permission given was too small.', fix: 'Nothing was spent. Try again; the page asks for exactly the amount needed.' }),
 };
 
 /** Walk a viem error chain to the decoded contract error. */
@@ -261,10 +281,12 @@ function decode(e) {
   }
   return null;
 }
+const wasRejected = e => /reject|denied|cancel/i.test(e?.shortMessage || e?.message || '') && !decode(e);
 
 function showError(target, e) {
+  if (e?.plain) return showMsg(target, 'warn', e.plain);
   const dec = decode(e);
-  const rejected = /reject|denied|cancel/i.test(e?.shortMessage || e?.message || '') && !dec;
+  const rejected = wasRejected(e);
   const plain = dec && PLAIN[dec.name] ? PLAIN[dec.name](dec.args) : null;
   const raw = (e?.shortMessage || e?.message || String(e)).split('\n').slice(0, 4).join('\n');
   const title = rejected ? 'You cancelled it in your wallet.' : plain ? plain.title : 'That did not go through.';
@@ -281,6 +303,7 @@ function showMsg(target, kind, title, body = '') {
 }
 const clearMsg = (...ids) => ids.forEach(i => { if ($(i)) $(i).innerHTML = ''; });
 
+/** A single-transaction status line (take out, hand on, change plan, wallet). */
 function tx(id, state, label, hash = null) {
   const el = $(id);
   el.hidden = false;
@@ -295,6 +318,30 @@ function tx(id, state, label, hash = null) {
     lab.appendChild(a);
   }
   if (state === 'failed') setTimeout(() => { el.hidden = true; }, 6000);
+}
+
+/**
+ * The real steps of a multi-transaction action, each with its true state:
+ * waiting, active (asking the wallet), pending (sent, with a receipt link),
+ * done, skipped or failed. Nothing is marked done before its receipt.
+ */
+function stepper(id, labels) {
+  const el = $(id);
+  el.hidden = false;
+  el.innerHTML = labels.map((l, i) => `<li data-state="waiting" data-i="${i}"><span class="dot" aria-hidden="true"></span><span>${esc(l)}<small></small></span></li>`).join('');
+  const li = i => el.querySelector(`li[data-i="${i}"]`);
+  return {
+    set(i, state, note = '', hash = null) {
+      const item = li(i); if (!item) return;
+      item.dataset.state = state;
+      const url = txUrl(hash);
+      item.querySelector('small').innerHTML = esc(note) + (url ? ` <a href="${url}" target="_blank" rel="noopener noreferrer">receipt</a>` : '');
+    },
+    failFrom(i, note) {
+      this.set(i, 'failed', note);
+      for (let j = i + 1; j < labels.length; j++) this.set(j, 'skipped');
+    },
+  };
 }
 
 function busy(btn, on, label) {
@@ -328,30 +375,65 @@ async function deadline() {
   return (await pub.getBlock()).timestamp + 3600n;
 }
 
-/// Approve exactly `amount` for the version-2 basket if the standing permission
-/// is smaller. Never an open-ended allowance.
-async function ensureAllowance(amount, txId) {
-  // Check the balance before asking for anything: a permission for money the
-  // wallet does not have would cost a transaction and then fail anyway.
-  const balance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [account().address] });
+/// Approve exactly `amount` of `token` for the current basket if the standing
+/// permission is smaller. Never an open-ended allowance. Checks the balance
+/// first: a permission for tokens the wallet does not have would cost a
+/// transaction and then fail anyway. Returns false when no approval was needed.
+async function ensureAllowance(token, amount, steps, i) {
+  const who = account().address;
+  const balance = await pub.readContract({ address: token, abi: ERC20_ABI, functionName: 'balanceOf', args: [who] });
   if (balance < amount) {
+    const isStable = token.toLowerCase() === D.usdg.toLowerCase();
     throw Object.assign(new Error('insufficient balance'), {
-      plain: `You have ${usdg(balance)} ${stableSym()}, which is less than ${usdg(amount)}. Get more test rUSDG from your wallet panel (top right), or use a smaller amount. Nothing was sent.`,
+      plain: isStable
+        ? `You have ${usdg(balance)} ${stableSym()}, less than ${usdg(amount)}. Get more test rUSDG from your wallet panel (top right), or use a smaller amount. Nothing was sent.`
+        : `You have ${tok(balance)} ${symOf(token)}, less than ${tok(amount)}. Use a smaller amount. Nothing was sent.`,
     });
   }
-  const allowance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, D.basket] });
-  if (allowance >= amount) return;
-  tx(txId, 'signing', `Allow Jayo to use exactly ${formatUnits(amount, 6)} ${stableSym()} for this: confirm in your wallet…`);
-  const h = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, amount] });
-  tx(txId, 'pending', 'Waiting for the permission to confirm…', h);
+  const allowance = await pub.readContract({ address: token, abi: ERC20_ABI, functionName: 'allowance', args: [who, D.basket] });
+  if (allowance >= amount) { steps.set(i, 'skipped', 'already allowed'); return false; }
+  steps.set(i, 'active', 'confirm in your wallet');
+  const h = await send({ address: token, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, amount] });
+  steps.set(i, 'pending', 'waiting for the chain', h);
   await pub.waitForTransactionReceipt({ hash: h });
-  log(`allowed Jayo to use exactly ${formatUnits(amount, 6)} ${stableSym()}`, 'ok', h);
+  steps.set(i, 'done', 'allowed', h);
+  log(`allowed Jayo to move exactly ${token.toLowerCase() === D.usdg.toLowerCase() ? usdg(amount) + ' ' + stableSym() : tok(amount) + ' ' + symOf(token)}`, 'ok', h);
+  return true;
 }
 
-function parseAmount(id) {
+/// Before asking for any permission, make sure the basket still has the owner
+/// and plan the page showed. The contract enforces this at the moment the
+/// addition is mined; checking here as well means a basket that changed hands
+/// while the page was open costs the visitor nothing, not even an approval.
+async function stillAsShown(b) {
+  const [owner, version] = await Promise.all([
+    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [b.id] }),
+    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'allocationVersion', args: [b.id] }),
+  ]);
+  if (owner.toLowerCase() !== b.owner.toLowerCase()) {
+    throw Object.assign(new Error('owner changed'), { errorName: 'OwnerChangedSinceQuote', args: [b.id, b.owner, owner] });
+  }
+  if (version !== b.version) {
+    throw Object.assign(new Error('plan changed'), { errorName: 'AllocationChangedSinceQuote', args: [b.id, b.version, version] });
+  }
+}
+
+/// Send the main transaction of an action through its step: wallet, pending, done.
+async function sendStep(steps, i, params) {
+  steps.set(i, 'active', 'confirm in your wallet');
+  const hash = await send(params);
+  steps.set(i, 'pending', 'waiting for the chain', hash);
+  const receipt = await pub.waitForTransactionReceipt({ hash });
+  if (receipt.status !== 'success') throw new Error('The transaction was mined but reverted.');
+  steps.set(i, 'done', 'confirmed', hash);
+  return { hash, receipt };
+}
+
+function parseAmount(id, decimals = 6) {
   const raw = String($(id).value || '').replace(/,/g, '').trim();
-  if (!/^\d+(\.\d{0,6})?$/.test(raw)) throw Object.assign(new Error('bad amount'), { plain: 'Enter an amount like 20 or 12.5.' });
-  const v = parseUnits(raw, 6);
+  const re = decimals === 6 ? /^\d+(\.\d{0,6})?$/ : /^\d+(\.\d{0,18})?$/;
+  if (!re.test(raw)) throw Object.assign(new Error('bad amount'), { plain: 'Enter an amount like 20 or 12.5.' });
+  const v = parseUnits(raw, decimals);
   if (v === 0n) throw Object.assign(new Error('zero'), { plain: 'Enter an amount above zero.' });
   return v;
 }
@@ -456,8 +538,30 @@ async function connectWallet() {
 async function afterAccountChange() {
   await refreshWallet(true);
   await loadBaskets();
+  await renderKindRows();
   await route();
 }
+
+/// The basket contracts this deployment knows, oldest first. Ids never overlap:
+/// each version starts above the last id the one before could reach.
+async function discoverContracts() {
+  const first3 = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'firstTokenId' });
+  const list = [];
+  let first2 = first3;
+  if (D.legacyBasket2) {
+    first2 = await pub.readContract({ address: D.legacyBasket2, abi: LEGACY2_ABI, functionName: 'firstTokenId' });
+    list.push({ version: 2, address: D.legacyBasket2, abi: LEGACY2_ABI, first: first2, end: first3, legacy: true,
+      deployBlock: D.legacyDeployBlock2, counters: true, enumerate: 'next' });
+  }
+  if (D.legacyBasket) {
+    list.unshift({ version: 1, address: D.legacyBasket, abi: LEGACY1_ABI, first: 1n, end: first2, legacy: true,
+      deployBlock: D.legacyDeployBlock, counters: false, enumerate: 'probe' });
+  }
+  list.push({ version: 3, address: D.basket, abi: BASKET_ABI, first: first3, end: null, legacy: false,
+    deployBlock: D.deployBlock, counters: true, enumerate: 'next' });
+  return list;
+}
+const contractFor = id => CONTRACTS.find(c => id >= c.first && (c.end === null || id < c.end)) || null;
 
 async function boot() {
   D = await loadDeployment();
@@ -482,10 +586,8 @@ async function boot() {
     META[a.toLowerCase()] = { symbol, name: name.replace(' [MOCK]', '').replace(/\s+Robinhood Token$/i, ''), color: PALETTE[i % PALETTE.length] };
   });
   ASSETS = stocks;
-  [firstV2, minLeg] = await Promise.all([
-    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'firstTokenId' }),
-    pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'minLegInput' }),
-  ]);
+  CONTRACTS = await discoverContracts();
+  minLeg = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'minLegInput' });
   document.querySelectorAll('[data-unit], #fundUnit').forEach(el => { el.textContent = stableSym(); });
   if (D.suggestedFund) $('fund').value = formatUnits(BigInt(D.suggestedFund), 6);
   $('sizeGuide').hidden = D.priceSource !== 'pool';
@@ -496,12 +598,14 @@ async function boot() {
     applyBuyingState();
   });
   ribbon('createRibbon', createMix.rows().map(r => ({ asset: r.asset, weight: r.pct })), { legend: false });
+  kindMix = mixEditor('kindMix', ASSETS.map((a, i) => ({ asset: a, pct: i === 0 ? 60 : Math.floor(40 / (ASSETS.length - 1)) })), () => { kindPlanTouched = true; });
 
   describePrices();
   await renderPrices();
   setInterval(() => renderPrices().catch(() => {}), 30_000);
   await refreshWallet(false);
   await loadBaskets();
+  await renderKindRows();
   await route();
   window.addEventListener('popstate', () => route());
   log(isLocal ? 'reading the local demo chain (mock assets)' : 'reading Robinhood Chain testnet (test assets with no value)', 'ok');
@@ -529,7 +633,7 @@ function go(href) {
   route().then(() => window.scrollTo({ top: 0, behavior: 'auto' }));
 }
 
-// Same-page links (cards, "All baskets") route without a reload.
+// Same-page links (cards, "All baskets", history) route without a reload.
 document.addEventListener('click', ev => {
   const a = ev.target.closest('a[data-route]');
   if (!a || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.button !== 0) return;
@@ -537,6 +641,23 @@ document.addEventListener('click', ev => {
   go(a.getAttribute('href'));
 });
 $('backLink').dataset.route = '1';
+
+// Segmented switches (start mode, what to add): plain tabs over two panels.
+function wireModes(groupId, onChange) {
+  const group = $(groupId);
+  group.addEventListener('click', ev => {
+    const t = ev.target.closest('[role=tab]');
+    if (!t) return;
+    for (const b of group.querySelectorAll('[role=tab]')) {
+      const on = b === t;
+      b.setAttribute('aria-selected', String(on));
+      $(b.getAttribute('aria-controls')).hidden = !on;
+    }
+    onChange?.(t.id);
+  });
+}
+wireModes('startModes');
+wireModes('addModes');
 
 // ------------------------------------------------------------------ prices ---
 
@@ -549,16 +670,17 @@ async function renderPrices() {
     }))),
   ]);
   const rounds = await Promise.all(cfgs.map(c => pub.readContract({ address: c.feed, abi: FEED_ABI, functionName: 'latestRoundData' })));
-  chainNow = Number(blk.timestamp);
+  const now = Number(blk.timestamp);
   PRICES = {};
   let oldest = 0; let minLeft = Infinity;
   assets.forEach((a, i) => {
     const updatedAt = Number(rounds[i][3]);
     const maxStale = Number(cfgs[i].maxStaleness);
     PRICES[a.toLowerCase()] = { price8: rounds[i][1], updatedAt, maxStale };
-    oldest = Math.max(oldest, chainNow - updatedAt);
-    minLeft = Math.min(minLeft, maxStale - (chainNow - updatedAt));
+    oldest = Math.max(oldest, now - updatedAt);
+    minLeft = Math.min(minLeft, maxStale - (now - updatedAt));
   });
+  const wasOpen = buyingOpen;
   buyingOpen = minLeft > 0;
 
   const chip = $('priceChip');
@@ -571,15 +693,16 @@ async function renderPrices() {
     : `<div class="msg warn"><span class="icon">!</span><div class="body"><strong>Buying is paused.</strong><br>
         The reference prices are ${esc(ago(oldest))} old and Jayo refuses to buy without a fresh one.
         ${D.priceSource === 'pool' ? 'A scheduled keeper republishes them from the pools every 20 minutes; if it has stopped, buying stays paused until it runs again.' : 'Use "Refresh prices" in the demo controls.'}
-        <strong>Taking tokens out and handing baskets on still work.</strong></div></div>`;
+        <strong>Moving in Stock Tokens you hold, taking them out and handing baskets on still work.</strong></div></div>`;
   for (const id of ['createBuyState', 'addBuyState', 'copyBuyState']) $(id).innerHTML = stateHtml;
   document.querySelectorAll('[data-about]').forEach(a => a.addEventListener('click', openAbout));
   applyBuyingState();
+  if (buyingOpen !== wasOpen && current) schedulePreview();
 }
 
 function openAbout(ev) {
   ev?.preventDefault();
-  if (!$('home').hidden) { /* already on home */ } else { go('./'); }
+  if ($('home').hidden) go('./');
   setTimeout(() => { $('aboutPrices').open = true; $('aboutPrices').scrollIntoView({ block: 'start' }); }, 50);
 }
 $('priceChip').addEventListener('click', openAbout);
@@ -589,9 +712,7 @@ function applyBuyingState() {
   $('btnCreate').disabled = !buyingOpen || !ok;
   $('btnQuote').disabled = !buyingOpen || !ok;
   if (current) {
-    const canAdd = buyingOpen && !current.legacy && current.exists;
-    $('btnAdd').disabled = !canAdd;
-    $('btnAddQuote').disabled = !canAdd;
+    $('btnAdd').disabled = !buyingOpen || current.legacy || !current.exists;
     $('btnCopy').disabled = !buyingOpen || !(current.plan?.length);
   }
 }
@@ -612,43 +733,48 @@ function describePrices() {
       is fairly priced. Today the testnet TSLA pool trades about 25% below Chainlink's mainnet TSLA price, and a purchase here would
       still go through. Only an independent price can catch that. The project's mainnet-fork test checks every purchase against
       Chainlink's independent mainnet feeds, and refuses the ones that fall short.</p>
-    <p>Taking tokens out and handing baskets on never use these prices, so they work even when every price has expired.</p>`
+    <p>Moving in Stock Tokens you hold, taking them out and handing baskets on never use these prices, so they work even when every
+      price has expired.</p>`
     : `<p>These are demo prices on the local chain; only the local deployer can change them. Each expires after ${esc(life)}, and buying is
       refused once any has. Each Stock Token you buy must arrive within ${esc(floorPct)} of them. Taking tokens out never needs a price.</p>`;
 }
 
 // ------------------------------------------------------------------ wallet ---
 
+let pendingRevoke = null;
+
 async function refreshWallet(openIfNeeded) {
   if (!connected()) { $('walletChip').hidden = true; return; }
   const addr = account().address;
-  const reads = [
+  const allowanceOf = (token, spender) => pub.readContract({ address: token, abi: ERC20_ABI, functionName: 'allowance', args: [addr, spender] });
+  const [eth, bal] = await Promise.all([
     pub.getBalance({ address: addr }),
     pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'balanceOf', args: [addr] }),
-    pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [addr, D.basket] }),
-    D.legacyBasket ? pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [addr, D.legacyBasket] }) : 0n,
-  ];
-  const [eth, bal, allowV2, allowV1] = await Promise.all(reads);
+  ]);
+  // A standing permission is shown so it can be removed: stablecoin permissions
+  // to any version, and Stock Token permissions left by an in-kind addition that
+  // did not complete. The current page only ever asks for exact amounts.
+  const checks = [];
+  for (const c of CONTRACTS) checks.push({ token: D.usdg, spender: c.address, label: c.legacy ? `the version-${c.version} basket contract` : 'the basket contract' });
+  for (const s of ASSETS) checks.push({ token: s, spender: D.basket, label: 'the basket contract' });
+  const amounts = await Promise.all(checks.map(k => allowanceOf(k.token, k.spender)));
+  const left = checks.map((k, i) => ({ ...k, amount: amounts[i] })).filter(k => k.amount > 0n);
+
   const ethOk = isLocal || eth >= 20_000_000_000_000n;
   const usdOk = bal >= 10_000000n;
-
   $('gasBal').textContent = isLocal ? '' : `You have ${Number(formatUnits(eth, 18)).toLocaleString(NUM, { maximumFractionDigits: 6 })} test ETH.`;
   $('ckGas').dataset.done = String(ethOk);
   $('ckGas').hidden = isLocal;
   $('usdBal').textContent = `You have ${usdg(bal)} ${stableSym()}.`;
   $('ckUsd').dataset.done = String(usdOk);
 
-  // A standing permission is shown so it can be removed. Version 1 of this page
-  // once asked for an open-ended one; the current page asks for exact amounts.
-  const leftover = [];
-  if (allowV1 > 0n) leftover.push({ spender: D.legacyBasket, amount: allowV1, label: 'the version-1 basket contract' });
-  if (allowV2 > 0n) leftover.push({ spender: D.basket, amount: allowV2, label: 'the basket contract' });
-  pendingRevoke = leftover[0] || null;
+  pendingRevoke = left[0] || null;
   $('ckAllow').hidden = !pendingRevoke;
   if (pendingRevoke) {
-    const amt = pendingRevoke.amount >= 2n ** 128n ? 'an unlimited amount of' : `up to ${usdg(pendingRevoke.amount)}`;
-    $('allowText').textContent = `${pendingRevoke.label[0].toUpperCase()}${pendingRevoke.label.slice(1)} may still take ${amt} ${stableSym()} from this wallet when you buy. `
-      + 'It can only use it in a purchase you sign, but you can set it to zero now.';
+    const isStable = pendingRevoke.token.toLowerCase() === D.usdg.toLowerCase();
+    const amt = pendingRevoke.amount >= 2n ** 128n ? 'an unlimited amount of' : `up to ${isStable ? usdg(pendingRevoke.amount) : tok(pendingRevoke.amount)}`;
+    $('allowText').textContent = `${pendingRevoke.label[0].toUpperCase()}${pendingRevoke.label.slice(1)} may still take ${amt} ${isStable ? stableSym() : symOf(pendingRevoke.token)} from this wallet. `
+      + 'It can only use it in an action you sign, but you can set it to zero now.';
     $('ckAllow').dataset.done = 'false';
   }
 
@@ -660,7 +786,6 @@ async function refreshWallet(openIfNeeded) {
   chip.setAttribute('aria-label', `Your wallet ${addr}${attention ? ', something needs attention' : ''}`);
   if (openIfNeeded && attention) { $('walletPanel').hidden = false; chip.setAttribute('aria-expanded', 'true'); }
 }
-let pendingRevoke = null;
 
 $('walletChip').addEventListener('click', () => {
   const open = $('walletPanel').hidden;
@@ -687,16 +812,16 @@ $('btnMint').addEventListener('click', async () => {
 $('btnRevoke').addEventListener('click', async () => {
   clearMsg('walletMsg');
   if (needWallet('walletMsg') || !pendingRevoke) return;
-  const { spender, label } = pendingRevoke;
+  const { token, spender, label } = pendingRevoke;
   const btn = $('btnRevoke'); busy(btn, true, 'Removing…');
   try {
     tx('walletTx', 'signing', 'Confirm in your wallet: this sets the permission to zero…');
-    const hash = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [spender, 0n] });
+    const hash = await send({ address: token, abi: ERC20_ABI, functionName: 'approve', args: [spender, 0n] });
     tx('walletTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
-    const left = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, spender] });
-    tx('walletTx', left === 0n ? 'confirmed' : 'failed', left === 0n ? `Removed: ${label} can take 0 from this wallet` : `Still allowed: ${usdg(left)}`, hash);
-    log(`removed the permission for ${label} (now ${usdg(left)})`, left === 0n ? 'ok' : 'err', hash);
+    const left = await pub.readContract({ address: token, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, spender] });
+    tx('walletTx', left === 0n ? 'confirmed' : 'failed', left === 0n ? `Removed: ${label} can take 0 from this wallet` : 'Still allowed', hash);
+    log(`removed a permission for ${label}`, left === 0n ? 'ok' : 'err', hash);
     await refreshWallet(false);
   } catch (e) { tx('walletTx', 'failed', 'The permission was not changed'); showError('walletMsg', e); }
   finally { busy(btn, false); }
@@ -712,36 +837,33 @@ async function readMany(calls) {
   return Promise.all(calls.map(c => pub.readContract(c).catch(() => null)));
 }
 
-/// Every live basket of both versions, with holdings and plan.
+/// Every live basket of every version, with holdings and plan.
 async function loadBaskets() {
   const out = [];
-  // Version 2 publishes its id range.
-  const next = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'nextTokenId' });
-  const ids = []; for (let i = firstV2; i < next; i++) ids.push(i);
-  const owners = await readMany(ids.map(id => ({ address: D.basket, abi: BASKET_ABI, functionName: 'ownerOf', args: [id] })));
-  const live = ids.filter((_, i) => owners[i]);
-  const liveOwners = owners.filter(Boolean);
-  const per = ['holdingsOf', 'allocationOf', 'fundingCount', 'totalFunded', 'allocationVersion'];
-  const data = await readMany(live.flatMap(id => per.map(f => ({ address: D.basket, abi: BASKET_ABI, functionName: f, args: [id] }))));
-  live.forEach((id, i) => {
-    const [h, plan, count, funded, version] = data.slice(i * per.length, (i + 1) * per.length);
-    out.push({ id, legacy: false, exists: true, owner: liveOwners[i], assets: h[0], amounts: h[1], plan, count: Number(count), funded, version });
-  });
-
-  // Version 1 has no id counter: probe in batches until one comes back empty.
-  if (D.legacyBasket) {
-    for (let start = 1n; start < firstV2; start += 20n) {
-      const batch = Array.from({ length: 20 }, (_, i) => start + BigInt(i)).filter(i => i < firstV2);
-      const o = await readMany(batch.map(id => ({ address: D.legacyBasket, abi: LEGACY_ABI, functionName: 'ownerOf', args: [id] })));
-      const alive = batch.filter((_, i) => o[i]);
-      if (!alive.length) break;
-      const aliveOwners = o.filter(Boolean);
-      const d = await readMany(alive.flatMap(id => [
-        { address: D.legacyBasket, abi: LEGACY_ABI, functionName: 'holdingsOf', args: [id] },
-        { address: D.legacyBasket, abi: LEGACY_ABI, functionName: 'allocationOf', args: [id] },
-      ]));
-      alive.forEach((id, i) => out.push({ id, legacy: true, exists: true, owner: aliveOwners[i], assets: d[2 * i][0], amounts: d[2 * i][1], plan: d[2 * i + 1], count: null, funded: null }));
+  for (const c of CONTRACTS) {
+    let ids = [];
+    if (c.enumerate === 'next') {
+      const next = await pub.readContract({ address: c.address, abi: c.abi, functionName: 'nextTokenId' });
+      for (let i = c.first; i < next; i++) ids.push(i);
+    } else {
+      // Version 1 publishes no id counter: probe in batches until one is empty.
+      for (let s = c.first; s < c.end; s += 20n) {
+        const batch = Array.from({ length: 20 }, (_, i) => s + BigInt(i)).filter(i => i < c.end);
+        const o = await readMany(batch.map(id => ({ address: c.address, abi: c.abi, functionName: 'ownerOf', args: [id] })));
+        if (!o.some(Boolean)) break;
+        ids.push(...batch);
+      }
     }
+    const owners = await readMany(ids.map(id => ({ address: c.address, abi: c.abi, functionName: 'ownerOf', args: [id] })));
+    const live = ids.filter((_, i) => owners[i]);
+    const liveOwners = owners.filter(Boolean);
+    const per = c.counters ? ['holdingsOf', 'allocationOf', 'fundingCount', 'totalFunded', 'allocationVersion'] : ['holdingsOf', 'allocationOf'];
+    const data = await readMany(live.flatMap(id => per.map(f => ({ address: c.address, abi: c.abi, functionName: f, args: [id] }))));
+    live.forEach((id, i) => {
+      const [h, plan, count = null, funded = null, version = null] = data.slice(i * per.length, (i + 1) * per.length);
+      out.push({ id, c, legacy: c.legacy, exists: true, owner: liveOwners[i], assets: h[0], amounts: h[1], plan,
+        count: count === null ? null : Number(count), funded, version });
+    });
   }
   baskets = out;
 }
@@ -749,29 +871,35 @@ async function loadBaskets() {
 const totalValue = b => b.assets.reduce((s, a, i) => s + valueOf(a, b.amounts[i]), 0);
 
 /** Render a ribbon. parts: [{ asset, weight }] - weight in any unit, shares are relative. */
-function ribbon(hostId, parts, { legend = true, legendFmt = null } = {}) {
+function ribbon(hostId, parts, { legend = true } = {}) {
   const host = $(hostId);
   const total = parts.reduce((s, p) => s + p.weight, 0);
-  host.className = host.className.replace(/\bempty\b/, '').trim();
+  host.classList.remove('empty');
   if (!total) { host.innerHTML = ''; host.classList.add('empty'); return; }
   const segs = parts.filter(p => p.weight > 0);
-  host.innerHTML = segs.map(p => `<span class="seg" style="--c:${colorOf(p.asset)}" data-w="${(100 * p.weight / total).toFixed(3)}"
-    title="${esc(symOf(p.asset))} ${(100 * p.weight / total).toFixed(0)}%"></span>`).join('');
-  // Next frame, so the width change animates from zero on first paint.
-  requestAnimationFrame(() => host.querySelectorAll('.seg').forEach(s => { s.style.width = `calc(${s.dataset.w}% - 4px)`; }));
+  // Keep existing segments so a change animates from the old width to the new.
+  const existing = [...host.querySelectorAll('.seg')];
+  if (existing.length !== segs.length || existing.some((s, i) => s.dataset.a !== segs[i].asset.toLowerCase())) {
+    host.innerHTML = segs.map(p => `<span class="seg" style="--c:${colorOf(p.asset)}" data-a="${p.asset.toLowerCase()}"></span>`).join('');
+  }
+  const els = [...host.querySelectorAll('.seg')];
+  els.forEach((s, i) => { s.title = `${symOf(segs[i].asset)} ${(100 * segs[i].weight / total).toFixed(0)}%`; s.dataset.w = (100 * segs[i].weight / total).toFixed(3); });
+  requestAnimationFrame(() => els.forEach(s => { s.style.width = `calc(${s.dataset.w}% - 4px)`; }));
   if (legend) {
     let lg = host.nextElementSibling;
     if (!lg || !lg.classList.contains('legend')) { lg = document.createElement('div'); lg.className = 'legend'; host.after(lg); }
-    lg.innerHTML = segs.map(p => `<span style="--c:${colorOf(p.asset)}"><i></i>${esc(symOf(p.asset))} ${legendFmt ? legendFmt(p) : (100 * p.weight / total).toFixed(0) + '%'}</span>`).join('');
+    lg.innerHTML = segs.map(p => `<span style="--c:${colorOf(p.asset)}"><i></i>${esc(symOf(p.asset))} ${(100 * p.weight / total).toFixed(0)}%</span>`).join('');
   }
 }
+const holdingParts = (assets, amounts) => assets.map((a, i) => ({ asset: a, weight: valueOf(a, amounts[i]) || Number(formatUnits(amounts[i], 18)) }));
 
 function cardHtml(b, { hero = false } = {}) {
   const mine = isMine(b);
   const holds = b.assets.map((a, i) => `<b>${esc(symOf(a))}</b> ${tok(b.amounts[i])}`).join(' · ') || 'Holds nothing';
   const val = totalValue(b);
-  const tags = [b.legacy ? '<span class="tag tag-v1">Version 1</span>' : '', !b.legacy && b.count > 1 ? `<span class="tag tag-gift">Added to ${b.count - 1}×</span>` : ''].join(' ');
-  const rid = `rb-${hero ? 'hero-' : ''}${b.legacy ? 'v1-' : ''}${b.id}`;
+  const tags = [b.legacy ? `<span class="tag tag-v1">Version ${b.c.version} · withdraw only</span>` : '',
+    !b.legacy && b.count > 1 ? `<span class="tag tag-gift">Added to ${b.count - 1}×</span>` : ''].join(' ');
+  const rid = `rb-${hero ? 'hero-' : ''}${b.id}`;
   return `<a class="bcard" href="${basketUrl(b)}" data-route="1" aria-label="Basket ${b.id}${mine ? ', yours' : ''}">
     ${hero ? `<p class="eyebrow">${b.legacy ? 'An earlier basket' : b.count > 1 ? 'A basket people have added to' : 'A basket on this testnet'}</p>` : ''}
     <div class="bcard-top"><span class="bcard-id">#${b.id}</span>
@@ -783,15 +911,15 @@ function cardHtml(b, { hero = false } = {}) {
 }
 function paintCardRibbons(list, hero = false) {
   for (const b of list) {
-    const rid = `rb-${hero ? 'hero-' : ''}${b.legacy ? 'v1-' : ''}${b.id}`;
-    if ($(rid)) ribbon(rid, b.assets.map((a, i) => ({ asset: a, weight: valueOf(a, b.amounts[i]) || Number(formatUnits(b.amounts[i], 18)) })), { legend: false });
+    const rid = `rb-${hero ? 'hero-' : ''}${b.id}`;
+    if ($(rid)) ribbon(rid, holdingParts(b.assets, b.amounts), { legend: false });
   }
 }
 
 function renderHome() {
   const withHoldings = baskets.filter(b => b.assets.length);
-  // The hero shows a real basket: the version-2 one added to most, else the largest.
-  const featured = [...withHoldings].sort((x, y) => (Number(!y.legacy) - Number(!x.legacy)) || ((y.count || 0) - (x.count || 0)) || (totalValue(y) - totalValue(x)))[0];
+  // The hero shows a real basket: the current-version one added to most, else the largest.
+  const featured = [...withHoldings].sort((x, y) => (Number(x.legacy) - Number(y.legacy)) || ((y.count || 0) - (x.count || 0)) || (totalValue(y) - totalValue(x)))[0];
   $('heroCard').innerHTML = featured ? cardHtml(featured, { hero: true }) : '<div class="empty-state"><p><strong>No baskets yet.</strong></p><p>Start the first one below.</p></div>';
   if (featured) paintCardRibbons([featured], true);
 
@@ -800,7 +928,7 @@ function renderHome() {
   $('mineCount').textContent = mine.length ? `${mine.length} basket${mine.length > 1 ? 's' : ''}` : '';
   $('myCards').innerHTML = mine.length
     ? mine.map(b => cardHtml(b)).join('')
-    : `<div class="empty-state"><p><strong>You do not own a basket yet.</strong></p><p>Start one below, or open someone's basket and copy its plan.</p></div>`;
+    : `<div class="empty-state"><p><strong>You do not own a basket yet.</strong></p><p>Start one below with rUSDG or with Stock Tokens you hold, or open someone's basket and copy its plan.</p></div>`;
   paintCardRibbons(mine);
 
   const others = baskets.filter(b => !isMine(b)).sort((x, y) => (Number(x.legacy) - Number(y.legacy)) || Number(y.id - x.id));
@@ -812,8 +940,10 @@ function renderHome() {
 
 let createMix = null;
 let planMix = null;
+let kindMix = null;
+let kindPlanTouched = false;
 
-/// Rows of stock + share, each a slider and a number, with a live total.
+/// Rows of Stock Token + share, each a slider and a number, with a live total.
 function mixEditor(hostId, initial, onChange) {
   let rows = initial.map(r => ({ ...r }));
   const host = $(hostId);
@@ -829,10 +959,9 @@ function mixEditor(hostId, initial, onChange) {
     host.querySelectorAll('input').forEach(inp => inp.addEventListener('input', ev => {
       const i = Number(ev.target.dataset.i);
       rows[i].pct = Math.max(0, Math.min(100, Math.round(Number(ev.target.value) || 0)));
-      // Two stocks: moving one moves the other, so the mix always adds up.
+      // Two Stock Tokens: moving one moves the other, so the mix always adds up.
       if (rows.length === 2) rows[1 - i].pct = 100 - rows[i].pct;
       host.querySelectorAll('input').forEach(x => { if (x !== ev.target) x.value = rows[Number(x.dataset.i)].pct; });
-      if (ev.target.type === 'range') host.querySelector(`input[type=number][data-i="${i}"]`).value = rows[i].pct;
       total(); onChange?.();
     }));
     total();
@@ -854,11 +983,12 @@ function mixEditor(hostId, initial, onChange) {
 
 // ------------------------------------------------------------------ create ---
 
-function quoteHtml(amount, assets, ins, refs, floors, unspent) {
+function quoteHtml(amount, assets, ins, refs, floors, unspent, recipient = null) {
   const lines = assets.map((a, i) => `<dt>${esc(symOf(a))}: ${usdg(ins[i])} ${esc(stableSym())}</dt>
     <dd>about ${tok(refs[i])}<span class="least">at least ${tok(floors[i])}</span></dd>`).join('');
   return `<dl><dt>You pay</dt><dd>${usdg(amount)} ${esc(stableSym())}</dd><div class="sep"></div>${lines}
     <div class="sep"></div><dt>Returned to you</dt><dd>${usdg(unspent)} ${esc(stableSym())}</dd>
+    ${recipient ? `<dt>Goes to</dt><dd>${recipient}</dd>` : ''}
     <p class="note">"About" is what the reference price says you should get. "At least" is the least Jayo accepts: if the pool gives
       less, the whole purchase is cancelled and you keep your money.</p></dl>`;
 }
@@ -873,7 +1003,7 @@ $('btnQuote').addEventListener('click', async () => {
     const alloc = createMix.allocation();
     const [ins, refs, floors, unspent] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'previewCreate', args: [alloc, amount] });
     $('createQuote').innerHTML = quoteHtml(amount, alloc.map(x => x.asset), ins, refs, floors, unspent);
-  } catch (e) { e.plain ? showMsg('createMsg', 'warn', e.plain) : showError('createMsg', e); }
+  } catch (e) { showError('createMsg', e); }
   finally { busy(btn, false); applyBuyingState(); }
 });
 
@@ -881,46 +1011,133 @@ $('btnCreate').addEventListener('click', async () => {
   clearMsg('createMsg');
   if (needWallet('createMsg')) return;
   const btn = $('btnCreate'); busy(btn, true, 'Creating…');
+  const steps = stepper('createSteps', [`Allow exactly this much ${stableSym()}`, 'Buy the Stock Tokens into a new basket']);
   try {
     const amount = parseAmount('fund');
-    await ensureAllowance(amount, 'createTx');
-    tx('createTx', 'signing', 'Buying your Stock Tokens: confirm in your wallet…');
-    const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'create', args: [createMix.allocation(), amount, await deadline()] });
-    tx('createTx', 'pending', 'Waiting for confirmation…', hash);
-    const receipt = await pub.waitForTransactionReceipt({ hash });
+    await ensureAllowance(D.usdg, amount, steps, 0);
+    const { hash, receipt } = await sendStep(steps, 1, { address: D.basket, abi: BASKET_ABI, functionName: 'create', args: [createMix.allocation(), amount, await deadline()] });
     const made = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'BasketCreated' })[0];
-    tx('createTx', 'confirmed', `Basket #${made?.args.tokenId ?? ''} is yours`, hash);
     log(`created basket #${made?.args.tokenId}`, 'ok', hash);
-    await refreshWallet(false);
-    await loadBaskets();
-    if (made) go(`?basket=${made.args.tokenId}`);
+    await refreshWallet(false); await loadBaskets();
+    if (made) { freshHashes.add(hash); go(`?basket=${made.args.tokenId}`); }
   } catch (e) {
-    tx('createTx', 'failed', 'Cancelled: nothing was spent');
-    e.plain ? showMsg('createMsg', 'warn', e.plain) : showError('createMsg', e);
+    steps.failFrom([...$('createSteps').children].findIndex(li => ['active', 'pending', 'waiting'].includes(li.dataset.state)), wasRejected(e) ? 'cancelled in your wallet' : 'not done');
+    showError('createMsg', e);
   } finally { busy(btn, false); applyBuyingState(); }
+});
+
+// ---------------------------------------------------------------- in kind ---
+//
+// Starting or adding with Stock Tokens already held. Each row shows what the
+// wallet holds; the amounts are moved in as they are - nothing is priced,
+// bought or sold - and the contract credits what actually arrives.
+
+let heldBalances = {};
+
+async function readHeld() {
+  heldBalances = {};
+  if (!connected()) return;
+  const bals = await Promise.all(ASSETS.map(a => pub.readContract({ address: a, abi: ERC20_ABI, functionName: 'balanceOf', args: [account().address] })));
+  ASSETS.forEach((a, i) => { heldBalances[a.toLowerCase()] = bals[i]; });
+}
+
+function kindRowsHtml(prefix) {
+  return ASSETS.map(a => {
+    const m = META[a.toLowerCase()];
+    const have = heldBalances[a.toLowerCase()] ?? 0n;
+    return `<div class="kind-row" style="--c:${m.color}">
+      <div class="asset"><span class="swatch"></span><span><span class="sym">${esc(m.symbol)}</span><span class="have">You hold ${tok(have)}</span></span></div>
+      <input id="${prefix}-${a}" inputmode="decimal" placeholder="0" autocomplete="off" aria-label="${esc(m.symbol)} to move in" ${have === 0n ? 'disabled' : ''}>
+      <button class="max" type="button" data-max="${prefix}-${a}" data-amt="${formatUnits(have, 18)}" ${have === 0n ? 'disabled' : ''}>All</button>
+    </div>`;
+  }).join('');
+}
+
+async function renderKindRows() {
+  await readHeld();
+  const none = connected() && ASSETS.every(a => (heldBalances[a.toLowerCase()] ?? 0n) === 0n);
+  const holderNote = none ? `<p class="muted">This wallet holds none of these Stock Tokens. Test Stock Tokens come from the testnet faucets.</p>` : '';
+  $('kindRows').innerHTML = connected() ? kindRowsHtml('ks') + holderNote : '<p class="muted">Connect a wallet to see which Stock Tokens it holds.</p>';
+  $('addKindRows').innerHTML = connected() ? kindRowsHtml('ka') + holderNote : '<p class="muted">Connect a wallet to see which Stock Tokens it holds.</p>';
+  document.querySelectorAll('[data-max]').forEach(b => b.addEventListener('click', () => {
+    const inp = $(b.dataset.max); inp.value = b.dataset.amt; inp.dispatchEvent(new Event('input', { bubbles: true }));
+  }));
+  document.querySelectorAll('#kindRows input').forEach(inp => inp.addEventListener('input', suggestKindPlan));
+}
+
+/// The chosen in-kind amounts, as [assets[], amounts[]], or a plain error.
+function readKind(prefix) {
+  const assets = [], amounts = [];
+  for (const a of ASSETS) {
+    const raw = String($(`${prefix}-${a}`)?.value || '').replace(/,/g, '').trim();
+    if (!raw) continue;
+    if (!/^\d+(\.\d{0,18})?$/.test(raw)) throw Object.assign(new Error('bad'), { plain: `Enter the ${symOf(a)} amount like 1 or 0.25.` });
+    const v = parseUnits(raw, 18);
+    if (v === 0n) continue;
+    if (v > (heldBalances[a.toLowerCase()] ?? 0n)) throw Object.assign(new Error('too much'), { plain: `You hold ${tok(heldBalances[a.toLowerCase()] ?? 0n)} ${symOf(a)}; enter that or less.` });
+    assets.push(a); amounts.push(v);
+  }
+  if (!assets.length) throw Object.assign(new Error('none'), { plain: 'Enter an amount for at least one Stock Token.' });
+  return { assets, amounts };
+}
+
+/// Until the visitor touches the plan, suggest one that matches what they are
+/// moving in, by value at the last published prices (even if expired: it is
+/// only a starting point for a plan, not a price anything is bought at).
+function suggestKindPlan() {
+  if (kindPlanTouched) return;
+  const vals = ASSETS.map(a => {
+    const raw = String($(`ks-${a}`)?.value || '').trim();
+    try { return raw ? valueOf(a, parseUnits(raw, 18)) : 0; } catch { return 0; }
+  });
+  const total = vals.reduce((s, v) => s + v, 0);
+  if (!total) return;
+  const pcts = vals.map(v => Math.round((100 * v) / total));
+  const drift = 100 - pcts.reduce((s, p) => s + p, 0);
+  pcts[pcts.indexOf(Math.max(...pcts))] += drift;
+  kindMix.set(ASSETS.map((a, i) => ({ asset: a, pct: pcts[i] })));
+  kindPlanTouched = false;
+}
+
+$('btnKindCreate').addEventListener('click', async () => {
+  clearMsg('kindMsg');
+  if (needWallet('kindMsg')) return;
+  let sel;
+  try { sel = readKind('ks'); } catch (e) { return showError('kindMsg', e); }
+  if (!kindMix.valid()) return showMsg('kindMsg', 'warn', 'The plan needs to add up to exactly 100%.');
+  const btn = $('btnKindCreate'); busy(btn, true, 'Starting…');
+  const steps = stepper('kindSteps', [...sel.assets.map(a => `Allow exactly this much ${symOf(a)}`), 'Move them into a new basket']);
+  let i = 0;
+  try {
+    for (; i < sel.assets.length; i++) await ensureAllowance(sel.assets[i], sel.amounts[i], steps, i);
+    const { hash, receipt } = await sendStep(steps, i, { address: D.basket, abi: BASKET_ABI, functionName: 'createInKind', args: [kindMix.allocation(), sel.assets, sel.amounts] });
+    const made = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'BasketCreated' })[0];
+    log(`started basket #${made?.args.tokenId} with Stock Tokens already held`, 'ok', hash);
+    await refreshWallet(false); await loadBaskets(); await renderKindRows();
+    if (made) { freshHashes.add(hash); go(`?basket=${made.args.tokenId}`); }
+  } catch (e) {
+    steps.failFrom(i, wasRejected(e) ? 'cancelled in your wallet' : 'not done');
+    showError('kindMsg', e);
+    await refreshWallet(false);
+  } finally { busy(btn, false); }
 });
 
 // ------------------------------------------------------------ one basket ----
 
-const contractOf = b => (b.legacy ? D.legacyBasket : D.basket);
-const abiOf = b => (b.legacy ? LEGACY_ABI : BASKET_ABI);
-
 async function readBasket(id) {
-  const legacy = id < firstV2;
-  if (legacy && !D.legacyBasket) return null;
-  const address = legacy ? D.legacyBasket : D.basket;
-  const abi = legacy ? LEGACY_ABI : BASKET_ABI;
-  const owner = await pub.readContract({ address, abi, functionName: 'ownerOf', args: [id] }).catch(() => null);
-  const b = { id, legacy, owner, exists: !!owner, assets: [], amounts: [], plan: [], count: null, funded: null, version: null };
+  const c = contractFor(id);
+  if (!c) return null;
+  const owner = await pub.readContract({ address: c.address, abi: c.abi, functionName: 'ownerOf', args: [id] }).catch(() => null);
+  const b = { id, c, legacy: c.legacy, owner, exists: !!owner, assets: [], amounts: [], plan: [], count: null, funded: null, version: null };
   if (!owner) return b;
   const [h, plan] = await Promise.all([
-    pub.readContract({ address, abi, functionName: 'holdingsOf', args: [id] }),
-    pub.readContract({ address, abi, functionName: 'allocationOf', args: [id] }),
+    pub.readContract({ address: c.address, abi: c.abi, functionName: 'holdingsOf', args: [id] }),
+    pub.readContract({ address: c.address, abi: c.abi, functionName: 'allocationOf', args: [id] }),
   ]);
   Object.assign(b, { assets: h[0], amounts: h[1], plan });
-  if (!legacy) {
+  if (c.counters) {
     const [count, funded, version] = await Promise.all(['fundingCount', 'totalFunded', 'allocationVersion']
-      .map(f => pub.readContract({ address, abi, functionName: f, args: [id] })));
+      .map(f => pub.readContract({ address: c.address, abi: c.abi, functionName: f, args: [id] })));
     Object.assign(b, { count: Number(count), funded, version });
   }
   return b;
@@ -929,47 +1146,68 @@ async function readBasket(id) {
 /// An outcome that changes what the viewer can do (a hand-over, a closing) is
 /// shown above the basket, not inside a panel that is about to disappear.
 let pendingNotice = null;
+/// Transactions this page just confirmed: their history entries slide in.
+const freshHashes = new Set();
 
-async function showBasket(id) {
+/**
+ * Show a basket. With `from` (the basket as it was before a confirmed
+ * transaction), the changed rows flash and their numbers count from the old
+ * amount to the new one, and a new owner is highlighted. Only a confirmed
+ * receipt ever leads here, so nothing animates on a guess.
+ */
+async function showBasket(id, { from = null } = {}) {
   const b = await readBasket(id);
   current = b;
   if (pendingNotice) { showMsg('bvNotice', ...pendingNotice); pendingNotice = null; } else clearMsg('bvNotice');
-  for (const m of ['addMsg', 'copyMsg', 'outMsg', 'giveMsg', 'planMsg']) clearMsg(m);
-  for (const t of ['addTx', 'copyTx', 'outTx', 'giveTx', 'planTx']) $(t).hidden = true;
+  for (const m of ['addMsg', 'addKindMsg', 'copyMsg', 'outMsg', 'giveMsg', 'planMsg']) clearMsg(m);
+  for (const t of ['outTx', 'giveTx', 'planTx']) $(t).hidden = true;
+  if (!from) for (const s of ['addSteps', 'addKindSteps', 'copySteps']) $(s).hidden = true;
   $('addQuote').innerHTML = '';
+  $('bvGhost').hidden = true;
 
   if (!b) {
     $('bvTitle').textContent = `Basket #${id}`;
     $('bvEyebrow').textContent = 'Not found';
     $('bvOwner').textContent = 'There is no such basket on this network.';
+    $('bvActions').hidden = true;
     return;
   }
   const mine = isMine(b);
   document.title = `Basket #${id} · Jayo`;
-  $('bvEyebrow').textContent = b.legacy ? 'Basket · version 1' : 'Basket';
+  $('bvEyebrow').textContent = b.legacy ? `Basket · version ${b.c.version}, withdraw only` : 'Basket';
   $('bvTitle').textContent = `Basket #${id}`;
-  $('bvExplorer').href = `${D.explorer}/token/${contractOf(b)}/instance/${id}`;
+  $('bvExplorer').href = `${D.explorer}/token/${b.c.address}/instance/${id}`;
   $('bvExplorer').hidden = !D.explorer;
   $('bvOwner').innerHTML = !b.exists
     ? 'This basket has been <b>closed</b>: everything in it was taken out.'
     : mine ? '<span class="you">You own this basket.</span>' : `Owned by <b>${addrHtml(b.owner)}</b>`;
+  $('bvOwner').classList.remove('changed');
+  if (from && from.owner && b.owner && from.owner.toLowerCase() !== b.owner.toLowerCase() && !REDUCED) {
+    void $('bvOwner').offsetWidth; $('bvOwner').classList.add('changed');
+  }
 
   // Holdings, valued at the reference prices.
   const val = totalValue(b);
   $('bvValue').textContent = b.exists && val ? `≈ ${usd(val)} at reference prices` : '';
-  ribbon('bvRibbon', b.assets.map((a, i) => ({ asset: a, weight: valueOf(a, b.amounts[i]) || Number(formatUnits(b.amounts[i], 18)) })));
-  $('bvRows').innerHTML = b.assets.length ? b.assets.map((a, i) => `<tr style="--c:${colorOf(a)}">
+  ribbon('bvRibbon', holdingParts(b.assets, b.amounts));
+  const before = new Map((from?.assets || []).map((a, i) => [a.toLowerCase(), from.amounts[i]]));
+  $('bvRows').innerHTML = b.assets.length ? b.assets.map((a, i) => {
+    const was = before.get(a.toLowerCase());
+    const cls = from ? (was === undefined || b.amounts[i] > was ? 'flash-add' : b.amounts[i] < was ? 'flash-out' : '') : '';
+    return `<tr style="--c:${colorOf(a)}" class="${cls}" data-asset="${a.toLowerCase()}">
       <td><span class="sym"><i></i>${esc(symOf(a))}</span><span class="name">${esc(META[a.toLowerCase()]?.name || '')}</span></td>
-      <td class="num">${tok(b.amounts[i])}</td><td class="num">${usd(valueOf(a, b.amounts[i]))}</td></tr>`).join('')
+      <td class="num" data-amt="${b.amounts[i]}" data-was="${was ?? 0n}">${tok(b.amounts[i])}</td><td class="num">${usd(valueOf(a, b.amounts[i]))}</td></tr>`;
+  }).join('')
     : `<tr><td colspan="3" class="muted">${b.exists ? 'It holds nothing.' : 'Closed: it holds nothing and cannot receive anything.'}</td></tr>`;
+  if (from) countUp();
 
   // Plan for new money.
   ribbon('bvPlanRibbon', b.plan.map(p => ({ asset: p.asset, weight: Number(p.weightBps) })), { legend: false });
   $('bvPlanText').textContent = b.plan.length ? b.plan.map(p => `${symOf(p.asset)} ${Number(p.weightBps) / 100}%`).join(' · ') : 'No plan: the basket is closed.';
   $('bvPlanVersion').textContent = b.version ? `Version ${b.version}` : '';
   $('bvPlanNote').textContent = b.legacy
-    ? 'This is a version-1 basket: nobody can add to it. Its owner can still take tokens out or hand it on, and anyone can start a new basket with this plan.'
-    : 'Money added to this basket is split this way. The plan does not change what the basket already holds.';
+    ? `This basket is on version ${b.c.version} of Jayo, which takes no new money. Its owner can still take Stock Tokens out or hand it on, and anyone can start a new basket with this plan.`
+    : 'Money added to this basket is split this way. The plan does not rebalance: it does not change what the basket already holds.';
 
   // Who can do what.
   const canOwn = b.exists && mine;
@@ -977,17 +1215,19 @@ async function showBasket(id) {
   $('tabAdd').hidden = b.legacy || !b.exists;
   $('tabCopy').hidden = !b.plan.length;
   $('ownerOnly').hidden = !b.exists || mine;
-  $('ownerOnly').textContent = connected()
-    ? `Only its owner, ${short(b.owner)}, can take tokens out, hand it on or change its plan.`
-    : 'Connect your wallet. If this basket is yours, you can take tokens out, hand it on or change its plan here.';
+  $('ownerOnly').innerHTML = connected()
+    ? `Only its owner, ${addrHtml(b.owner)}, can take Stock Tokens out, hand it on or change its plan.`
+    : 'Connect your wallet. If this basket is yours, you can take Stock Tokens out, hand it on or change its plan here.';
   $('addLede').textContent = mine
-    ? "Top up your basket. The money is split by the basket's plan and bought into it."
-    : "Add money to this basket as a gift. It is split by the basket's plan and bought into it. It belongs to the basket's owner, and you get nothing back.";
+    ? "Top up your basket with money, bought by its plan, or with Stock Tokens you already hold."
+    : "Add to this basket as a gift: money, bought by its plan, or Stock Tokens you already hold. It all belongs to the basket's owner, and you get nothing back.";
+  $('addGoesTo').innerHTML = b.exists && !b.legacy
+    ? (mine ? 'Goes to: <b>you</b>.' : `Goes to: <b>${addrHtml(b.owner)}</b>, the owner now. If the basket changes hands before your addition is confirmed, it is refused and nothing is spent.`)
+    : '';
   $('btnAdd').textContent = mine ? 'Top up my basket' : 'Add to this basket';
 
-  // Take-out choices.
-  // One stock left: "all of it" and "everything" are the same thing, so only
-  // the part-way options and the closing one are offered.
+  // Take-out choices. One Stock Token left: "all of it" and "everything" are
+  // the same thing, so only the part-way options and the closing one are offered.
   const several = b.assets.length > 1;
   $('outChoices').innerHTML = '<legend class="field-label">What to take out</legend>' + [
     ...(several ? b.assets.map((a, i) => ({ v: `asset:${a}`, t: `All of the ${symOf(a)}`, amt: `${tok(b.amounts[i])}` })) : []),
@@ -1000,7 +1240,7 @@ async function showBasket(id) {
     const rows = ASSETS.map(a => ({ asset: a, pct: Number(b.plan.find(p => p.asset.toLowerCase() === a.toLowerCase())?.weightBps ?? 0) / 100 }));
     planMix ? planMix.set(rows) : (planMix = mixEditor('planMix', rows));
   }
-  resetGive();
+  if (!from) resetGive();
 
   const visible = [...$('bvTabs').querySelectorAll('[role=tab]')].filter(t => !t.hidden);
   const keep = visible.find(t => t.getAttribute('aria-selected') === 'true');
@@ -1008,7 +1248,26 @@ async function showBasket(id) {
   else for (const p of document.querySelectorAll('.bv-actions [role=tabpanel]')) p.hidden = true;
   $('bvActions').hidden = !visible.length;
   applyBuyingState();
+  schedulePreview();
   renderHistory(b).catch(() => { $('bvHistory').innerHTML = '<li class="muted">The history could not be read just now.</li>'; });
+}
+
+/// Count changed amounts from their old value to their confirmed new one.
+function countUp() {
+  const cells = [...document.querySelectorAll('#bvRows td[data-amt]')].filter(td => td.dataset.amt !== td.dataset.was);
+  if (REDUCED || !cells.length) return;
+  const t0 = performance.now(), dur = 900;
+  const from = cells.map(td => Number(formatUnits(BigInt(td.dataset.was), 18)));
+  const to = cells.map(td => Number(formatUnits(BigInt(td.dataset.amt), 18)));
+  const frame = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    cells.forEach((td, i) => {
+      td.textContent = k < 1 ? (from[i] + (to[i] - from[i]) * e).toLocaleString(NUM, { maximumFractionDigits: 6 }) : tok(BigInt(td.dataset.amt));
+    });
+    if (k < 1) requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
 }
 
 // Tabs, with arrow-key movement between them.
@@ -1020,6 +1279,7 @@ function selectTab(tab) {
     t.tabIndex = on ? 0 : -1;
     $(t.getAttribute('aria-controls')).hidden = !on;
   }
+  schedulePreview();
 }
 $('bvTabs').addEventListener('click', ev => { const t = ev.target.closest('[role=tab]'); if (t) selectTab(t); });
 $('bvTabs').addEventListener('keydown', ev => {
@@ -1037,6 +1297,50 @@ $('btnShare').addEventListener('click', async () => {
   setTimeout(() => { $('btnShare').textContent = 'Copy link'; }, 2500);
 });
 
+// ------------------------------------------------------- live addition preview
+//
+// While "Add money" is open with an amount and fresh prices, the contract's own
+// previewContribute says what each leg would get. That is drawn as a dashed
+// ribbon of the basket after the addition, and as "+ about …" per row - an
+// estimate, labelled as one, never mixed with what the basket holds.
+
+let previewTimer = null;
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => previewAddition().catch(() => {}), 300);
+}
+$('addAmt').addEventListener('input', () => { clearMsg('addMsg'); schedulePreview(); });
+
+async function previewAddition() {
+  const b = current;
+  const show = b && b.exists && !b.legacy && !$('paneAdd').hidden && !$('addMoney').hidden && buyingOpen;
+  document.querySelectorAll('#bvRows .gain, #bvRows tr.ghost-row').forEach(g => g.remove());
+  if (!show) { $('bvGhost').hidden = true; $('addQuote').innerHTML = ''; return; }
+  let amount;
+  try { amount = parseAmount('addAmt'); } catch { $('bvGhost').hidden = true; $('addQuote').innerHTML = ''; return; }
+  const [ins, refs, floors, unspent] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'previewContribute', args: [b.id, amount] });
+  if (current !== b) return;
+  const assets = b.plan.map(p => p.asset);
+  $('addQuote').innerHTML = quoteHtml(amount, assets, ins, refs, floors, unspent,
+    isMine(b) ? 'you' : `${addrHtml(b.owner)} (owner now)`);
+  // The basket after the addition, by value, at the reference prices.
+  const after = new Map(b.assets.map((a, i) => [a.toLowerCase(), b.amounts[i]]));
+  assets.forEach((a, i) => after.set(a.toLowerCase(), (after.get(a.toLowerCase()) || 0n) + refs[i]));
+  const all = [...after.keys()];
+  ribbon('bvGhostRibbon', all.map(k => ({ asset: k, weight: valueOf(k, after.get(k)) })), { legend: false });
+  $('bvGhostNote').textContent = `The basket after your ${usdg(amount)} ${stableSym()}, estimated at reference prices. What is actually bought is shown once it is confirmed.`;
+  $('bvGhost').hidden = false;
+  assets.forEach((a, i) => {
+    const td = document.querySelector(`#bvRows tr[data-asset="${a.toLowerCase()}"] td.num`);
+    if (td) td.insertAdjacentHTML('beforeend', `<span class="gain">+ about ${tok(refs[i])}</span>`);
+    // A Stock Token in the plan that the basket does not hold yet gets an
+    // estimate row of its own, marked as such.
+    else $('bvRows').insertAdjacentHTML('beforeend', `<tr class="ghost-row" style="--c:${colorOf(a)}">
+      <td><span class="sym"><i></i>${esc(symOf(a))}</span><span class="name">not held yet</span></td>
+      <td class="num">—<span class="gain">+ about ${tok(refs[i])}</span></td><td class="num"></td></tr>`);
+  });
+}
+
 // ----------------------------------------------------------------- history ---
 
 /// Every event a basket contract has emitted since it was deployed. Not cached:
@@ -1048,7 +1352,7 @@ async function contractLogs(address, fromBlock) {
 }
 
 async function renderHistory(b) {
-  const logs = (await contractLogs(contractOf(b), b.legacy ? D.legacyDeployBlock : D.deployBlock))
+  const logs = (await contractLogs(b.c.address, b.c.deployBlock))
     .filter(l => l.args?.tokenId === b.id || l.args?.newTokenId === b.id || l.args?.sourceTokenId === b.id);
   const byTx = new Map();
   for (const l of logs) { if (!byTx.has(l.transactionHash)) byTx.set(l.transactionHash, []); byTx.get(l.transactionHash).push(l); }
@@ -1059,6 +1363,7 @@ async function renderHistory(b) {
   const Who = a => (isYou(a) ? 'You' : addrHtml(a));
   const amt = (v, a) => `${tok(v)} ${esc(symOf(a))}`;
   const bought = ls => ls.filter(l => l.eventName === 'LegSettled').map(l => amt(l.args.acquired, l.args.asset)).join(' and ');
+  const moved = ls => ls.filter(l => l.eventName === 'DepositedInKind').map(l => amt(l.args.amount, l.args.asset)).join(' and ');
   const taken = ls => ls.filter(l => l.eventName === 'AssetRedeemed').map(l => amt(l.args.amount, l.args.asset)).join(' and ');
   const cash = v => `${usdg(v)} ${esc(stableSym())}`;
 
@@ -1069,10 +1374,16 @@ async function renderHistory(b) {
     let cls = '', html = '';
     if (ev('BasketCreated')) {
       const c = ev('BasketCreated'); const copied = ev('AllocationCopied');
-      html = `${copied ? `Started from basket #${copied.args.sourceTokenId}'s plan` : 'Created'} by ${who(c.args.creator)} with ${cash(c.args.usdgSpent)}${bought(ls) ? `: bought ${bought(ls)}` : ''}.`;
+      html = moved(ls)
+        ? `Started by ${who(c.args.creator)} with Stock Tokens already held: ${moved(ls)}.`
+        : `${copied ? `Started from basket <a href="?basket=${copied.args.sourceTokenId}" data-route="1">#${copied.args.sourceTokenId}</a>'s plan` : 'Created'} by ${who(c.args.creator)} with ${cash(c.args.usdgSpent)}${bought(ls) ? `: bought ${bought(ls)}` : ''}.`;
     } else if (ev('Contributed')) {
       const c = ev('Contributed'); cls = 'add';
       html = `${Who(c.args.contributor)} added ${cash(c.args.usdgSpent)}: bought ${bought(ls)}.`;
+    } else if (ev('DepositedInKind')) {
+      cls = 'add';
+      const d = ev('DepositedInKind').args.depositor;
+      html = `${Who(d)} moved in ${moved(ls)} ${isYou(d) ? 'you' : 'they'} already held.`;
     } else if (ev('AllocationCopied')) {
       const c = ev('AllocationCopied');
       html = `${Who(c.args.creator)} started basket <a href="?basket=${c.args.newTokenId}" data-route="1">#${c.args.newTokenId}</a> with this plan, using ${isYou(c.args.creator) ? 'your' : 'their'} own money.`;
@@ -1090,6 +1401,7 @@ async function renderHistory(b) {
       if (/^0x0{40}$/i.test(c.args.from) || /^0x0{40}$/i.test(c.args.to)) continue; // mint and burn are told above
       html = `Handed from ${who(c.args.from)} to ${who(c.args.to)}.`;
     } else continue;
+    if (freshHashes.has(hash)) { cls += ' fresh'; freshHashes.delete(hash); }
     const url = txUrl(hash);
     items.push({ t, html: `<li class="${cls}">${html}<span class="when">${new Date(t * 1000).toLocaleString(NUM, { dateStyle: 'medium', timeStyle: 'short' })}${url ? ` · <a href="${url}" target="_blank" rel="noopener noreferrer">receipt</a>` : ''}</span></li>` });
   }
@@ -1097,43 +1409,64 @@ async function renderHistory(b) {
   $('bvHistory').innerHTML = items.map(i => i.html).join('') || '<li class="muted">No events found.</li>';
 }
 
-// ---------------------------------------------------------------- add money ---
-
-$('addAmt').addEventListener('input', () => { clearMsg('addMsg'); $('addQuote').innerHTML = ''; });
-
-$('btnAddQuote').addEventListener('click', async () => {
-  clearMsg('addMsg');
-  const btn = $('btnAddQuote'); busy(btn, true, 'Checking…');
-  try {
-    const amount = parseAmount('addAmt');
-    const [ins, refs, floors, unspent] = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'previewContribute', args: [current.id, amount] });
-    $('addQuote').innerHTML = quoteHtml(amount, current.plan.map(p => p.asset), ins, refs, floors, unspent);
-  } catch (e) { e.plain ? showMsg('addMsg', 'warn', e.plain) : showError('addMsg', e); }
-  finally { busy(btn, false); applyBuyingState(); }
-});
+// --------------------------------------------------------------- add money ---
 
 $('btnAdd').addEventListener('click', async () => {
   clearMsg('addMsg');
   if (needWallet('addMsg')) return;
   const b = current;
   const btn = $('btnAdd'); busy(btn, true, 'Adding…');
+  const steps = stepper('addSteps', [`Allow exactly this much ${stableSym()}`, `Buy into basket #${b.id}`]);
+  let estimate = null;
   try {
     const amount = parseAmount('addAmt');
-    await ensureAllowance(amount, 'addTx');
-    tx('addTx', 'signing', `Adding ${formatUnits(amount, 6)} ${stableSym()} to basket #${b.id}: confirm in your wallet…`);
-    // The plan version this page showed: if the owner changes the plan first, this reverts.
-    const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'contribute', args: [b.id, amount, b.version, await deadline()] });
-    tx('addTx', 'pending', 'Waiting for confirmation…', hash);
-    await pub.waitForTransactionReceipt({ hash });
-    tx('addTx', 'confirmed', `Added to basket #${b.id}`, hash);
+    await stillAsShown(b);
+    estimate = await pub.readContract({ address: D.basket, abi: BASKET_ABI, functionName: 'previewContribute', args: [b.id, amount] });
+    await ensureAllowance(D.usdg, amount, steps, 0);
+    // The owner and plan version this page showed: if either changed, it reverts.
+    const { hash, receipt } = await sendStep(steps, 1, { address: D.basket, abi: BASKET_ABI, functionName: 'contribute', args: [b.id, amount, b.owner, b.version, await deadline()] });
+    const legs = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'LegSettled' });
+    const actual = legs.map(l => {
+      const i = b.plan.findIndex(p => p.asset.toLowerCase() === l.args.asset.toLowerCase());
+      return `${tok(l.args.acquired)} ${symOf(l.args.asset)}${i >= 0 ? ` (estimate ${tok(estimate[1][i])})` : ''}`;
+    }).join(' and ');
     log(`added ${formatUnits(amount, 6)} ${stableSym()} to basket #${b.id}`, 'ok', hash);
-    await refreshWallet(false); await loadBaskets(); await showBasket(b.id);
-    showMsg('addMsg', 'success', `Added to basket #${b.id}.`, isMine(b) ? 'Your basket holds more now; the table shows exactly what.' : "It now belongs to the basket's owner. The history shows your addition.");
+    freshHashes.add(hash);
+    $('addAmt').value = ''; // done: no estimate of a further addition until one is typed
+    await refreshWallet(false); await loadBaskets(); await showBasket(b.id, { from: b });
+    showMsg('addMsg', 'success', `Added to basket #${b.id}.`, `Bought ${esc(actual)}. ${isMine(b) ? 'Your basket holds more now.' : "It now belongs to the basket's owner."}`);
   } catch (e) {
-    tx('addTx', 'failed', 'Cancelled: nothing was spent');
-    if (decode(e)?.name === 'AllocationChangedSinceQuote') await showBasket(b.id);
-    e.plain ? showMsg('addMsg', 'warn', e.plain) : showError('addMsg', e);
+    steps.failFrom([...$('addSteps').children].findIndex(li => ['active', 'pending', 'waiting'].includes(li.dataset.state)), wasRejected(e) ? 'cancelled in your wallet' : 'not done');
+    const name = decode(e)?.name;
+    if (name === 'AllocationChangedSinceQuote' || name === 'OwnerChangedSinceQuote') await showBasket(b.id);
+    showError('addMsg', e);
   } finally { busy(btn, false); applyBuyingState(); }
+});
+
+$('btnAddKind').addEventListener('click', async () => {
+  clearMsg('addKindMsg');
+  if (needWallet('addKindMsg')) return;
+  const b = current;
+  let sel;
+  try { sel = readKind('ka'); } catch (e) { return showError('addKindMsg', e); }
+  const btn = $('btnAddKind'); busy(btn, true, 'Moving…');
+  const steps = stepper('addKindSteps', [...sel.assets.map(a => `Allow exactly this much ${symOf(a)}`), `Move them into basket #${b.id}`]);
+  let i = 0;
+  try {
+    await stillAsShown(b);
+    for (; i < sel.assets.length; i++) await ensureAllowance(sel.assets[i], sel.amounts[i], steps, i);
+    const { hash, receipt } = await sendStep(steps, i, { address: D.basket, abi: BASKET_ABI, functionName: 'depositInKind', args: [b.id, b.owner, sel.assets, sel.amounts] });
+    const moved = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'DepositedInKind' }).map(l => `${tok(l.args.amount)} ${symOf(l.args.asset)}`).join(' and ');
+    log(`moved ${moved} into basket #${b.id}`, 'ok', hash);
+    freshHashes.add(hash);
+    await refreshWallet(false); await loadBaskets(); await renderKindRows(); await showBasket(b.id, { from: b });
+    showMsg('addKindMsg', 'success', `Moved ${moved} into basket #${b.id}.`, isMine(b) ? 'Nothing was bought or sold.' : "They now belong to the basket's owner. Nothing was bought or sold.");
+  } catch (e) {
+    steps.failFrom(i, wasRejected(e) ? 'cancelled in your wallet' : 'not done');
+    if (decode(e)?.name === 'OwnerChangedSinceQuote') await showBasket(b.id);
+    showError('addKindMsg', e);
+    await refreshWallet(false);
+  } finally { busy(btn, false); }
 });
 
 // -------------------------------------------------------------------- copy ---
@@ -1143,25 +1476,23 @@ $('btnCopy').addEventListener('click', async () => {
   if (needWallet('copyMsg')) return;
   const b = current;
   const btn = $('btnCopy'); busy(btn, true, 'Buying…');
+  const steps = stepper('copySteps', [`Allow exactly this much ${stableSym()}`, 'Buy your own basket with this plan']);
   try {
     const amount = parseAmount('copyAmt');
-    await ensureAllowance(amount, 'copyTx');
-    tx('copyTx', 'signing', 'Buying your basket with this plan: confirm in your wallet…');
-    // Version 2 copies natively (and records where the plan came from). A
-    // version-1 plan is copied by creating a new version-2 basket with it.
-    const hash = b.legacy
-      ? await send({ address: D.basket, abi: BASKET_ABI, functionName: 'create', args: [b.plan.map(p => ({ asset: p.asset, weightBps: Number(p.weightBps) })), amount, await deadline()] })
-      : await send({ address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [b.id, amount, b.version, await deadline()] });
-    tx('copyTx', 'pending', 'Waiting for confirmation…', hash);
-    const receipt = await pub.waitForTransactionReceipt({ hash });
+    await ensureAllowance(D.usdg, amount, steps, 0);
+    // The current version copies natively and records where the plan came from.
+    // An earlier version's plan is copied by creating a new basket with it.
+    const params = b.legacy
+      ? { address: D.basket, abi: BASKET_ABI, functionName: 'create', args: [b.plan.map(p => ({ asset: p.asset, weightBps: Number(p.weightBps) })), amount, await deadline()] }
+      : { address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [b.id, amount, b.version, await deadline()] };
+    const { hash, receipt } = await sendStep(steps, 1, params);
     const made = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'BasketCreated' })[0];
-    tx('copyTx', 'confirmed', `Basket #${made?.args.tokenId} is yours`, hash);
     log(`started basket #${made?.args.tokenId} with basket #${b.id}'s plan`, 'ok', hash);
     await refreshWallet(false); await loadBaskets();
-    if (made) go(`?basket=${made.args.tokenId}`);
+    if (made) { freshHashes.add(hash); go(`?basket=${made.args.tokenId}`); }
   } catch (e) {
-    tx('copyTx', 'failed', 'Cancelled: nothing was spent');
-    e.plain ? showMsg('copyMsg', 'warn', e.plain) : showError('copyMsg', e);
+    steps.failFrom([...$('copySteps').children].findIndex(li => ['active', 'pending', 'waiting'].includes(li.dataset.state)), wasRejected(e) ? 'cancelled in your wallet' : 'not done');
+    showError('copyMsg', e);
   } finally { busy(btn, false); applyBuyingState(); }
 });
 
@@ -1176,9 +1507,8 @@ $('btnOut').addEventListener('click', async () => {
   const btn = $('btnOut'); busy(btn, true, 'Sending…');
   try {
     const [kind, value] = choice.split(':');
-    const address = contractOf(b), abi = abiOf(b);
-    const before = await pub.readContract({ address, abi, functionName: 'holdingsOf', args: [b.id] });
-    tx('outTx', 'signing', 'Sending the tokens to your wallet: confirm in your wallet…');
+    const { address, abi } = b.c;
+    tx('outTx', 'signing', 'Sending the Stock Tokens to your wallet: confirm in your wallet…');
     const hash = kind === 'asset' ? await send({ address, abi, functionName: 'redeemAsset', args: [b.id, value] })
       : kind === 'frac' ? await send({ address, abi, functionName: 'redeemFraction', args: [b.id, Number(value)] })
       : await send({ address, abi, functionName: 'redeem', args: [b.id] });
@@ -1186,13 +1516,13 @@ $('btnOut').addEventListener('click', async () => {
     const receipt = await pub.waitForTransactionReceipt({ hash });
     const sent = parseEventLogs({ abi: EVENTS, logs: receipt.logs, eventName: 'AssetRedeemed' })
       .map(l => `${tok(l.args.amount)} ${symOf(l.args.asset)}`).join(' and ');
-    const closed = parseEventLogs({ abi: EVENTS, logs: receipt.logs }).some(l => l.eventName === 'PositionClosed' || l.eventName === 'BasketRedeemed')
-      || before[0].length === 0;
+    const closed = parseEventLogs({ abi: EVENTS, logs: receipt.logs }).some(l => l.eventName === 'PositionClosed' || l.eventName === 'BasketRedeemed');
     tx('outTx', 'confirmed', 'Sent to your wallet', hash);
     log(`took ${sent} out of basket #${b.id}`, 'ok', hash);
-    if (closed) pendingNotice = ['success', `Sent ${sent || 'the tokens'} to your wallet.`, 'That was the last of it, so the basket is closed. Its history stays readable here.'];
-    await refreshWallet(false); await loadBaskets(); await showBasket(b.id);
-    if (!closed) showMsg('outMsg', 'success', `Sent ${sent || 'the tokens'} to your wallet.`, 'The basket is still yours and holds the rest. No price was needed for this.');
+    freshHashes.add(hash);
+    if (closed) pendingNotice = ['success', `Sent ${sent || 'the Stock Tokens'} to your wallet.`, 'That was the last of it, so the basket is closed. Its history stays readable here.'];
+    await refreshWallet(false); await loadBaskets(); await renderKindRows(); await showBasket(b.id, { from: b });
+    if (!closed) showMsg('outMsg', 'success', `Sent ${sent || 'the Stock Tokens'} to your wallet.`, 'The basket is still yours and holds the rest. No price was needed for this.');
   } catch (e) { tx('outTx', 'failed', 'Cancelled: nothing was sent'); showError('outMsg', e); }
   finally { busy(btn, false); }
 });
@@ -1223,7 +1553,7 @@ function validateRecipient() {
   const addr = getAddress(raw);
   if (/^0x0{40}$/i.test(addr)) return hintRecipient('That is the zero address. Anything sent there is gone for good.', true);
   if (addr.toLowerCase() === me()) return hintRecipient('That is your own address.', true);
-  const known = [D.basket, D.legacyBasket, D.usdg, D.gateway, D.policy, D.adapter, D.poolManager, D.renderer, ...(D.stocks || [])]
+  const known = [D.basket, D.legacyBasket, D.legacyBasket2, D.usdg, D.gateway, D.policy, D.adapter, D.poolManager, D.renderer, ...(D.stocks || [])]
     .filter(Boolean).map(a => a.toLowerCase());
   if (known.includes(addr.toLowerCase())) return hintRecipient("That is one of Jayo's own contracts, not a person. It could never give the basket back.", true);
   recipient = addr;
@@ -1266,14 +1596,15 @@ $('btnGive').addEventListener('click', async () => {
     tx('giveTx', 'signing', 'Handing the basket on: confirm in your wallet…');
     // safeTransferFrom: a contract that cannot hold ERC-721s makes it revert
     // instead of swallowing the basket.
-    const hash = await send({ address: contractOf(b), abi: abiOf(b), functionName: 'safeTransferFrom', args: [account().address, to, b.id] });
+    const hash = await send({ address: b.c.address, abi: b.c.abi, functionName: 'safeTransferFrom', args: [account().address, to, b.id] });
     tx('giveTx', 'pending', 'Waiting for confirmation…', hash);
     await pub.waitForTransactionReceipt({ hash });
     tx('giveTx', 'confirmed', 'Handed on', hash);
     log(`handed basket #${b.id} to ${short(to)}`, 'ok', hash);
+    freshHashes.add(hash);
     pendingNotice = ['success', `Basket #${b.id} now belongs to ${short(to)}.`,
-      "You can no longer take tokens out of it or hand it on. Send them this page's link (Copy link, above) so they can see exactly what they received."];
-    await loadBaskets(); await showBasket(b.id);
+      "You can no longer take Stock Tokens out of it or hand it on. Send them this page's link (Copy link, above) so they can see exactly what they received."];
+    await loadBaskets(); await showBasket(b.id, { from: b });
   } catch (e) { tx('giveTx', 'failed', 'Cancelled: nothing moved'); showError('giveMsg', e); }
   finally { busy(btn, false); }
 });
@@ -1293,7 +1624,8 @@ $('btnPlan').addEventListener('click', async () => {
     await pub.waitForTransactionReceipt({ hash });
     tx('planTx', 'confirmed', 'Plan saved', hash);
     log(`changed basket #${b.id}'s plan`, 'ok', hash);
-    await loadBaskets(); await showBasket(b.id);
+    freshHashes.add(hash);
+    await loadBaskets(); await showBasket(b.id, { from: b });
     showMsg('planMsg', 'success', 'Saved.', 'Money added from now on is split this way. Nothing the basket holds was sold or bought.');
   } catch (e) { tx('planTx', 'failed', 'Not saved'); showError('planMsg', e); }
   finally { busy(btn, false); }
@@ -1317,7 +1649,7 @@ $('btnTime').addEventListener('click', async () => {
   await pub.request({ method: 'evm_increaseTime', params: [172800] });
   await pub.request({ method: 'evm_mine', params: [] });
   await renderPrices();
-  showMsg('demoMsg', 'warn', 'Prices are now two days old.', 'Buying refuses. Taking tokens out of a basket you own still works.');
+  showMsg('demoMsg', 'warn', 'Prices are now two days old.', 'Buying refuses. Moving in Stock Tokens you hold and taking them out still work.');
 });
 
 $('btnRefresh').addEventListener('click', async () => {

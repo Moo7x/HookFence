@@ -1,6 +1,6 @@
 # Testing Jayo with people outside the project
 
-Nobody outside the project has used version 2 yet. The assistant building it
+Nobody outside the project has used version 3 yet. The assistant building it
 cannot talk to people; this is a protocol for the owner to run with **two or
 three people**, each for about 15 minutes. Watch, don't help: where someone
 hesitates is the result.
@@ -28,12 +28,20 @@ hesitates is the result.
 3. "Now make your own basket with the same mix, with your own money."
    *Watch:* do they find "Copy plan"? Do they expect it to share the friend's
    basket instead?
+3b. If their wallet holds test TSLA or AMZN from a faucet: "Start a basket with
+   what you already hold." *Watch:* do they understand the tokens leave their
+   wallet but remain theirs, inside the basket?
 4. Hand them the owner's wallet (or have them create a basket first).
    "Take out only the Tesla and keep the rest."
 5. "Give this basket to [your second address]."
    *Watch:* the review-and-confirm step: too much, or reassuring?
 
 ## Ask afterwards (write down their words, not a summary)
+
+- "Who owns the Stock Tokens in this basket now?" (the acceptance test for the
+  page: the answer should be the owner's address, not "Jayo" or "everyone")
+- "If the owner gave the basket away while you were adding money, where would
+  your money go?" (the right answer: nowhere; it is refused)
 
 - "Who would you use this with, if the stocks were real?"
 - "What would you expect to happen if the owner changed the mix after you

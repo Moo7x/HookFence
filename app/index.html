@@ -98,9 +98,14 @@
   <section class="start" id="start" aria-labelledby="h-start">
     <div class="shelf-head">
       <h2 id="h-start">Start a basket</h2>
-      <p class="muted">Choose the mix, then pay once. Every token is bought and held in one basket that belongs to you.</p>
+      <p class="muted">Pay once and every Stock Token is bought into one basket that belongs to you, or move in Stock Tokens you already hold.</p>
     </div>
-    <div class="start-grid">
+    <div class="modes" role="tablist" aria-label="How to start a basket" id="startModes">
+      <button role="tab" type="button" id="modeBuy" aria-controls="startBuy" aria-selected="true">Buy with rUSDG</button>
+      <button role="tab" type="button" id="modeKind" aria-controls="startKind" aria-selected="false">Use Stock Tokens you hold</button>
+    </div>
+
+    <div role="tabpanel" id="startBuy" aria-labelledby="modeBuy" class="start-grid">
       <div class="panel">
         <label class="field-label" for="fund">How much to put in</label>
         <div class="money-input"><input id="fund" inputmode="decimal" value="20" autocomplete="off" /><span class="unit" id="fundUnit">rUSDG</span></div>
@@ -118,8 +123,26 @@
           <button class="btn btn-ghost" id="btnQuote" type="button">Check what I'd get</button>
           <button class="btn btn-primary" id="btnCreate" type="button">Create basket</button>
         </div>
-        <div class="txstate" id="createTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <ol class="steps" id="createSteps" hidden></ol>
         <div id="createMsg"></div>
+      </aside>
+    </div>
+
+    <div role="tabpanel" id="startKind" aria-labelledby="modeKind" class="start-grid" hidden>
+      <div class="panel">
+        <p class="field-label">Stock Tokens to move in</p>
+        <div class="kind-rows" id="kindRows"><p class="muted">Connect a wallet to see which Stock Tokens it holds.</p></div>
+        <p class="hint">Nothing is sold or bought, so no price and no pool is needed. The tokens leave your wallet and are held by
+          your basket; you can take them out again at any time.</p>
+        <p class="field-label" id="kindMixLabel">Plan for money added later</p>
+        <div class="mix" id="kindMix" role="group" aria-labelledby="kindMixLabel"></div>
+      </div>
+      <aside class="panel summary" aria-live="polite">
+        <p class="buy-state"><span class="dot"></span><span>Works even while buying is paused: moving tokens in needs no price.</span></p>
+        <div class="quote" id="kindSummary"></div>
+        <div class="stack"><button class="btn btn-primary" id="btnKindCreate" type="button">Start my basket with these</button></div>
+        <ol class="steps" id="kindSteps" hidden></ol>
+        <div id="kindMsg"></div>
       </aside>
     </div>
   </section>
@@ -142,8 +165,9 @@
       </div>
       <div>
         <h3>Anyone can add to it</h3>
-        <p>Send a basket's link to someone. Whatever they add is split by that basket's plan and bought into it.
-          It all belongs to the basket's owner, and the giver gets nothing back.</p>
+        <p>Send a basket's link to someone. Money they add is split by the basket's plan and bought into it;
+          Stock Tokens they hold can be moved in directly. It all goes to the owner they saw on the page, or the
+          addition is refused, and the giver gets nothing back.</p>
       </div>
       <div>
         <h3>Take out what you want, when you want</h3>
@@ -197,6 +221,10 @@
           <p class="muted" id="bvValue"></p>
         </div>
         <div class="ribbon ribbon-lg" id="bvRibbon"></div>
+        <div class="ghost" id="bvGhost" hidden>
+          <div class="ribbon ribbon-ghost" id="bvGhostRibbon"></div>
+          <p class="ghost-note" id="bvGhostNote"></p>
+        </div>
         <table class="holdings">
           <thead><tr><th scope="col">Stock Token</th><th scope="col" class="num">Amount</th><th scope="col" class="num">At reference price</th></tr></thead>
           <tbody id="bvRows"></tbody>
@@ -230,20 +258,29 @@
 
       <p class="owner-only" id="ownerOnly" hidden></p>
 
-      <!-- Add money -->
+      <!-- Add money, or Stock Tokens held -->
       <div role="tabpanel" id="paneAdd" aria-labelledby="tabAdd" class="pane">
-        <p class="pane-lede" id="addLede">Add money to this basket. It is bought by the basket's plan and belongs to its owner.</p>
-        <div id="addBody">
+        <p class="pane-lede" id="addLede">Add to this basket. What you add belongs to its owner.</p>
+        <p class="goes-to" id="addGoesTo"></p>
+        <div class="modes modes-sm" role="tablist" aria-label="What to add" id="addModes">
+          <button role="tab" type="button" id="addModeMoney" aria-controls="addMoney" aria-selected="true">Money</button>
+          <button role="tab" type="button" id="addModeKind" aria-controls="addKind" aria-selected="false">Stock Tokens you hold</button>
+        </div>
+        <div role="tabpanel" id="addMoney" aria-labelledby="addModeMoney">
           <label class="field-label" for="addAmt">Amount</label>
           <div class="money-input"><input id="addAmt" inputmode="decimal" value="10" autocomplete="off" /><span class="unit" data-unit>rUSDG</span></div>
           <div id="addBuyState"></div>
           <div class="quote" id="addQuote"></div>
-          <div class="stack">
-            <button class="btn btn-ghost" id="btnAddQuote" type="button">Check what it buys</button>
-            <button class="btn btn-accent" id="btnAdd" type="button">Add to this basket</button>
-          </div>
-          <div class="txstate" id="addTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+          <div class="stack"><button class="btn btn-accent" id="btnAdd" type="button">Add to this basket</button></div>
+          <ol class="steps" id="addSteps" hidden></ol>
           <div id="addMsg"></div>
+        </div>
+        <div role="tabpanel" id="addKind" aria-labelledby="addModeKind" hidden>
+          <div class="kind-rows" id="addKindRows"></div>
+          <p class="buy-state"><span class="dot"></span><span>Needs no price, so this works while buying is paused.</span></p>
+          <div class="stack"><button class="btn btn-accent" id="btnAddKind" type="button">Move them into this basket</button></div>
+          <ol class="steps" id="addKindSteps" hidden></ol>
+          <div id="addKindMsg"></div>
         </div>
       </div>
 
@@ -256,7 +293,7 @@
         <div class="stack">
           <button class="btn btn-primary" id="btnCopy" type="button">Start my basket with this plan</button>
         </div>
-        <div class="txstate" id="copyTx" data-state="idle" hidden><span class="pip"></span><span class="label"></span></div>
+        <ol class="steps" id="copySteps" hidden></ol>
         <div id="copyMsg"></div>
       </div>
 

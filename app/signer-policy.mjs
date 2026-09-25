@@ -28,7 +28,7 @@ const STABLECOIN_ABI = [
   { type: "function", name: "mint", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }] },
 ];
 const ALLOCATION = { type: "tuple[]", components: [{ name: "asset", type: "address" }, { name: "weightBps", type: "uint16" }] };
-// JayoBasket version 2: everything the page does to a current basket.
+// JayoBasket version 3: everything the page does to a current basket.
 const BASKET_ABI = [
   { type: "function", name: "create", inputs: [
     { name: "allocation", ...ALLOCATION }, { name: "usdgIn", type: "uint256" }, { name: "deadline", type: "uint256" }] },
@@ -36,8 +36,13 @@ const BASKET_ABI = [
     { name: "sourceTokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" },
     { name: "expectedAllocationVersion", type: "uint64" }, { name: "deadline", type: "uint256" }] },
   { type: "function", name: "contribute", inputs: [
-    { name: "tokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" },
+    { name: "tokenId", type: "uint256" }, { name: "usdgIn", type: "uint256" }, { name: "expectedOwner", type: "address" },
     { name: "expectedAllocationVersion", type: "uint64" }, { name: "deadline", type: "uint256" }] },
+  { type: "function", name: "createInKind", inputs: [
+    { name: "allocation", ...ALLOCATION }, { name: "assets", type: "address[]" }, { name: "amounts", type: "uint256[]" }] },
+  { type: "function", name: "depositInKind", inputs: [
+    { name: "tokenId", type: "uint256" }, { name: "expectedOwner", type: "address" },
+    { name: "assets", type: "address[]" }, { name: "amounts", type: "uint256[]" }] },
   { type: "function", name: "setAllocation", inputs: [{ name: "tokenId", type: "uint256" }, { name: "allocation", ...ALLOCATION }] },
   { type: "function", name: "redeem", inputs: [{ name: "tokenId", type: "uint256" }] },
   { type: "function", name: "redeemAsset", inputs: [{ name: "tokenId", type: "uint256" }, { name: "asset", type: "address" }] },
@@ -45,9 +50,11 @@ const BASKET_ABI = [
   { type: "function", name: "safeTransferFrom", inputs: [
     { name: "from", type: "address" }, { name: "to", type: "address" }, { name: "tokenId", type: "uint256" }] },
 ];
-// JayoBasket version 1 stays live so its positions can still be withdrawn and
-// handed on. Nothing new is bought through it, so nothing that spends is allowed.
+// JayoBasket versions 1 and 2 stay live so their positions can still be withdrawn
+// and handed on. Nothing new goes in through them, so nothing that spends is allowed.
 const LEGACY_ABI = BASKET_ABI.filter(f => ["redeem", "redeemAsset", "redeemFraction", "safeTransferFrom"].includes(f.name));
+// A Stock Token may only be approved to the current basket, for an in-kind start or addition.
+const STOCK_ABI = [{ type: "function", name: "approve", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }] }];
 
 export const LIMITS = {
   maxSpend: 100_000000n,   // 100 rUSDG per create/copy/contribution: a hijacked page cannot drain the wallet in one call
@@ -61,7 +68,8 @@ const refuse = reason => ({ ok: false, reason });
 
 /**
  * @param tx   eth_sendTransaction params[0] as the page sent it
- * @param ctx  { chainId, basket, legacyBasket?, usdg, accounts: [address...], protected: [address...] }
+ * @param ctx  { chainId, basket, legacyBaskets?: [address...], stocks?: [address...], usdg,
+ *               accounts: [address...], protected: [address...] }
  */
 export function vetTransaction(tx, ctx) {
   if (!tx || typeof tx !== "object") return refuse("no transaction");
@@ -82,7 +90,8 @@ export function vetTransaction(tx, ctx) {
   let abi, target;
   if (to === lower(ctx.usdg)) { abi = STABLECOIN_ABI; target = "stablecoin"; }
   else if (to === lower(ctx.basket)) { abi = BASKET_ABI; target = "basket"; }
-  else if (ctx.legacyBasket && to === lower(ctx.legacyBasket)) { abi = LEGACY_ABI; target = "legacy"; }
+  else if ((ctx.legacyBaskets || []).some(a => lower(a) === to)) { abi = LEGACY_ABI; target = "legacy"; }
+  else if ((ctx.stocks || []).some(a => lower(a) === to)) { abi = STOCK_ABI; target = "stock"; }
   else return refuse(`will not sign a call to ${tx.to}`);
 
   let decoded;
@@ -98,13 +107,14 @@ export function vetTransaction(tx, ctx) {
   }
 
   const [a0, a1, a2] = decoded.args;
-  const protectedSet = new Set([ctx.basket, ctx.legacyBasket, ctx.usdg, ...(ctx.protected || [])].filter(Boolean).map(lower));
+  const legacy = new Set((ctx.legacyBaskets || []).map(lower));
+  const protectedSet = new Set([ctx.basket, ...legacy, ctx.usdg, ...(ctx.stocks || []), ...(ctx.protected || [])].filter(Boolean).map(lower));
   switch (`${target}.${decoded.functionName}`) {
     case "stablecoin.approve":
-      // Removing a leftover permission from version 1 is allowed; granting one is not.
-      if (ctx.legacyBasket && lower(a0) === lower(ctx.legacyBasket)) {
-        if (a1 !== 0n) return refuse("the version-1 basket may only have its permission removed (set to 0)");
-        return { ok: true, account, what: "remove version-1 permission" };
+      // Removing a leftover permission from an earlier version is allowed; granting one is not.
+      if (legacy.has(lower(a0))) {
+        if (a1 !== 0n) return refuse("an earlier basket contract may only have its permission removed (set to 0)");
+        return { ok: true, account, what: "remove an earlier version's permission" };
       }
       if (lower(a0) !== lower(ctx.basket)) return refuse("the stablecoin may only be approved to the basket contract");
       return { ok: true, account, what: "approve basket" };
@@ -125,7 +135,20 @@ export function vetTransaction(tx, ctx) {
 
     case "basket.contribute":
       if (a1 > LIMITS.maxSpend) return refuse(`spends more than the test signer's limit of ${LIMITS.maxSpend}`);
-      return { ok: true, account, what: `add ${a1} to #${a0}` };
+      return { ok: true, account, what: `add ${a1} to #${a0} (owner ${a2})` };
+
+    case "basket.createInKind":
+      if (a0.length === 0 || a0.length > LIMITS.maxLegs) return refuse("allocation must have 1 to 8 legs");
+      if (a1.length === 0 || a1.length > LIMITS.maxLegs) return refuse("an in-kind start moves 1 to 8 Stock Tokens");
+      return { ok: true, account, what: `start a basket in kind with ${a1.length} Stock Token(s)` };
+
+    case "basket.depositInKind":
+      if (a2.length === 0 || a2.length > LIMITS.maxLegs) return refuse("an in-kind addition moves 1 to 8 Stock Tokens");
+      return { ok: true, account, what: `add Stock Tokens in kind to #${a0} (owner ${a1})` };
+
+    case "stock.approve":
+      if (lower(a0) !== lower(ctx.basket)) return refuse("a Stock Token may only be approved to the current basket contract");
+      return { ok: true, account, what: `approve ${tx.to} for an in-kind addition` };
 
     case "basket.setAllocation":
       if (a1.length === 0 || a1.length > LIMITS.maxLegs) return refuse("allocation must have 1 to 8 legs");

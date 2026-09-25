@@ -6,11 +6,13 @@ A Jayo basket is one NFT that holds a mix of Stock Tokens on Robinhood Chain,
 bought through Uniswap v4. Its owner can withdraw everything, a fraction, or a
 single stock, in kind, with no price needed, and can hand the whole basket on.
 
-**Anyone can add money to a basket.** It is bought by *that basket's own plan*
-and credited to it, the way a family adds to a child's portfolio or a friend
-chips in to a gift. The owner can change the plan for future money; holdings
-are never rebalanced. Anyone can also start their own basket with another
-basket's plan, paid with their own money.
+**Anyone can add to a basket.** Money is bought by *that basket's own plan*;
+Stock Tokens someone already holds can be moved in directly, with no price
+needed. Every addition names the owner the giver saw and is refused if the
+basket has changed hands. The owner can change the plan for future money;
+holdings are never rebalanced. A basket can also be started with Stock Tokens
+already held, and anyone can start their own basket with another basket's
+plan, paid with their own money.
 
 Every basket has a page (`?basket=101`) and on-chain metadata showing its
 holdings, plan and history. Each purchase is checked against a reference price,
@@ -31,6 +33,8 @@ Built for the Arbitrum Open House Singapore buildathon.
 |---|---|
 | Live site | <https://jayo-testnet.pages.dev> |
 | Product direction: who it is for, compared with the alternatives | [docs/PRODUCT_DIRECTION.md](docs/PRODUCT_DIRECTION.md) |
+| Each feature as a hypothesis, with evidence; the judging criteria | [docs/HYPOTHESES.md](docs/HYPOTHESES.md) |
+| An independent review (Codex) and its verification | [docs/CODEX_INDEPENDENT_STRATEGY.md](docs/CODEX_INDEPENDENT_STRATEGY.md) |
 | Public site, version 2 journey receipts, the scheduled price keeper | [docs/PUBLIC_SITE.md](docs/PUBLIC_SITE.md) |
 | Interface redesign, before and after | [docs/design/README.md](docs/design/README.md) |
 | Version 1 contracts and the first two-wallet journey | [docs/WALKTHROUGH.md](docs/WALKTHROUGH.md), [docs/evidence/](docs/evidence/) |
@@ -42,9 +46,10 @@ Built for the Arbitrum Open House Singapore buildathon.
 
 **Testnet deployment** (the full list is in
 [deployments/robinhood-testnet.json](deployments/robinhood-testnet.json)):
-JayoBasket v2 `0x1F0AB726154DCc487fE1Ccaf5e3ACC389226Ac0B`, JayoBasket v1 (still
-live, withdraw and hand on only) `0xff5c76EAc645cb07317c95215B382909b9A00218`,
-ExecutionGateway `0x8bae4Bc2B97D607a4409F74a708FeDFA2b43d01e`.
+JayoBasket v3 `0xA4Bd059436717c2450e2aab636d3F3476455e529` (baskets from #201).
+Versions 1 (`0xff5c76EA…0218`, #1–#7) and 2 (`0x1F0AB726…Ac0B`, #101–#102)
+stay live, withdraw-only on chain: their baskets can still be taken out of and
+handed on. ExecutionGateway `0x8bae4Bc2B97D607a4409F74a708FeDFA2b43d01e`.
 
 ## Price references: what they do and don't protect
 

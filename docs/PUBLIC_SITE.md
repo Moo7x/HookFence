@@ -1,12 +1,13 @@
 # Jayo's public testnet site — build, checks, deploy, operate
 
 **Status (2026-09-25):** **live at <https://jayo-testnet.pages.dev>**, built by
-Cloudflare Pages from `master`. It now runs on **JayoBasket version 2**: anyone can
-add money to a basket, it is bought by that basket's own plan, and every basket
-has its own page (`?basket=101`). Version-1 baskets (#1 to #7) stay listed,
-withdrawable and transferable. Why version 2 exists is in
-[PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md), and the redesign is in
-[design/README.md](design/README.md).
+Cloudflare Pages from `master`, on **JayoBasket version 3**. Anyone can add
+money to a basket, bought by that basket's own plan, or move in Stock Tokens
+they already hold. Every addition is bound to the owner the giver saw. A basket
+can be started in kind, and every basket has its own page (`?basket=201`).
+Baskets from versions 1 (#1–#7) and 2 (#101–#102) stay listed, withdrawable and
+transferable. Why, and with what evidence: [PRODUCT_DIRECTION.md](PRODUCT_DIRECTION.md)
+and [HYPOTHESES.md](HYPOTHESES.md). The redesign: [design/README.md](design/README.md).
 
 ## What the site is
 
@@ -107,7 +108,32 @@ One known risk to watch for with other wallets: a wallet that injects its provid
 *inline* script would be blocked by `script-src 'self'`. Current MetaMask and Rabby
 inject from the extension, which a page's CSP does not govern.
 
-## Version 2 on the live testnet (2026-09-25)
+## Version 3 on the live testnet (2026-09-25)
+
+Deployed by `contracts/script/DeployJayoV3Testnet.s.sol`, which reuses the
+gateway, policy, adapter and bounded feeds, and made version 2 withdraw-only.
+All 7 transactions succeeded. Basket ids start at 201.
+
+| Contract | Address |
+|---|---|
+| JayoBasket v3 | `0xA4Bd059436717c2450e2aab636d3F3476455e529` |
+| Renderer v3 (no chain marks, terms 5.7(h)) | `0x316094eC4344BDac211084c487E5be90a7Fa2aeB` |
+| JayoBasket v2, withdraw-only | `0x1F0AB726154DCc487fE1Ccaf5e3ACC389226Ac0B` |
+| JayoBasket v1, withdraw-only | `0xff5c76EAc645cb07317c95215B382909b9A00218` |
+
+The journey ran through the rebuilt page, with two ordinary wallets. Every
+receipt is in [evidence/testnet-2026-09-25-v3.json](evidence/testnet-2026-09-25-v3.json).
+
+| Step | Receipt | Gas |
+|---|---|---|
+| Bob starts #201 **in kind** with 0.05 TSLA and 0.1 AMZN he holds; exactly those amounts are credited | `0x5eb80fb3…2374` | 502,813 |
+| Alice adds 8 rUSDG to Bob's #201, bound to Bob | `0x520d8760…02d1` | 696,878 |
+| Bob hands #201 to Alice while her page still shows Bob | `0x968254a9…0371` | |
+| Alice's stale addition is refused ("changed hands … nothing was spent") | first run: an exact permission was sent before the refusal (`0x8201d0ac…5a8e`); fixed, and on the second run her nonce stayed at 26 | — |
+| Alice, now the owner, takes out only the AMZN | `0xfa06c897…e08b` | 105,510 |
+| Bob moves 0.02 TSLA into Alice's #201 **in kind**, bound to her | `0x2f2f2faa…9ccb` | 114,279 |
+
+## Version 2 on the live testnet (2026-09-25, superseded the same day)
 
 Deployed beside version 1 (`contracts/script/DeployJayoV2Testnet.s.sol`), reusing
 the live gateway, policy and adapter. All 15 deployment transactions succeeded.

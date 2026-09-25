@@ -363,3 +363,70 @@ ol.log li.err { color: var(--bad); }
   .footer-inner { padding: 20px 16px 32px; }
   .wallet-panel-inner { padding: 12px 16px 16px; }
 }
+
+/* ------------------------------------------------ modes, in kind, steps -- */
+
+.modes { display: inline-flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); margin-bottom: 16px; flex-wrap: wrap; }
+.modes button { font: 700 14px var(--body); border: 0; background: transparent; color: var(--ink-soft); border-radius: 999px; padding: 9px 16px; cursor: pointer; min-height: 40px; }
+.modes button[aria-selected="true"] { background: var(--petrol); color: #fff; }
+.modes-sm { box-shadow: none; background: var(--canvas); margin: 4px 0 14px; }
+.modes-sm button { padding: 7px 12px; min-height: 34px; font-size: 13.5px; }
+.modes-sm button[aria-selected="true"] { background: var(--ink); }
+
+.kind-rows { display: grid; gap: 10px; margin-bottom: 8px; }
+.kind-row { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(120px, 170px) auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: var(--r-md); background: var(--canvas); }
+.kind-row .asset { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.kind-row .swatch { width: 12px; height: 28px; border-radius: 4px; background: var(--c); flex: none; }
+.kind-row .have { display: block; font-size: 12.5px; color: var(--ink-soft); }
+.kind-row input { width: 100%; font: 600 16px var(--body); padding: 8px 10px; border: 1.5px solid var(--line); border-radius: var(--r-sm); background: var(--card); color: var(--ink); text-align: right; }
+.kind-row input:focus { outline: 0; border-color: var(--petrol); }
+.kind-row .max { font: 700 12.5px var(--body); border: 0; background: none; color: var(--petrol); cursor: pointer; padding: 6px; }
+
+.goes-to { font-size: 14px; background: var(--coral-wash); color: var(--coral-ink); border-radius: var(--r-sm); padding: 8px 12px; margin: -6px 0 12px; }
+.goes-to:empty { display: none; }
+
+/* A purchase or deposit is several real steps. Each shows its true state. */
+ol.steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+ol.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; font-size: 14px; color: var(--ink-soft); }
+ol.steps li .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); margin-top: 1px; background: var(--card); }
+ol.steps li[data-state="active"] { color: var(--ink); font-weight: 600; }
+ol.steps li[data-state="active"] .dot { border-color: #D39A2A; background: #FFF3D6; }
+ol.steps li[data-state="pending"] .dot { border-color: var(--petrol); background: var(--petrol-wash); animation: pulse 1s ease-in-out infinite; }
+ol.steps li[data-state="done"] { color: var(--ink); }
+ol.steps li[data-state="done"] .dot { border-color: var(--good); background: var(--good) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8.5l2.5 2.5L12 5.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/12px no-repeat; }
+ol.steps li[data-state="failed"] { color: var(--bad); }
+ol.steps li[data-state="failed"] .dot { border-color: var(--bad); background: var(--bad-wash); }
+ol.steps li[data-state="skipped"] { opacity: .5; }
+ol.steps li small { display: block; font-weight: 500; color: var(--ink-soft); }
+@media (prefers-reduced-motion: reduce) { ol.steps li[data-state="pending"] .dot { animation: none; } }
+
+/* The estimate of what an addition would do, before anything is signed. It is
+   dashed and labelled: an estimate is never drawn like a holding. */
+.ghost { margin-top: 12px; }
+.ribbon-ghost { height: 14px; background: transparent; outline: 1.5px dashed var(--line); outline-offset: 2px; }
+.ribbon-ghost .seg { opacity: .45; background-image: none; }
+.ghost-note { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
+.gain { color: var(--coral-ink); font-weight: 600; font-size: 13px; display: block; }
+
+/* After a confirmed receipt: the changed rows flash, numbers count to their new
+   value, and the new history entry slides in. Only confirmed state animates. */
+@keyframes flashAdd { from { background: var(--coral-wash); } to { background: transparent; } }
+@keyframes flashOut { from { background: var(--line-soft); } to { background: transparent; } }
+@keyframes slideIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+tr.flash-add td { animation: flashAdd 2.2s ease-out; }
+tr.flash-out td { animation: flashOut 2.2s ease-out; }
+ol.history li.fresh { animation: slideIn 500ms ease-out; }
+ol.history li.fresh::after { box-shadow: 0 0 0 4px var(--coral-wash); }
+.owner-line.changed { animation: flashAdd 2.2s ease-out; border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) {
+  tr.flash-add td, tr.flash-out td, ol.history li.fresh, .owner-line.changed { animation: none; }
+}
+.actual-vs { font-size: 13px; color: var(--ink-soft); margin-top: 8px; }
+
+@media (max-width: 640px) {
+  .kind-row { grid-template-columns: 1fr auto; }
+  .kind-row input { grid-column: 1 / -1; grid-row: 2; }
+  .modes { display: flex; }
+  .modes button { flex: 1; }
+}
+tr.ghost-row td { color: var(--ink-soft); border-bottom-style: dashed; }

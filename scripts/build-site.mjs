@@ -3,7 +3,7 @@
 //   node scripts/build-site.mjs                    -> site/dist
 //   node scripts/build-site.mjs --refresh-manifest also rewrites
 //                                                  deployments/robinhood-testnet.json
-//                                                  from contracts/reports/jayo-testnet-v2.json
+//                                                  from contracts/reports/jayo-testnet-v3.json
 //
 // No dependencies beyond Node, so Cloudflare's own build (or a direct upload) can
 // run it as-is. Cloudflare Pages settings: build command `node scripts/build-site.mjs`,
@@ -45,12 +45,14 @@ function creationBlock(script, address) {
 }
 
 if (process.argv.includes("--refresh-manifest")) {
-  // Version 2 is what the site buys through; version 1 stays readable and
-  // withdrawable as `legacyBasket`. The deploy blocks let the page read a
-  // basket's history from its first event instead of from genesis.
-  const report = JSON.parse(readFileSync(join(REPO, "contracts", "reports", "jayo-testnet-v2.json"), "utf8"));
-  report.deployBlock = creationBlock("DeployJayoV2Testnet.s.sol", report.basket);
+  // Version 3 is what the site buys through; versions 1 and 2 stay readable
+  // and withdrawable as `legacyBasket` and `legacyBasket2`. The deploy blocks
+  // let the page read a basket's history from its contract's first event
+  // instead of from genesis.
+  const report = JSON.parse(readFileSync(join(REPO, "contracts", "reports", "jayo-testnet-v3.json"), "utf8"));
+  report.deployBlock = creationBlock("DeployJayoV3Testnet.s.sol", report.basket);
   report.legacyDeployBlock = creationBlock("DeployJayoTestnet.s.sol", report.legacyBasket);
+  report.legacyDeployBlock2 = creationBlock("DeployJayoV2Testnet.s.sol", report.legacyBasket2);
   const clean = sanitiseManifest(report);
   mkdirSync(dirname(PUBLIC_MANIFEST), { recursive: true });
   writeFileSync(PUBLIC_MANIFEST, JSON.stringify(clean, null, 2) + "\n");

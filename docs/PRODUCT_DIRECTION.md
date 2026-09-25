@@ -5,6 +5,16 @@
 Codex review were treated as hypotheses and checked against the chain, the code
 and the competition before any of them was built.
 
+**Update, later on 2026-09-25: version 3.** An independent review (Codex) found
+that a V2 contribution mined after a hand-over reached the new owner. It was
+reproduced and fixed: every addition now names the owner the giver saw. The
+same review proposed in-kind import. It was checked before being built: it does
+**not** make giving tokens cheaper (sending directly is 3.85× cheaper on
+mainnet), but it lets a basket start, grow, change hands and empty with no
+price, pool or keeper. It is live on testnet in V3 at `0xA4Bd…e529`. See
+[HYPOTHESES.md](HYPOTHESES.md) and
+[CODEX_INDEPENDENT_STRATEGY.md](CODEX_INDEPENDENT_STRATEGY.md).
+
 **Status: built and live the same day.**
 - JayoBasket v2 is on testnet at `0x1F0AB726…Ac0B`, with 151 unit tests and 7
   testnet fork tests passing.

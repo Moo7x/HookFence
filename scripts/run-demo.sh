@@ -14,10 +14,21 @@ sleep 4
 
 echo "deploying Jayo (ALL ASSETS ARE MOCKS)..."
 cd "$ROOT/contracts"
-PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+# Anvil's first published key: it holds nothing anywhere but this local chain.
+# The whole forge log is kept, so a failed deployment says why instead of
+# stopping silently after the simulation has already printed its addresses.
+LOG="$(mktemp)"
+if ! PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
   forge script script/DeployJayoLocal.s.sol \
-  --rpc-url http://127.0.0.1:8545 --broadcast --skip-simulation 2>&1 \
-  | grep -E "basket|gateway|policy|usdg|aapl|nvda|SUCCESSFUL"
+  --rpc-url http://127.0.0.1:8545 --broadcast --skip-simulation >"$LOG" 2>&1 \
+  || ! grep -q "ONCHAIN EXECUTION COMPLETE & SUCCESSFUL" "$LOG"; then
+  echo "DEPLOYMENT FAILED. Last lines of the forge log:"
+  tail -n 20 "$LOG" | sed 's/^/    /'
+  rm -f "$LOG"
+  exit 1
+fi
+grep -E "basket|gateway|policy|usdg|aapl|nvda|SUCCESSFUL" "$LOG" || true
+rm -f "$LOG"
 
 echo ""
 echo "starting the interface..."

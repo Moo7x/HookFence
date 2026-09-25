@@ -99,3 +99,19 @@ decoded into plain language, with the raw error folded away.
 - Error: `after/desktop-error-insufficient.png`.
 - Phone width (390 px): no horizontal scrolling, and tap targets are at least
   36 px (44 px for primary buttons).
+
+## Version 3: the living basket (2026-09-25)
+
+The rule: **the page moves only on real state.**
+
+| State | What the page shows | Screenshot |
+|---|---|---|
+| Before signing | who receives an addition ("Goes to … the owner now; if the basket changes hands first, it is refused"); a dashed ribbon of the basket *after* the addition, and "+ about …" per row, both from the contract's own `previewContribute` and labelled as estimates | `after/v3-visitor-estimate.png` |
+| Signing and pending | each real step: permission (exact amount, or "already allowed"), confirm in wallet, waiting for the chain with a receipt link | `after/v3-addition-confirmed.png` |
+| Confirmed | changed rows flash, amounts count up to the **actual** amounts, the new history entry slides in, and the result says "Bought 0.003749 TSLA (estimate 0.003772)" | `after/v3-addition-confirmed.png` |
+| Refused | plain words, nothing spent; a stale owner is caught **before any permission is asked**, so it costs no transaction at all | — |
+| Start in kind | the wallet's Stock Tokens with "All" buttons, a plan suggested from their value, and a note that no price is needed | `after/v3-start-in-kind.png` |
+| Phone | actions follow the holdings | `after/v3-mobile-basket.png` |
+
+`prefers-reduced-motion` turns off the flash, the counting and the slide. An
+estimate is never drawn like a holding: it is dashed, faded, and says so.

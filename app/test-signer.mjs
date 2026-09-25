@@ -70,7 +70,8 @@ export async function createTestSigner({ envPath, manifest: m }) {
   }
   const accounts = keys.map(([, k]) => privateKeyToAccount(k).address);
   const ctx = {
-    chainId: 46630, basket: m.basket, legacyBasket: m.legacyBasket, usdg: m.usdg, accounts,
+    chainId: 46630, basket: m.basket, legacyBaskets: [m.legacyBasket, m.legacyBasket2].filter(Boolean),
+    stocks: m.stocks || [], usdg: m.usdg, accounts,
     protected: [m.gateway, m.policy, m.adapter, m.poolManager, ...(m.stocks || [])].filter(Boolean),
   };
 
