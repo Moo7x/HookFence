@@ -1,8 +1,9 @@
 # Jayo's public testnet site — build, checks, deploy, operate
 
-**Status (2026-09-26):** built and verified locally, including under Cloudflare's
-own Pages runtime. **Not yet published** — publishing needs the owner's Cloudflare
-login (see "Publishing" at the end).
+**Status (2026-09-25):** **live at <https://jayo-testnet.pages.dev>**, built by
+Cloudflare Pages from `master`. Headers and blocked paths were checked on the live
+URL, and the owner ran a purchase and a withdrawal with their own browser wallet
+(below).
 
 ## What the site is
 
@@ -82,9 +83,24 @@ interface a real wallet provides.
 
 All in `docs/evidence/testnet-2026-09-24.json`.
 
-**Not verified here, and why:** a real wallet extension (MetaMask, Rabby) against
-the published URL. That needs a wallet you control; it is the last item in the
-checklist. One known risk to watch for: a wallet that injects its provider with an
+**With a real wallet on the live site (2026-09-25).** The owner used a browser
+wallet extension on <https://jayo-testnet.pages.dev>, from a fresh address
+`0xEDC63393bf4eBd5310E5260121D2b474fCb86a7a`:
+
+| What | Receipt | Result |
+|---|---|---|
+| mint 100 test rUSDG | `0x8e57621a…2687` | success |
+| approve the basket contract | `0x8599c266…f629` | success, but see below |
+| create basket #5 with 20 rUSDG (60% TSLA / 40% AMZN) | `0x95b8776d…1b93` | 0.042470 TSLA + 0.034286 AMZN bought, all 20 spent |
+| withdraw 25% of #5 | `0xd9ead6ef…8fbb` | 0.010618 TSLA + 0.008572 AMZN sent to the wallet |
+
+The one problem it found: the page asked the wallet for an allowance of one
+billion rUSDG rather than the purchase amount. Because `JayoBasket` only ever
+pulls from `msg.sender`, nobody else could have used that allowance. Still, it
+is the kind of request a wallet flags, and it is not needed. The page now
+approves exactly the amount being spent.
+
+One known risk to watch for with other wallets: a wallet that injects its provider with an
 *inline* script would be blocked by `script-src 'self'`. Current MetaMask and Rabby
 inject from the extension, which a page's CSP does not govern.
 

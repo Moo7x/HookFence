@@ -798,11 +798,11 @@ $('btnCreate').addEventListener('click', async () => {
       args: [account().address, D.basket],
     });
     if (allowance < amount) {
-      tx('createTx', 'signing', `Allowing Jayo to use your ${stableSym()} — confirm in your wallet…`);
-      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
+      tx('createTx', 'signing', `Allowing Jayo to use exactly ${formatUnits(amount, 6)} ${stableSym()} for this purchase — confirm in your wallet…`);
+      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, amount] }); // exactly this purchase, never an open-ended allowance
       tx('createTx', 'pending', 'Waiting for the approval to confirm…', ah);
       await pub.waitForTransactionReceipt({ hash: ah });
-      log('approved the basket contract to spend your test stablecoin', 'ok', ah);
+      log(`allowed the basket contract to use exactly ${formatUnits(amount, 6)} test stablecoin`, 'ok', ah);
     }
 
     tx('createTx', 'signing', 'Buying your tokens…');
@@ -1067,11 +1067,11 @@ $('btnCopy').addEventListener('click', async () => {
     const w = wallet();
     const allowance = await pub.readContract({ address: D.usdg, abi: ERC20_ABI, functionName: 'allowance', args: [account().address, D.basket] });
     if (allowance < amount) {
-      tx('copyTx', 'signing', `Allowing Jayo to use your ${stableSym()} — confirm in your wallet…`);
-      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, parseUnits('1000000000', 6)] });
+      tx('copyTx', 'signing', `Allowing Jayo to use exactly ${formatUnits(amount, 6)} ${stableSym()} for this purchase — confirm in your wallet…`);
+      const ah = await send({ address: D.usdg, abi: ERC20_ABI, functionName: 'approve', args: [D.basket, amount] }); // exactly this purchase, never an open-ended allowance
       tx('copyTx', 'pending', 'Waiting for the approval to confirm…', ah);
       await pub.waitForTransactionReceipt({ hash: ah });
-      log('approved the basket contract to spend your test stablecoin', 'ok', ah);
+      log(`allowed the basket contract to use exactly ${formatUnits(amount, 6)} test stablecoin`, 'ok', ah);
     }
     tx('copyTx', 'signing', 'Buying the same mix for you…');
     const hash = await send({ address: D.basket, abi: BASKET_ABI, functionName: 'copyAllocation', args: [BigInt(selectedId), amount, await deadline()] });
